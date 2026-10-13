@@ -1,0 +1,141 @@
+{% extends 'generic/_base.html' %}
+{% load helpers %}
+{% load form_helpers %}
+
+{% block title %}Notifications{% endblock %}
+
+{% block content %}
+  <div class="row">
+    <div class="col-12 col-xl-7 mb-3">
+      <div class="card mb-3">
+        <h2 class="card-header">
+          Destinations
+          <span class="ms-2 badge text-bg-secondary">{{ destinations|length }}</span>
+          {% if not cfg.enabled %}<span class="ms-2 badge text-bg-gray">notifications are switched off</span>{% endif %}
+        </h2>
+        <table class="table table-hover">
+          <thead>
+            <tr><th>Name</th><th>Type</th><th>Webhook</th><th>Last result</th><th class="text-end"></th></tr>
+          </thead>
+          <tbody>
+            {% for d in destinations %}
+              <tr>
+                <td>
+                  {{ d.name }}
+                  {% if not d.enabled %}<span class="badge text-bg-gray">disabled</span>{% endif %}
+                </td>
+                <td><span class="badge text-bg-{% if d.kind == 'teams' %}blue{% elif d.kind == 'slack' %}green{% else %}secondary{% endif %}">{{ d.get_kind_display }}</span></td>
+                <td style="max-width: 240px"><code class="small" style="word-break: break-all; white-space: normal">{{ d.masked_url }}</code>{% if d.secret %} <span class="badge text-bg-purple" title="Requests are signed with HMAC-SHA256">signed</span>{% endif %}</td>
+                <td>
+                  {% if d.last_attempt_at %}
+                    {% if d.last_ok %}<span class="badge text-bg-green">OK</span>{% else %}<span class="badge text-bg-red" title="{{ d.last_error }}">failed</span> <span class="small text-muted">{{ d.last_error }}</span>{% endif %}
+                    <div class="small text-muted">{{ d.last_attempt_at|date:"Y-m-d H:i" }}</div>
+                  {% else %}<span class="text-muted">—</span>{% endif %}
+                </td>
+                <td class="text-end text-nowrap">
+                  {% if can_change %}
+                    <form method="post" action="{% url 'plugins:netbox_dependencies:destination_test' pk=d.pk %}" class="d-inline">
+                      {% csrf_token %}
+                      <button type="submit" class="btn btn-sm btn-outline-primary" title="Send two sample messages (outage + recovery) to this destination"><i class="mdi mdi-send"></i> Test</button>
+                    </form>
+                    <a href="{% url 'plugins:netbox_dependencies:destination_edit' pk=d.pk %}" class="btn btn-sm btn-outline-secondary" title="Edit"><i class="mdi mdi-pencil"></i></a>
+                    <form method="post" action="{% url 'plugins:netbox_dependencies:destination_delete' pk=d.pk %}" class="d-inline"
+                          onsubmit="return confirm('Delete the destination &quot;{{ d.name|escapejs }}&quot;?');">
+                      {% csrf_token %}
+                      <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete"><i class="mdi mdi-trash-can-outline"></i></button>
+                    </form>
+                  {% endif %}
+                </td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="5" class="text-center text-muted">No destination yet — add Teams, Slack or a generic webhook.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% if can_change %}
+          <div class="card-footer">
+            <a href="{% url 'plugins:netbox_dependencies:destination_add' %}" class="btn btn-primary"><i class="mdi mdi-plus-thick"></i> Add destination</a>
+          </div>
+        {% endif %}
+      </div>
+
+      <div class="card">
+        <h2 class="card-header">Recent notifications</h2>
+        <table class="table table-hover">
+          <thead>
+            <tr><th>Device</th><th>Started</th><th>Ended</th><th>Delivery</th></tr>
+          </thead>
+          <tbody>
+            {% for n in recent %}
+              <tr>
+                <td><a href="{{ n.device.get_absolute_url }}">{{ n.device }}</a></td>
+                <td>{{ n.started_at|date:"Y-m-d H:i" }}</td>
+                <td>{% if n.resolved_at %}{{ n.resolved_at|date:"Y-m-d H:i" }}{% else %}<span class="badge text-bg-red">ongoing</span>{% endif %}</td>
+                <td>
+                  {% for dl in n.deliveries.all %}
+                    <div class="small">
+                      <span class="text-muted">{{ dl.destination.name }}:</span>
+                      {{ dl.kind }}
+                      {% if dl.sent_at %}<span class="badge text-bg-green" title="{{ dl.sent_at|date:'Y-m-d H:i' }}">✓ {{ dl.sent_at|date:"H:i" }}</span>
+                      {% elif dl.attempts %}<span class="badge text-bg-red" title="{{ dl.last_error }}">failed ×{{ dl.attempts }}</span>
+                      {% else %}<span class="badge text-bg-gray">pending</span>{% endif %}
+                    </div>
+                  {% empty %}<span class="text-muted">—</span>{% endfor %}
+                </td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="4" class="text-muted text-center">No notifications yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="col-12 col-xl-5 mb-3">
+      <div class="card mb-3">
+        <h2 class="card-header">Settings</h2>
+        <div class="card-body">
+          {% if can_change %}
+            <form method="post">
+              {% csrf_token %}
+              {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+              {% render_field form.enabled %}
+              {% render_field form.delay_seconds %}
+              {% render_field form.notify_recovery %}
+              {% render_field form.public_url %}
+              <div class="text-end"><button type="submit" class="btn btn-primary">Save</button></div>
+            </form>
+            <div class="small text-muted mt-2">
+              Last change:
+              {% if row %}{{ row.updated_at|date:"Y-m-d H:i" }}{% if row.updated_by %} by {{ row.updated_by }}{% endif %}
+              {% else %}never saved (defaults / environment){% endif %}
+            </div>
+          {% else %}
+            <table class="table table-sm mb-0">
+              <tr><th>Notifications</th><td>{% if cfg.enabled %}on{% else %}off{% endif %}</td></tr>
+              <tr><th>Delay</th><td>{{ cfg.delay_seconds }} s</td></tr>
+              <tr><th>Message when the outage ends</th><td>{% if cfg.notify_recovery %}yes{% else %}no{% endif %}</td></tr>
+              <tr><th>NetBox address in links</th><td>{{ cfg.public_url|default:"—" }}</td></tr>
+            </table>
+            <div class="text-muted small mt-2">You do not have permission to change the notification settings.</div>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="card">
+        <h2 class="card-header">How it works</h2>
+        <div class="card-body small">
+          <p class="mb-2">One message per <strong>root-cause outage</strong> (not per affected device) when it starts, and one when it ends.
+            Every destination gets its own copy; if one fails, only that one is retried.</p>
+          <ul class="mb-0">
+            <li><strong>Teams:</strong> Workflow <em>When a Teams webhook request is received</em> → <em>Post card in a chat or channel</em>,
+              card = <code>triggerBody()?['card']</code>. Paste the Workflow URL.</li>
+            <li><strong>Slack:</strong> create an <em>Incoming Webhook</em> for the channel (Slack app → Incoming Webhooks) and paste its URL.</li>
+            <li><strong>Generic webhook:</strong> any HTTP endpoint that accepts JSON (<code>event</code>: outage / recovery, with the devices and impact).
+              Optional signing secret → header <code>X-Signature-256</code>.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}

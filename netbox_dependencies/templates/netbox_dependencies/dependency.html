@@ -1,0 +1,42 @@
+{% extends 'generic/object.html' %}
+{% load helpers %}
+
+{% block content %}
+  <div class="row mb-3">
+    <div class="col col-12 col-md-6">
+      <div class="card">
+        <h2 class="card-header">Dependency</h2>
+        <table class="table table-hover attr-table">
+          <tr>
+            <th scope="row">Upstream device</th>
+            <td><a href="{{ object.upstream.get_absolute_url }}">{{ object.upstream }}</a></td>
+          </tr>
+          <tr>
+            <th scope="row">Downstream device</th>
+            <td><a href="{{ object.downstream.get_absolute_url }}">{{ object.downstream }}</a></td>
+          </tr>
+          <tr>
+            <th scope="row">Type</th>
+            <td>{% badge object.get_dependency_type_display bg_color=object.get_dependency_type_color %}</td>
+          </tr>
+          <tr>
+            <th scope="row">Medium</th>
+            <td>{% badge object.get_medium_display bg_color=object.get_medium_color %}</td>
+          </tr>
+          <tr>
+            <th scope="row">Redundancy group</th>
+            <td>{{ object.redundancy_group|placeholder }}</td>
+          </tr>
+          <tr>
+            <th scope="row">Description</th>
+            <td>{{ object.description|placeholder }}</td>
+          </tr>
+        </table>
+      </div>
+    </div>
+    <div class="col col-12 col-md-6">
+      {% include 'inc/panels/tags.html' %}
+      {% include 'inc/panels/custom_fields.html' %}
+    </div>
+  </div>
+{% endblock %}

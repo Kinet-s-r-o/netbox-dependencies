@@ -1,0 +1,17 @@
+# Example service for the ICMP poller (add to your netbox-docker docker-compose.override.yml).
+services:
+  dependencies-poller:
+    build:
+      context: https://github.com/adrian-13/netbox-dependencies.git#v1.0.0:poller
+    restart: unless-stopped
+    cap_add:
+      - NET_RAW            # raw ICMP sockets
+    environment:
+      NETBOX_URL: http://netbox:8080
+      NETBOX_TOKEN: ${DEPENDENCIES_POLLER_TOKEN}   # e.g. from an env file that is NOT committed
+      # POLL_INTERVAL: 60        # seconds between rounds
+      # PING_COUNT: 3            # packets per device
+      # PING_TIMEOUT: 1          # seconds
+      # PING_CONCURRENCY: 500
+      # ONLY_IN_GRAPH: 1         # poll only devices that are part of a dependency
+      # VERIFY_SSL: 1

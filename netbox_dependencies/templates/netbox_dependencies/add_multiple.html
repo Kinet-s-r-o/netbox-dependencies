@@ -1,0 +1,32 @@
+{% extends 'generic/_base.html' %}
+{% load helpers %}
+{% load form_helpers %}
+
+{% block title %}Add dependencies{% endblock %}
+
+{% block content %}
+  <div class="card">
+    <h2 class="card-header">Add dependencies</h2>
+    <div class="card-body">
+      <p class="text-muted">
+        Select one upstream device and all devices that depend on it. One dependency is created for each of them.
+      </p>
+      <form method="post">
+        {% csrf_token %}
+        {% if form.non_field_errors %}
+          <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+        {% endif %}
+        {% render_field form.upstream %}
+        {% render_field form.downstreams %}
+        {% render_field form.dependency_type %}
+        {% render_field form.medium %}
+        {% render_field form.redundancy_group %}
+        {% render_field form.description %}
+        <div class="text-end">
+          <a href="{% url 'plugins:netbox_dependencies:tree' %}" class="btn btn-outline-secondary">Cancel</a>
+          <button type="submit" class="btn btn-primary">Create</button>
+        </div>
+      </form>
+    </div>
+  </div>
+{% endblock %}

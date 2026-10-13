@@ -1,0 +1,32 @@
+<table class="table table-hover">
+  <thead>
+    <tr>
+      <th>State</th>
+      <th>Device</th>
+      <th>Site</th>
+      <th>Role</th>
+      <th>Tenant</th>
+      <th>Depth</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in rows %}
+      <tr>
+        <td>
+          {% if row.state == 'down' %}
+            <span class="badge text-bg-red">Down</span>
+          {% else %}
+            <span class="badge text-bg-orange">Degraded</span>
+          {% endif %}
+        </td>
+        <td><a href="{{ row.device.get_absolute_url }}">{{ row.device }}</a></td>
+        <td>{% if row.device.site %}<a href="{{ row.device.site.get_absolute_url }}">{{ row.device.site }}</a>{% else %}—{% endif %}</td>
+        <td>{{ row.device.role|default:"—" }}</td>
+        <td>{% if row.device.tenant %}<a href="{{ row.device.tenant.get_absolute_url }}">{{ row.device.tenant }}</a>{% else %}—{% endif %}</td>
+        <td>{{ row.depth }}</td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="6" class="text-muted text-center">No devices are affected.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>

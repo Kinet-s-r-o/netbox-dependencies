@@ -1,0 +1,37 @@
+# Packaging for the NetBox Dependencies plugin.
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "netbox-dependencies"
+version = "1.0.0"
+authors = [
+    { name = "Adrián Javorček", email = "adrian.javorcek@gmail.com" },
+]
+description = "Device dependency tree and outage impact analysis for NetBox."
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+keywords = ["netbox", "netbox-plugin", "dependencies", "impact-analysis"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Framework :: Django",
+    "License :: OSI Approved :: MIT License",
+    "Intended Audience :: System Administrators",
+    "Topic :: System :: Networking :: Monitoring",
+    "Programming Language :: Python :: 3 :: Only",
+]
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/adrian-13/netbox-dependencies"
+Issues = "https://github.com/adrian-13/netbox-dependencies/issues"
+Changelog = "https://github.com/adrian-13/netbox-dependencies/blob/main/CHANGELOG.md"
+
+[tool.setuptools.packages.find]
+include = ["netbox_dependencies*"]
+exclude = ["netbox_dependencies.tests*"]
+
+[tool.setuptools.package-data]
+netbox_dependencies = ["templates/netbox_dependencies/**/*.html", "vendor/*"]

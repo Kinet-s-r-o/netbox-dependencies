@@ -1,0 +1,70 @@
+{% extends base_template %}
+{% load helpers %}
+
+{% block content %}
+  <div class="mb-3">
+    Status:
+    {% if device_status %}
+      {% badge device_status.get_state_display bg_color=device_status.get_state_color %}
+      <span class="text-muted small">
+        {{ device_status.get_source_display }}, checked {{ device_status.last_checked|timesince }} ago
+        {% if device_status.detail %}— {{ device_status.detail }}{% endif %}
+      </span>
+    {% else %}
+      <span class="badge text-bg-gray">No data</span>
+    {% endif %}
+  </div>
+  <div class="row mb-3">
+    <div class="col col-12 col-xl-6">
+      <div class="card">
+        <h2 class="card-header">Depends on (upstream)</h2>
+        <table class="table table-hover">
+          {% for dep in upstream_deps %}
+            <tr>
+              <td><a href="{{ dep.upstream.get_absolute_url }}">{{ dep.upstream }}</a></td>
+              <td>{% badge dep.get_dependency_type_display bg_color=dep.get_dependency_type_color %}</td>
+              <td>{{ dep.redundancy_group|placeholder }}</td>
+              <td class="text-end"><a href="{{ dep.get_absolute_url }}">Detail</a></td>
+            </tr>
+          {% empty %}
+            <tr><td class="text-muted">No upstream dependencies.</td></tr>
+          {% endfor %}
+          {% if upstream_total > list_limit %}
+            <tr><td colspan="4" class="text-muted small">Showing {{ list_limit }} of {{ upstream_total }} —
+              <a href="{% url 'plugins:netbox_dependencies:dependency_list' %}?downstream_id={{ object.pk }}">show all</a></td></tr>
+          {% endif %}
+        </table>
+      </div>
+    </div>
+    <div class="col col-12 col-xl-6">
+      <div class="card">
+        <h2 class="card-header">Directly dependent (downstream)</h2>
+        <table class="table table-hover">
+          {% for dep in downstream_deps %}
+            <tr>
+              <td><a href="{{ dep.downstream.get_absolute_url }}">{{ dep.downstream }}</a></td>
+              <td>{% badge dep.get_dependency_type_display bg_color=dep.get_dependency_type_color %}</td>
+              <td>{{ dep.redundancy_group|placeholder }}</td>
+              <td class="text-end"><a href="{{ dep.get_absolute_url }}">Detail</a></td>
+            </tr>
+          {% empty %}
+            <tr><td class="text-muted">No downstream dependencies.</td></tr>
+          {% endfor %}
+          {% if downstream_total > list_limit %}
+            <tr><td colspan="4" class="text-muted small">Showing {{ list_limit }} of {{ downstream_total }} —
+              <a href="{% url 'plugins:netbox_dependencies:dependency_list' %}?upstream_id={{ object.pk }}">show all</a></td></tr>
+          {% endif %}
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <h2 class="card-header">
+      Impact if {{ object }} fails
+      <span class="ms-3 badge text-bg-red">{{ impact_summary.down }} down</span>
+      <span class="badge text-bg-orange">{{ impact_summary.degraded }} degraded</span>
+    </h2>
+    {% include 'netbox_dependencies/inc/impact_table.html' with rows=impact_rows %}
+    {% include 'inc/paginator.html' with paginator=paginator page=page %}
+  </div>
+{% endblock %}

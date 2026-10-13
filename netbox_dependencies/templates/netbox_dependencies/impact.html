@@ -1,0 +1,32 @@
+{% extends 'generic/_base.html' %}
+{% load helpers %}
+{% load form_helpers %}
+
+{% block title %}Outage simulation{% endblock %}
+
+{% block content %}
+  <div class="card mb-3">
+    <h2 class="card-header">Simulate outage</h2>
+    <div class="card-body">
+      <form method="get">
+        {% render_field form.devices %}
+        <button type="submit" class="btn btn-primary">
+          <i class="mdi mdi-flash-alert"></i> Show impact
+        </button>
+      </form>
+    </div>
+  </div>
+
+  {% if searched %}
+    <div class="card">
+      <h2 class="card-header">
+        <span class="me-2">Impact of failure:</span>
+        {% for d in failed %}<a href="{{ d.get_absolute_url }}">{{ d }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}
+        <span class="ms-3 badge text-bg-red">{{ summary.down }} down</span>
+        <span class="badge text-bg-orange">{{ summary.degraded }} degraded</span>
+      </h2>
+      {% include 'netbox_dependencies/inc/impact_table.html' %}
+      {% include 'inc/paginator.html' with paginator=paginator page=page %}
+    </div>
+  {% endif %}
+{% endblock %}

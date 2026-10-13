@@ -1,0 +1,4 @@
+Cytoscape.js 3.30.4 - MIT License - Copyright (c) 2016-2024, The Cytoscape Consortium
+https://js.cytoscape.org/
+
+Role icons (router, switch, access-point, server, firewall): Material Design Icons (@mdi/svg 7.4.47) - Apache-2.0 - https://pictogrammers.com/library/mdi/

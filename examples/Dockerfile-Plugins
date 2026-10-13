@@ -1,0 +1,7 @@
+# Example for netbox-docker: build a NetBox image with the plugin installed.
+# See https://github.com/netbox-community/netbox-docker/wiki/Using-Netbox-Plugins
+ARG NETBOX_VERSION=v4.6
+FROM netboxcommunity/netbox:${NETBOX_VERSION}
+
+RUN /usr/local/bin/uv pip install --python /opt/netbox/venv/bin/python \
+    "netbox-dependencies @ git+https://github.com/adrian-13/netbox-dependencies.git@v1.0.0"

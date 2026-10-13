@@ -1,0 +1,1045 @@
+{% extends 'generic/_base.html' %}
+{% load helpers %}
+
+{% block title %}Dependency graph{% endblock %}
+
+{% block controls %}
+  <div class="btn-list">
+    <a href="{% url 'plugins:netbox_dependencies:tree' %}" class="btn btn-outline-secondary"><i class="mdi mdi-file-tree"></i> Tree</a>
+    <a href="{% url 'plugins:netbox_dependencies:dependency_list' %}" class="btn btn-outline-secondary"><i class="mdi mdi-format-list-bulleted"></i> List</a>
+    {% if perms.netbox_dependencies.add_dependency %}
+      <a href="{% url 'plugins:netbox_dependencies:add_multiple' %}" class="btn btn-primary"><i class="mdi mdi-plus-thick"></i> Add dependencies</a>
+    {% endif %}
+  </div>
+{% endblock %}
+
+{% block content %}
+  <style>
+    #dep-graph { height: 70vh; min-height: 440px; width: 100%; }
+    .dep-leg-row { display: flex; align-items: center; gap: .7rem; margin-bottom: .45rem; font-size: .9rem; }
+    .dep-leg-row .sw { flex: 0 0 74px; display: flex; align-items: center; justify-content: center; }
+    .dep-leg-row .dot { display: inline-block; width: 16px; height: 16px; border-radius: 4px; }
+    #dep-ctx { position: fixed; z-index: 1080; min-width: 200px; }
+    #dep-ctx .dropdown-item svg { flex: 0 0 38px; }
+    .dep-wrap { display: flex; align-items: flex-start; }
+    #dep-side { flex: 0 0 var(--dep-side-w, 300px); min-width: 0; }
+    #dep-split { flex: 0 0 14px; align-self: stretch; cursor: col-resize; position: relative; touch-action: none; }
+    #dep-split::after { content: ''; position: absolute; left: 6px; top: 0; bottom: 0; width: 2px;
+                        background: var(--tblr-border-color, #666); opacity: .7; transition: background .15s; }
+    #dep-split:hover::after, #dep-split:focus-visible::after, #dep-split.drag::after { background: #4299e1; opacity: 1; width: 3px; left: 5px; }
+    #dep-main { flex: 1 1 0; min-width: 0; }
+    @media (max-width: 991px) {
+      .dep-wrap { flex-direction: column; align-items: stretch; }
+      #dep-side { flex: 1 1 auto; width: 100%; }
+      #dep-split { display: none; }
+    }
+    #dep-sidebar { max-height: 84vh; overflow: auto; }
+    #dep-sidebar ul { list-style: none; margin: 0; padding-left: 1rem; }
+    #dep-sidebar > .card-body > ul { padding-left: 0; }
+    #dep-sidebar summary { cursor: pointer; padding: .15rem 0; }
+    #dep-sidebar .dep-scope-leaf { padding: .15rem 0 .15rem 1rem; }
+    #dep-sidebar .active > a, #dep-sidebar .active a { font-weight: 700; }
+    #dep-sidebar .active { background: rgba(66, 153, 225, .15); border-radius: 4px; }
+    #dep-sidebar .badge { font-size: .7rem; }
+    .dep-chips a { margin: 0 .35rem .35rem 0; }
+    .dep-toolbar { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; padding: .5rem 1rem; border-top: 1px solid var(--tblr-border-color, #444); }
+    .dep-toolbar .form-control { width: 230px; }
+    .dep-filter-menu { min-width: 270px; max-height: 70vh; overflow: auto; }
+    .dep-filter-menu h6 { margin-top: .5rem; }
+    .dep-graph-box { position: relative; }
+    #dep-mini { position: absolute; right: 10px; bottom: 10px; border: 1px solid var(--tblr-border-color, #666);
+                background: rgba(20, 28, 40, .55); border-radius: 4px; cursor: crosshair; line-height: 0; z-index: 5; }
+    #dep-mini[hidden] { display: none; }
+    #dep-mini img { display: block; max-width: 180px; max-height: 120px; user-select: none; -webkit-user-drag: none; }
+    #dep-mini-view { position: absolute; border: 2px solid #4299e1; background: rgba(66, 153, 225, .18); pointer-events: none; box-sizing: border-box; }
+    .dep-live-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #9aa0a6; margin-right: 4px; }
+    .dep-live-dot.on { background: #2fb344; }
+    .dep-live-dot.err { background: #d63939; }
+    #dep-pop { position: absolute; z-index: 6; width: 310px; max-height: 80%; overflow: auto; padding: .75rem .9rem;
+               background: var(--tblr-bg-surface, #fff); color: var(--tblr-body-color, inherit);
+               border: 1px solid var(--tblr-border-color, #666); border-radius: 8px; box-shadow: 0 6px 22px rgba(0, 0, 0, .35); }
+    #dep-pop[hidden] { display: none; }
+    #dep-pop .k { font-size: .7rem; text-transform: uppercase; opacity: .65; }
+    #dep-pop .dep-row { display: flex; justify-content: space-between; gap: .75rem; padding: .15rem 0; font-size: .85rem; }
+    #dep-pop .dep-row .v { text-align: right; word-break: break-word; }
+    #dep-pop .dep-close { position: absolute; top: .3rem; right: .45rem; border: 0; background: none; color: inherit;
+                          opacity: .6; font-size: 1.2rem; line-height: 1; cursor: pointer; }
+    #dep-pop .dep-close:hover { opacity: 1; }
+    @media print {
+      .navbar, .page-header, #dep-side, #dep-split, .dep-toolbar, .dep-chips, nav.small, #dep-toasts, .card-header .btn, #dep-mini { display: none !important; }
+      #dep-graph { height: 85vh; }
+    }
+  </style>
+
+  <div class="dep-wrap" id="dep-layout-wrap">
+    <div id="dep-side" class="mb-3">
+      <div class="card" id="dep-sidebar">
+        <div class="card-header">
+          <input type="search" id="dep-sidebar-filter" class="form-control form-control-sm" placeholder="Filter locations…">
+        </div>
+        <div class="card-body p-2">
+          <div class="dep-scope-leaf {% if scope == 'all' %}active{% endif %} mb-1">
+            <a href="{% url 'plugins:netbox_dependencies:graph' %}"><strong>All</strong></a>
+            <span class="badge text-bg-secondary">{{ sidebar.total }}</span>
+            {% if sidebar.total_down %}<span class="badge text-bg-red">{{ sidebar.total_down }}</span>{% endif %}
+          </div>
+          <div class="d-flex justify-content-between align-items-center mt-2 mb-1">
+            <span class="small text-uppercase text-muted">Custom maps</span>
+            <a href="{% url 'plugins:netbox_dependencies:custommap_list' %}" class="small">Manage</a>
+          </div>
+          <ul class="mb-2">
+            {% for m in sidebar.custom %}
+              <li class="dep-scope">
+                <div class="dep-scope-leaf {% if m.active %}active{% endif %}">
+                  <a href="{{ m.url }}">{{ m.name }}</a>
+                  <span class="badge text-bg-secondary">{{ m.count }}</span>
+                  {% if m.down %}<span class="badge text-bg-red" title="Devices down">{{ m.down }}</span>{% endif %}
+                </div>
+              </li>
+            {% empty %}
+              <li class="text-muted small ps-3">None yet — create one via “Manage”.</li>
+            {% endfor %}
+          </ul>
+          <div class="small text-uppercase text-muted mt-2 mb-1">Locations</div>
+          <ul>
+            {% for node in sidebar.tree %}
+              {% include 'netbox_dependencies/inc/scope_node.html' with scope_all=scope_all %}
+            {% endfor %}
+          </ul>
+          {% if not sidebar.tree %}<div class="text-muted small p-2">No dependencies yet.</div>{% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div id="dep-split" role="separator" aria-orientation="vertical" tabindex="0"
+         title="Drag to resize (double-click resets, arrow keys adjust)"></div>
+
+    <div id="dep-main">
+      <nav class="mb-2 small">
+        {% for c in graph.crumbs %}<a href="{{ c.url }}">{{ c.name }}</a> <span class="text-muted">›</span> {% endfor %}
+        <strong>{{ graph.title }}</strong>
+      </nav>
+      {% if graph.neighbours %}
+        <div class="dep-chips mb-2 small">
+          <span class="text-muted me-1">Links to other maps:</span>
+          {% for n in graph.neighbours %}
+            <a href="{{ n.url }}" class="badge text-bg-blue text-decoration-none">{{ n.name }} · {{ n.links }}</a>
+          {% endfor %}
+        </div>
+      {% endif %}
+
+      {% if graph.custom_map %}
+        <div class="mb-2 small">
+          <span class="badge text-bg-purple">Custom map</span>
+          {% if perms.netbox_dependencies.change_custommap %}
+            <a href="{{ graph.custom_map.edit_url }}" class="ms-2"><i class="mdi mdi-pencil"></i> Edit devices / name</a>
+          {% endif %}
+        </div>
+      {% endif %}
+      {% if graph.inherited %}
+        <div class="alert alert-info py-2 small mb-2" id="dep-inherited">
+          This map has no layout of its own yet — devices are placed as on the <strong>All</strong> map.
+          Move any device and the layout of this map is saved automatically.
+        </div>
+      {% endif %}
+      <div id="dep-toasts"></div>
+      <div id="dep-outages"></div>
+
+      <div class="card">
+        <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+          <div>
+            <strong id="dep-count"></strong>
+          </div>
+          <div class="d-flex flex-wrap gap-2 align-items-center">
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="dep-legend-btn" data-bs-toggle="modal" data-bs-target="#dep-legend-modal" title="Legend and controls"><i class="mdi mdi-help-circle-outline"></i> Legend</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="dep-fit">Fit</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="dep-png" title="Download the whole map as a PNG image"><i class="mdi mdi-image-outline"></i> PNG</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="dep-print" title="Print the map"><i class="mdi mdi-printer"></i></button>
+            <span id="dep-save-state" class="small ms-1" aria-live="polite"></span>
+          </div>
+        </div>
+
+        <div class="dep-toolbar">
+          <div class="d-flex align-items-center gap-2">
+            <input type="search" id="dep-search" class="form-control form-control-sm" placeholder="Search name, IP, site, role…" title="Type to highlight matches, Enter zooms to them, Esc clears" autocomplete="off">
+            <span id="dep-search-count" class="text-muted small"></span>
+          </div>
+
+          <div class="dropdown">
+            <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
+              <i class="mdi mdi-filter-variant"></i> Filters <span id="dep-filter-badge" class="badge text-bg-blue" hidden></span>
+            </button>
+            <div class="dropdown-menu p-3 dep-filter-menu">
+              <label class="form-check mb-2">
+                <input type="checkbox" class="form-check-input" id="dep-f-problems">
+                <span class="form-check-label"><strong>Only problems</strong> (down devices + their neighbours)</span>
+              </label>
+              <h6 class="dropdown-header px-0">Status</h6>
+              <div id="dep-f-states"></div>
+              <h6 class="dropdown-header px-0">Role</h6>
+              <div id="dep-f-roles"></div>
+              <h6 class="dropdown-header px-0">Link type</h6>
+              <div id="dep-f-types"></div>
+              <h6 class="dropdown-header px-0">Link medium</h6>
+              <div id="dep-f-media"></div>
+              <div class="dropdown-divider"></div>
+              <label class="form-check mb-2">
+                <input type="checkbox" class="form-check-input" id="dep-f-labels" checked>
+                <span class="form-check-label">Show link labels</span>
+              </label>
+              <button type="button" class="btn btn-sm btn-outline-secondary w-100" id="dep-f-clear">Clear filters</button>
+            </div>
+          </div>
+
+          <span class="small text-muted ms-2" title="Device status refreshes automatically every 30 s">
+            <span class="dep-live-dot on" id="dep-live-dot"></span><span id="dep-live-info"></span>
+          </span>
+
+          <button type="button" class="btn btn-sm btn-outline-secondary ms-auto" id="dep-mini-toggle" title="Show / hide the overview map"><i class="mdi mdi-map-outline"></i> Overview</button>
+        </div>
+
+        <div id="dep-summary" class="px-3 pt-2"></div>
+        <div class="dep-graph-box">
+          <div id="dep-graph"></div>
+          <div id="dep-pop" hidden role="dialog" aria-label="Device info"></div>
+          <div id="dep-mini" hidden><img id="dep-mini-img" alt="" draggable="false"><div id="dep-mini-view"></div></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div id="dep-ctx" class="dropdown-menu" role="menu"></div>
+
+  <div class="modal modal-blur fade" id="dep-legend-modal" tabindex="-1" aria-labelledby="dep-legend-title" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="dep-legend-title">Legend</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="row">
+            <div class="col-12 col-md-6 mb-3">
+              <h6 class="text-uppercase text-muted small">Device status</h6>
+              <div class="dep-leg-row"><span class="sw"><i class="dot" style="background:#2fb344"></i></span>Up</div>
+              <div class="dep-leg-row"><span class="sw"><i class="dot" style="background:#d63939"></i></span>Down</div>
+              <div class="dep-leg-row"><span class="sw"><i class="dot" style="background:#9aa0a6"></i></span>Unknown (stale or in maintenance)</div>
+              <div class="dep-leg-row"><span class="sw"><i class="dot" style="background:#566a80"></i></span>No status yet</div>
+              <div class="dep-leg-row"><span class="sw"><i class="dot" style="background:#f76707"></i></span>Degraded (outage simulation)</div>
+              <div class="dep-leg-row"><span class="sw"><i class="dot" style="background:#ae3ec9"></i></span>Selected as failed (simulation)</div>
+              <div class="dep-leg-row"><span class="sw"><i class="dot" style="background:transparent;border:3px solid #ff3b30"></i></span>Root cause of an outage</div>
+              <div class="dep-leg-row"><span class="sw"><i class="dot" style="background:transparent;border:2px solid #ffd43b"></i></span>Search match</div>
+            </div>
+            <div class="col-12 col-md-6 mb-3">
+              <h6 class="text-uppercase text-muted small">Links (right-click a link to change its medium)</h6>
+              <div class="dep-leg-row"><span class="sw"><svg width="70" height="14"><line x1="2" y1="7" x2="68" y2="7" stroke="#4299e1" stroke-width="2.5"/></svg></span>Ethernet</div>
+              <div class="dep-leg-row"><span class="sw"><svg width="70" height="14"><line x1="2" y1="7" x2="68" y2="7" stroke="#f59f00" stroke-width="2.5"/></svg></span>Optical</div>
+              <div class="dep-leg-row"><span class="sw"><svg width="70" height="14"><line x1="2" y1="7" x2="68" y2="7" stroke="#22b8cf" stroke-width="2.5" stroke-dasharray="7 5"/></svg></span>Radio</div>
+              <div class="dep-leg-row"><span class="sw"><svg width="70" height="14"><line x1="2" y1="7" x2="68" y2="7" stroke="#868e96" stroke-width="2"/></svg></span>Unspecified</div>
+              <div class="dep-leg-row"><span class="sw"><svg width="70" height="14"><line x1="2" y1="7" x2="68" y2="7" stroke="#ae3ec9" stroke-opacity=".4" stroke-width="10" stroke-linecap="round"/><line x1="2" y1="7" x2="68" y2="7" stroke="#4299e1" stroke-width="2.5"/></svg></span>Purple glow = redundancy group (backup path)</div>
+              <h6 class="text-uppercase text-muted small mt-3">Other</h6>
+              <div class="dep-leg-row"><span class="sw"><svg width="62" height="28" viewBox="0 0 200 90"><g fill="#566a80"><ellipse cx="100" cy="45" rx="80" ry="31"/><circle cx="27" cy="45" r="21"/><circle cx="173" cy="45" r="21"/><circle cx="55" cy="31" r="22"/><circle cx="87" cy="24" r="24"/><circle cx="121" cy="24" r="24"/><circle cx="150" cy="31" r="22"/><circle cx="55" cy="60" r="21"/><circle cx="87" cy="66" r="21"/><circle cx="121" cy="66" r="21"/><circle cx="150" cy="60" r="21"/></g></svg></span>Another location (click opens its map); the link label shows the remote device</div>
+            </div>
+          </div>
+          <h6 class="text-uppercase text-muted small">Controls</h6>
+          <ul class="small mb-0">
+            <li>Click a device: info popup next to it (description, status, IP, …). Right-click a device: outage simulation (Shift+right-click adds more devices). Click empty space to clear.</li>
+            <li>Double-click a device to open it. Drag devices to arrange; the layout of this map is saved automatically.</li>
+            <li>Right-click a link to set its medium (Ethernet, Optical, Radio).</li>
+            <li>Search: Enter zooms to the matches, Esc clears. Filters hide devices and links by status, role, type and medium.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="dep-csrf" hidden data-can-save="{% if perms.netbox_dependencies.change_dependency %}1{% else %}0{% endif %}">{% csrf_token %}</div>
+  {{ graph|json_script:"dep-graph-data" }}
+  <script src="{% url 'plugins:netbox_dependencies:cytoscape_js' %}"></script>
+  <script>
+  (function () {
+    // ---- sidebar width (drag, double-click = reset, arrow keys; remembered in the browser)
+    var wrap = document.getElementById('dep-layout-wrap');
+    var side = document.getElementById('dep-side');
+    var split = document.getElementById('dep-split');
+    var WIDTH_KEY = 'depSidebarWidth', DEFAULT_W = 300, MIN_W = 180, MAX_W = 700;
+    function setWidth(w) {
+      w = Math.max(MIN_W, Math.min(MAX_W, w));
+      wrap.style.setProperty('--dep-side-w', w + 'px');
+      if (window.depCy) { window.depCy.resize(); }
+      return w;
+    }
+    function remember(w) { try { localStorage.setItem(WIDTH_KEY, String(Math.round(w))); } catch (e) {} }
+    try {
+      var savedW = parseInt(localStorage.getItem(WIDTH_KEY), 10);
+      if (savedW) { setWidth(savedW); }
+    } catch (e) {}
+    split.addEventListener('pointerdown', function (e) {
+      e.preventDefault();
+      split.setPointerCapture(e.pointerId);
+      split.classList.add('drag');
+      var startX = e.clientX, startW = side.getBoundingClientRect().width;
+      function move(ev) { setWidth(startW + ev.clientX - startX); }
+      function up() {
+        split.classList.remove('drag');
+        split.removeEventListener('pointermove', move);
+        split.removeEventListener('pointerup', up);
+        split.removeEventListener('pointercancel', up);
+        remember(side.getBoundingClientRect().width);
+      }
+      split.addEventListener('pointermove', move);
+      split.addEventListener('pointerup', up);
+      split.addEventListener('pointercancel', up);
+    });
+    split.addEventListener('dblclick', function () {
+      setWidth(DEFAULT_W);
+      try { localStorage.removeItem(WIDTH_KEY); } catch (e) {}
+    });
+    split.addEventListener('keydown', function (e) {
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') { return; }
+      e.preventDefault();
+      var w = setWidth(side.getBoundingClientRect().width + (e.key === 'ArrowRight' ? 20 : -20));
+      remember(w);
+    });
+
+    // ---- filter in the sidebar
+    document.getElementById('dep-sidebar-filter').addEventListener('input', function () {
+      var q = this.value.trim().toLowerCase();
+      document.querySelectorAll('#dep-sidebar li.dep-scope').forEach(function (li) {
+        var match = !q || li.textContent.toLowerCase().indexOf(q) >= 0;
+        li.style.display = match ? '' : 'none';
+        if (q && match) { li.querySelectorAll('details').forEach(function (d) { d.open = true; }); }
+      });
+    });
+
+    var data = JSON.parse(document.getElementById('dep-graph-data').textContent);
+    var textColor = getComputedStyle(document.body).color || '#fff';
+    var COLORS = {up: '#2fb344', down: '#d63939', unknown: '#9aa0a6', none: '#566a80', degraded: '#f76707', failed: '#ae3ec9'};
+    var MEDIUM_COLOR = {ethernet: '#4299e1', optical: '#f59f00', radio: '#22b8cf', unspecified: '#868e96'};
+    var MEDIUM_LABEL = {ethernet: 'Ethernet', optical: 'Optical', radio: 'Radio', unspecified: 'Unspecified'};
+    var STATE_LABEL = {up: 'Up', down: 'Down', unknown: 'Unknown', none: 'No status'};
+    var BADGE = {up: 'green', down: 'red', unknown: 'gray', none: 'secondary'};
+    var originalTitle = document.title;
+
+    function el(tag, attrs, children) {
+      var e = document.createElement(tag);
+      Object.keys(attrs || {}).forEach(function (k) {
+        if (k === 'text') { e.textContent = attrs[k]; } else if (k === 'class') { e.className = attrs[k]; } else { e.setAttribute(k, attrs[k]); }
+      });
+      (children || []).forEach(function (c) { e.appendChild(typeof c === 'string' ? document.createTextNode(c) : c); });
+      return e;
+    }
+    function ago(iso) {
+      if (!iso) { return ''; }
+      var s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+      if (s < 90) { return 'just now'; }
+      if (s < 5400) { return Math.round(s / 60) + ' min ago'; }
+      if (s < 129600) { return Math.round(s / 3600) + ' h ago'; }
+      return Math.round(s / 86400) + ' d ago';
+    }
+    function lsGet(k, d) { try { var v = localStorage.getItem(k); return v === null ? d : v; } catch (e) { return d; } }
+    function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+
+    var countEl = document.getElementById('dep-count');
+    if (!data.nodes.length) {
+      countEl.textContent = data.too_large ? data.too_large.nodes + ' devices (not drawn)' : '0 devices';
+      var emptyBox = document.getElementById('dep-graph');
+      if (data.too_large) {
+        emptyBox.appendChild(el('div', {class: 'alert alert-warning m-3'}, [
+          el('strong', {text: 'This map is too large to draw (' + data.too_large.nodes + ' devices, limit ' + data.too_large.limit + '). '}),
+          'Pick a location or a custom map in the left panel, or ',
+          el('a', {href: data.too_large.force_url, text: 'draw it anyway'}),
+          '.'
+        ]));
+      } else {
+        emptyBox.innerHTML = '<div class="text-muted p-4">No dependencies on this map.</div>';
+      }
+      document.querySelectorAll('.dep-toolbar input, .dep-toolbar button, #dep-fit, #dep-png').forEach(function (e) { e.disabled = true; });
+      return;
+    }
+
+    // ---- role icons (Material Design Icons, Apache-2.0)
+    var ICON_PATHS = {
+      router: 'M5 9C3.9 9 3 9.9 3 11V15C3 16.11 3.9 17 5 17H11V19H10C9.45 19 9 19.45 9 20H2V22H9C9 22.55 9.45 23 10 23H14C14.55 23 15 22.55 15 22H22V20H15C15 19.45 14.55 19 14 19H13V17H19C20.11 17 21 16.11 21 15V11C21 9.9 20.11 9 19 9H5M6 12H8V14H6V12M9.5 12H11.5V14H9.5V12M13 12H15V14H13V12Z',
+      switch: 'M13,18H14A1,1 0 0,1 15,19H22V21H15A1,1 0 0,1 14,22H10A1,1 0 0,1 9,21H2V19H9A1,1 0 0,1 10,18H11V16H8A1,1 0 0,1 7,15V3A1,1 0 0,1 8,2H16A1,1 0 0,1 17,3V15A1,1 0 0,1 16,16H13V18M13,6H14V4H13V6M9,4V6H11V4H9M9,8V10H11V8H9M9,12V14H11V12H9Z',
+      radio: 'M4.93,4.93C3.12,6.74 2,9.24 2,12C2,14.76 3.12,17.26 4.93,19.07L6.34,17.66C4.89,16.22 4,14.22 4,12C4,9.79 4.89,7.78 6.34,6.34L4.93,4.93M19.07,4.93L17.66,6.34C19.11,7.78 20,9.79 20,12C20,14.22 19.11,16.22 17.66,17.66L19.07,19.07C20.88,17.26 22,14.76 22,12C22,9.24 20.88,6.74 19.07,4.93M7.76,7.76C6.67,8.85 6,10.35 6,12C6,13.65 6.67,15.15 7.76,16.24L9.17,14.83C8.45,14.11 8,13.11 8,12C8,10.89 8.45,9.89 9.17,9.17L7.76,7.76M16.24,7.76L14.83,9.17C15.55,9.89 16,10.89 16,12C16,13.11 15.55,14.11 14.83,14.83L16.24,16.24C17.33,15.15 18,13.65 18,12C18,10.35 17.33,8.85 16.24,7.76M12,10A2,2 0 0,0 10,12A2,2 0 0,0 12,14A2,2 0 0,0 14,12A2,2 0 0,0 12,10Z',
+      server: 'M13,19H14A1,1 0 0,1 15,20H22V22H15A1,1 0 0,1 14,23H10A1,1 0 0,1 9,22H2V20H9A1,1 0 0,1 10,19H11V17H4A1,1 0 0,1 3,16V12A1,1 0 0,1 4,11H20A1,1 0 0,1 21,12V16A1,1 0 0,1 20,17H13V19M4,3H20A1,1 0 0,1 21,4V8A1,1 0 0,1 20,9H4A1,1 0 0,1 3,8V4A1,1 0 0,1 4,3M9,7H10V5H9V7M9,15H10V13H9V15M5,5V7H7V5H5M5,13V15H7V13H5Z',
+      firewall: 'M22.14 15.34L22.12 15.35C22.35 15.63 22.55 15.94 22.7 16.27L22.79 16.46C23.5 18.15 23 20.1 21.69 21.32C20.5 22.41 18.84 22.7 17.3 22.5C15.84 22.32 14.5 21.4 13.73 20.13C13.5 19.74 13.3 19.3 13.2 18.85C13.07 18.5 13.03 18.12 13 17.75C12.91 16.15 13.55 14.45 14.76 13.45C14.21 14.66 14.34 16.17 15.15 17.22L15.26 17.35C15.4 17.47 15.57 17.5 15.73 17.44C15.88 17.38 16 17.23 16 17.07L15.93 16.83C15.05 14.5 15.79 11.8 17.66 10.27C18.17 9.85 18.8 9.47 19.46 9.3C18.78 10.66 19 12.44 20.09 13.5C20.55 14 21.11 14.29 21.58 14.73L22.14 15.34M19.86 20L19.85 19.97C20.3 19.58 20.55 18.91 20.53 18.31L20.5 18C20.3 17 19.43 16.66 18.87 15.93L18.44 15.15C18.22 15.65 18.2 16.12 18.29 16.66C18.39 17.23 18.61 17.72 18.5 18.31C18.34 18.96 17.83 19.61 16.94 19.82C17.44 20.31 18.25 20.7 19.06 20.42C19.32 20.35 19.65 20.16 19.86 20M3 16H11.06L11 17C11 18.41 11.36 19.73 12 20.88V21H3V16M2 10H8V15H2V10M9 10H15V10.07C13.17 11.13 11.79 12.9 11.25 15H9V10M3 4H11V9H3V4M12 4H21V9H12V4Z'
+    };
+    function iconFor(role) {
+      var r = (role || '').toLowerCase();
+      if (/fire\s*wall|firewall/.test(r)) { return 'firewall'; }
+      if (/router|route/.test(r)) { return 'router'; }
+      if (/switch/.test(r)) { return 'switch'; }
+      if (/radio|wireless|\bap\b|antenna|bridge/.test(r)) { return 'radio'; }
+      if (/server|dns|host/.test(r)) { return 'server'; }
+      return '';
+    }
+    function svgUri(svg) { return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg); }
+    var ICON_URI = {};
+    Object.keys(ICON_PATHS).forEach(function (k) {
+      ICON_URI[k] = svgUri('<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"><path fill="#fff" d="' + ICON_PATHS[k] + '"/></svg>');
+    });
+
+    data.nodes.forEach(function (n) {
+      n.data.plabel = n.data.cloud ? n.data.label + '\n' + n.data.info : n.data.label;
+      n.data.icon = n.data.cloud ? '' : iconFor(n.data.role);
+    });
+
+    // ---- cloud (another location): a wide flat shape of scalloped lobes, like in The Dude
+    var CLOUD_LOBES = '<ellipse cx="100" cy="45" rx="80" ry="31"/><circle cx="27" cy="45" r="21"/><circle cx="173" cy="45" r="21"/><circle cx="55" cy="31" r="22"/><circle cx="87" cy="24" r="24"/><circle cx="121" cy="24" r="24"/><circle cx="150" cy="31" r="22"/><circle cx="55" cy="60" r="21"/><circle cx="87" cy="66" r="21"/><circle cx="121" cy="66" r="21"/><circle cx="150" cy="60" r="21"/>';
+    function cloudUri(color) {
+      return svgUri('<svg xmlns="http://www.w3.org/2000/svg" width="200" height="90" viewBox="0 0 200 90">' +
+        '<g fill="' + color + '">' + CLOUD_LOBES + '</g></svg>');
+    }
+    var CLOUD = {};
+    Object.keys(COLORS).forEach(function (k) { CLOUD[k] = cloudUri(COLORS[k]); });
+    // preload the cloud images of every state so there is no blank spot when a state changes
+    Object.keys(CLOUD).forEach(function (k) { new Image().src = CLOUD[k]; });
+
+    var iconStyles = Object.keys(ICON_URI).map(function (k) {
+      return {selector: 'node[icon = "' + k + '"]', style: {
+        'background-image': ICON_URI[k], 'background-width': 16, 'background-height': 16,
+        'background-position-x': '8px', 'background-position-y': '50%', 'background-repeat': 'no-repeat',
+        'text-margin-x': 9
+      }};
+    });
+
+    var cy = cytoscape({
+      container: document.getElementById('dep-graph'),
+      elements: data.nodes.concat(data.edges),
+      wheelSensitivity: 0.25,
+      minZoom: 0.1,
+      maxZoom: 3,
+      style: [
+        {selector: 'node', style: {
+          'shape': 'round-rectangle', 'label': 'data(plabel)', 'color': '#fff',
+          'font-size': 12, 'text-valign': 'center', 'text-halign': 'center', 'text-wrap': 'wrap',
+          'width': function (n) {
+            var lines = n.data('plabel').split('\n');
+            var w = Math.max.apply(null, lines.map(function (l) { return l.length; })) * 7.2 + 24;
+            return Math.max(70, w + (n.data('icon') ? 22 : 0));
+          },
+          'height': 28,
+          'background-color': function (n) { return COLORS[n.data('state')] || COLORS.none; },
+          'border-width': 2, 'border-color': 'rgba(0,0,0,0.25)'
+        }}
+      ].concat(iconStyles).concat([
+        {selector: 'node[?cloud]', style: {
+          'shape': 'rectangle', 'background-opacity': 0, 'border-width': 0, 'width': 190, 'height': 86,
+          'background-width': '100%', 'background-height': '100%', 'background-clip': 'none',
+          'background-position-x': '50%', 'background-position-y': '50%', 'text-margin-x': 0,
+          'background-image': CLOUD.none, 'text-max-width': 135, 'font-size': 11, 'text-valign': 'center'
+        }},
+        {selector: 'node[?cloud][state = "up"]', style: {'background-image': CLOUD.up}},
+        {selector: 'node[?cloud][state = "down"]', style: {'background-image': CLOUD.down}},
+        {selector: 'node[?cloud][state = "unknown"]', style: {'background-image': CLOUD.unknown}},
+        {selector: 'node[?cloud].down', style: {'background-image': CLOUD.down}},
+        {selector: 'node[?cloud].degraded', style: {'background-image': CLOUD.degraded}},
+        {selector: 'node[?focus]', style: {'border-width': 4, 'border-color': '#fff'}},
+        {selector: 'node.root', style: {'border-width': 5, 'border-color': '#ff3b30'}},
+        {selector: 'node.failed', style: {'background-color': COLORS.failed, 'border-width': 4, 'border-color': '#fff'}},
+        {selector: 'node.down', style: {'background-color': COLORS.down}},
+        {selector: 'node.degraded', style: {'background-color': COLORS.degraded}},
+        {selector: 'node.match', style: {'border-width': 4, 'border-color': '#ffd43b'}},
+        {selector: 'node.picked', style: {'border-width': 4, 'border-color': '#4299e1'}},
+        {selector: 'node.dim', style: {'opacity': 0.25}},
+        {selector: 'node.nomatch', style: {'opacity': 0.18}},
+        {selector: 'edge', style: {
+          'curve-style': 'bezier', 'target-arrow-shape': 'triangle', 'width': 2,
+          'line-color': MEDIUM_COLOR.unspecified, 'target-arrow-color': MEDIUM_COLOR.unspecified,
+          'label': 'data(elabel)', 'font-size': 9, 'color': textColor,
+          'text-background-color': '#000', 'text-background-opacity': 0.35, 'text-background-padding': 2
+        }},
+        {selector: 'edge[medium = "ethernet"]', style: {
+          'width': 2.5, 'line-color': MEDIUM_COLOR.ethernet, 'target-arrow-color': MEDIUM_COLOR.ethernet
+        }},
+        {selector: 'edge[medium = "optical"]', style: {
+          'width': 2.5, 'line-color': MEDIUM_COLOR.optical, 'target-arrow-color': MEDIUM_COLOR.optical
+        }},
+        {selector: 'edge[medium = "radio"]', style: {
+          'width': 2.5, 'line-style': 'dashed', 'line-dash-pattern': [7, 5],
+          'line-color': MEDIUM_COLOR.radio, 'target-arrow-color': MEDIUM_COLOR.radio
+        }},
+        {selector: 'edge[group != ""]', style: {
+          'underlay-color': '#ae3ec9', 'underlay-opacity': 0.4, 'underlay-padding': 4
+        }},
+        {selector: 'edge.nolabel', style: {'label': ''}},
+        {selector: 'edge.dim', style: {'opacity': 0.15}},
+        {selector: 'edge.nomatch', style: {'opacity': 0.1}},
+        {selector: 'node.hidden', style: {'display': 'none'}},
+        {selector: 'edge.hiddenType', style: {'display': 'none'}}
+      ])
+    });
+    window.depCy = cy;
+
+    // ---- layout: automatic + saved positions
+    // Starting point for devices without a saved position; the map is then arranged by hand and saved.
+    function autoLayout() {
+      cy.layout({name: 'breadthfirst', directed: true, spacingFactor: 1.25, padding: 20, animate: false}).run();
+    }
+    function applySaved() {
+      var any = false;
+      cy.nodes().forEach(function (n) {
+        var p = data.positions[n.id()];
+        if (p) { n.position({x: p[0], y: p[1]}); any = true; }
+      });
+      return any;
+    }
+    autoLayout();
+    applySaved();
+    cy.fit(undefined, 30);
+
+    var focusNode = cy.nodes('[?focus]');
+    if (focusNode.length) {
+      cy.zoom({level: 1, position: focusNode[0].position()});
+      cy.center(focusNode[0]);
+    }
+
+    document.getElementById('dep-fit').addEventListener('click', function () { cy.fit(cy.elements(':visible'), 30); });
+
+    // ---- automatic saving of the layout: after every move of a device (with a short delay)
+    var canSave = document.getElementById('dep-csrf').getAttribute('data-can-save') === '1';
+    var stateEl = document.getElementById('dep-save-state');
+    var saveTimer = null, retryTimer = null, pending = false, saving = false, saveFailed = false;
+    var STATE_CLASS = {saving: 'text-muted', pending: 'text-warning', ok: 'text-success', err: 'text-danger'};
+
+    // The CSRF cookie is HttpOnly in NetBox (JS cannot see it) — the token is embedded in the page
+    function csrf() {
+      var e = document.querySelector('#dep-csrf input[name=csrfmiddlewaretoken]');
+      return e ? e.value : '';
+    }
+    function setSaveState(kind, text) {
+      stateEl.className = 'small ms-1 ' + (STATE_CLASS[kind] || '');
+      stateEl.textContent = text;
+    }
+    function saveLayout(keepalive) {
+      clearTimeout(saveTimer);
+      clearTimeout(retryTimer);
+      var pos = {};
+      cy.nodes().forEach(function (n) { pos[n.id()] = [n.position('x'), n.position('y')]; });
+      pending = false;
+      saving = true;
+      setSaveState('saving', 'Saving…');
+      return fetch(data.layout_url, {
+        method: 'POST', credentials: 'same-origin', keepalive: keepalive === true,
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf(), 'Accept': 'application/json'},
+        body: JSON.stringify({scope: data.scope, positions: pos})
+      }).then(function (r) {
+        if (!r.ok) { throw new Error('HTTP ' + r.status); }
+        return r.json();
+      }).then(function () {
+        saving = false;
+        saveFailed = false;
+        Object.keys(pos).forEach(function (k) { data.positions[k] = pos[k]; });
+        var note = document.getElementById('dep-inherited');
+        if (note) { note.remove(); }
+        if (pending) { saveTimer = setTimeout(saveLayout, 300); } else { setSaveState('ok', 'Layout saved'); }
+      }).catch(function (err) {
+        saving = false;
+        saveFailed = true;
+        pending = true;
+        setSaveState('err', 'Not saved (' + err.message + ') — retrying…');
+        retryTimer = setTimeout(saveLayout, 10000);
+      });
+    }
+    function scheduleSave() {
+      if (!canSave) { return; }
+      pending = true;
+      setSaveState('pending', 'Unsaved changes…');
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(saveLayout, 700);
+    }
+    cy.on('dragfree', 'node', function () { scheduleSave(); scheduleMini(); });
+    // when leaving the page a pending change is sent immediately; warn only if saving has failed
+    function flushSave() { if (canSave && pending && !saving) { saveLayout(true); } }
+    document.addEventListener('visibilitychange', function () { if (document.hidden) { flushSave(); } });
+    window.addEventListener('pagehide', flushSave);
+    window.addEventListener('beforeunload', function (e) {
+      if (saveFailed) { e.preventDefault(); e.returnValue = ''; }
+    });
+
+    // ---- right click on an edge: change the medium of the link (Ethernet / Optical / Radio)
+    var ctx = document.getElementById('dep-ctx');
+    function hideCtx() { ctx.classList.remove('show'); }
+    function mediumSwatch(m) {
+      var c = MEDIUM_COLOR[m], extra = '';
+      var line = '<line x1="2" y1="7" x2="36" y2="7" stroke="' + c + '" stroke-width="' + (m === 'unspecified' ? 2 : 2.5) + '"' +
+        (m === 'radio' ? ' stroke-dasharray="6 4"' : '') + '/>';
+      var span = document.createElement('span');
+      span.innerHTML = '<svg width="38" height="14">' + extra + line + '</svg>';
+      return span.firstChild;
+    }
+    function setMedium(edge, medium) {
+      var old = edge.data('medium');
+      if (old === medium) { return; }
+      edge.data('medium', medium);   // redraw immediately, revert on failure
+      fetch(data.dependency_api + edge.data('pk') + '/', {
+        method: 'PATCH', credentials: 'same-origin',
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf(), 'Accept': 'application/json'},
+        body: JSON.stringify({medium: medium})
+      }).then(function (r) {
+        if (!r.ok) { throw new Error('HTTP ' + r.status); }
+        if (filtersActive()) { applyFilters(); }
+      }).catch(function (err) {
+        edge.data('medium', old);
+        toast('Could not change the link medium (' + err.message + ').');
+      });
+    }
+    function showCtx(edge, x, y) {
+      ctx.innerHTML = '';
+      ctx.appendChild(el('h6', {class: 'dropdown-header', text: edge.source().data('label') + ' → ' + edge.target().data('label')}));
+      ['ethernet', 'optical', 'radio', 'unspecified'].forEach(function (m) {
+        var item = el('button', {type: 'button', class: 'dropdown-item d-flex align-items-center gap-2' + (canSave ? '' : ' disabled')},
+          [mediumSwatch(m), el('span', {text: MEDIUM_LABEL[m]})]);
+        if (edge.data('medium') === m) { item.appendChild(el('i', {class: 'mdi mdi-check ms-auto'})); }
+        if (canSave) { item.addEventListener('click', function () { hideCtx(); setMedium(edge, m); }); }
+        ctx.appendChild(item);
+      });
+      if (!canSave) { ctx.appendChild(el('div', {class: 'dropdown-item-text text-muted small', text: 'You do not have permission to change links.'})); }
+      ctx.style.left = '0px'; ctx.style.top = '0px';
+      ctx.classList.add('show');
+      var w = ctx.offsetWidth, h = ctx.offsetHeight;
+      ctx.style.left = Math.max(4, Math.min(x, window.innerWidth - w - 4)) + 'px';
+      ctx.style.top = Math.max(4, Math.min(y, window.innerHeight - h - 4)) + 'px';
+    }
+    cy.container().addEventListener('contextmenu', function (ev) { ev.preventDefault(); });
+    cy.on('cxttap', 'edge', function (evt) {
+      var oe = evt.originalEvent;
+      showCtx(evt.target, oe.clientX, oe.clientY);
+    });
+    cy.on('tap pan zoom dragfree', hideCtx);
+    document.addEventListener('click', function (ev) { if (!ctx.contains(ev.target)) { hideCtx(); } });
+    document.addEventListener('keydown', function (ev) { if (ev.key === 'Escape') { hideCtx(); } });
+
+    // ---- PNG export and print
+    function pageBg() {
+      var bg = getComputedStyle(document.body).backgroundColor;
+      return (!bg || bg === 'transparent' || /rgba\(0,\s*0,\s*0,\s*0\)/.test(bg)) ? '#ffffff' : bg;
+    }
+    document.getElementById('dep-png').addEventListener('click', function () {
+      var blob = cy.png({output: 'blob', bg: pageBg(), full: true, scale: 2, maxWidth: 8000, maxHeight: 8000});
+      var slug = (data.title || 'map').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'dependencies-' + slug + '-' + new Date().toISOString().slice(0, 10) + '.png';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(function () { URL.revokeObjectURL(a.href); }, 5000);
+    });
+    document.getElementById('dep-print').addEventListener('click', function () {
+      cy.resize(); cy.fit(cy.elements(':visible'), 30);
+      setTimeout(function () { window.print(); }, 150);
+    });
+
+    // ---- search
+    var searchEl = document.getElementById('dep-search');
+    var searchCount = document.getElementById('dep-search-count');
+    function searchMatches() {
+      var q = searchEl.value.trim().toLowerCase();
+      if (!q) { return null; }
+      return cy.nodes().filter(function (n) {
+        var d = n.data();
+        return [d.label, d.ip, d.site, d.role, d.dtype].some(function (v) { return (v || '').toLowerCase().indexOf(q) >= 0; });
+      });
+    }
+    function runSearch() {
+      cy.elements().removeClass('match nomatch');
+      var m = searchMatches();
+      if (!m) { searchCount.textContent = ''; return null; }
+      m.addClass('match');
+      cy.nodes().not(m).addClass('nomatch');
+      cy.edges().forEach(function (e) {
+        if (!e.source().hasClass('match') && !e.target().hasClass('match')) { e.addClass('nomatch'); }
+      });
+      searchCount.textContent = m.length + ' found';
+      return m;
+    }
+    searchEl.addEventListener('input', runSearch);
+    searchEl.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') {
+        var m = runSearch();
+        if (m && m.length) {
+          cy.animate({fit: {eles: m, padding: 120}, duration: 250});
+          if (m.length === 1) { showDetail(m[0]); }
+        }
+      } else if (e.key === 'Escape') {
+        searchEl.value = ''; runSearch();
+      }
+    });
+
+    // ---- filters
+    var filters = {states: {}, roles: {}, types: {}, media: {}, problems: false, labels: true};
+    function roleKey(d) { return d.role || '(no role)'; }
+    function buildCheckboxes(containerId, items, bucket, labelFn) {
+      var box = document.getElementById(containerId);
+      items.forEach(function (key) {
+        bucket[key] = true;
+        var input = el('input', {type: 'checkbox', class: 'form-check-input'});
+        input.checked = true;
+        input.addEventListener('change', function () { bucket[key] = input.checked; applyFilters(); });
+        box.appendChild(el('label', {class: 'form-check mb-1'}, [input, el('span', {class: 'form-check-label', text: labelFn(key)})]));
+      });
+    }
+    var roles = [];
+    data.nodes.forEach(function (n) {
+      if (!n.data.cloud && roles.indexOf(roleKey(n.data)) < 0) { roles.push(roleKey(n.data)); }
+    });
+    roles.sort();
+    buildCheckboxes('dep-f-states', ['up', 'down', 'unknown', 'none'], filters.states, function (k) { return STATE_LABEL[k]; });
+    buildCheckboxes('dep-f-roles', roles, filters.roles, function (k) { return k; });
+    buildCheckboxes('dep-f-types', ['network', 'power', 'other'], filters.types, function (k) { return k.charAt(0).toUpperCase() + k.slice(1); });
+    buildCheckboxes('dep-f-media', ['ethernet', 'optical', 'radio', 'unspecified'], filters.media, function (k) { return MEDIUM_LABEL[k]; });
+    document.getElementById('dep-f-problems').addEventListener('change', function () { filters.problems = this.checked; applyFilters(); });
+    document.getElementById('dep-f-labels').addEventListener('change', function () { filters.labels = this.checked; applyFilters(); });
+    document.getElementById('dep-f-clear').addEventListener('click', function () {
+      Object.keys(filters.states).forEach(function (k) { filters.states[k] = true; });
+      Object.keys(filters.roles).forEach(function (k) { filters.roles[k] = true; });
+      Object.keys(filters.types).forEach(function (k) { filters.types[k] = true; });
+      Object.keys(filters.media).forEach(function (k) { filters.media[k] = true; });
+      filters.problems = false; filters.labels = true;
+      document.querySelectorAll('.dep-filter-menu input[type=checkbox]').forEach(function (i) { i.checked = true; });
+      document.getElementById('dep-f-problems').checked = false;
+      applyFilters();
+    });
+
+    function filtersActive() {
+      var off = function (o) { return Object.keys(o).some(function (k) { return o[k] === false; }); };
+      return filters.problems || off(filters.states) || off(filters.roles) || off(filters.types) || off(filters.media) || !filters.labels;
+    }
+    function applyFilters() {
+      cy.batch(function () {
+        var keep = null;
+        if (filters.problems) {
+          var down = cy.nodes().filter(function (n) { return !n.data('cloud') && n.data('state') === 'down'; });
+          keep = down.union(down.neighborhood('node'));
+        }
+        cy.nodes().forEach(function (n) {
+          var d = n.data(), ok = true;
+          if (!d.cloud) { ok = filters.states[d.state] !== false && filters.roles[roleKey(d)] !== false; }
+          if (ok && keep) { ok = keep.anySame(n); }
+          n.toggleClass('hidden', !ok);
+        });
+        cy.edges().forEach(function (e) {
+          e.toggleClass('hiddenType', filters.types[e.data('type')] === false || filters.media[e.data('medium')] === false);
+        });
+        cy.edges().toggleClass('nolabel', !filters.labels);
+      });
+      var badge = document.getElementById('dep-filter-badge');
+      badge.hidden = !filtersActive();
+      badge.textContent = 'on';
+      updateCount();
+      scheduleMini();
+    }
+    function updateCount() {
+      var all = cy.nodes().filter(function (n) { return !n.data('cloud'); });
+      var shown = all.filter(function (n) { return !n.hasClass('hidden'); });
+      countEl.textContent = (shown.length === all.length ? all.length : shown.length + ' of ' + all.length) +
+        ' devices, ' + data.edges.length + ' dependencies';
+    }
+    updateCount();
+
+    // ---- device info: a small popup next to the node
+    var pop = document.getElementById('dep-pop');
+    var detailNode = null;
+    function positionPop() {
+      if (!detailNode || pop.hidden) { return; }
+      if (detailNode.removed() || detailNode.hasClass('hidden')) { showDetail(null); return; }
+      var bb = detailNode.renderedBoundingBox({includeLabels: false, includeOverlays: false});
+      var cw = cy.width(), ch = cy.height(), w = pop.offsetWidth, h = pop.offsetHeight;
+      var x = bb.x2 + 14;
+      if (x + w > cw - 6) { x = bb.x1 - w - 14; }          // does not fit on the right -> put it left of the node
+      x = Math.max(6, Math.min(x, cw - w - 6));
+      var y = Math.max(6, Math.min(bb.y1 - 12, ch - h - 6));
+      pop.style.left = x + 'px';
+      pop.style.top = y + 'px';
+    }
+    function showDetail(node) {
+      cy.nodes().removeClass('picked');
+      if (!node || node.data('cloud')) { detailNode = null; pop.hidden = true; return; }
+      detailNode = node;
+      node.addClass('picked');
+      var d = node.data();
+      var state = d.state || 'none';
+      var row = function (k, kids) { return el('div', {class: 'dep-row'}, [el('span', {class: 'k align-self-center', text: k}), el('span', {class: 'v'}, kids)]); };
+      var txt = function (t) { return document.createTextNode(t); };
+
+      var statusKids = [el('span', {class: 'badge text-bg-' + BADGE[state], text: STATE_LABEL[state] || state})];
+      if (d.source) { statusKids.push(el('div', {class: 'text-muted small', text: d.source + (d.since ? ', since ' + ago(d.since) : '')})); }
+      if (d.detail) { statusKids.push(el('div', {class: 'text-muted small', text: d.detail})); }
+
+      var close = el('button', {type: 'button', class: 'dep-close', title: 'Close', 'aria-label': 'Close', text: '×'});
+      close.addEventListener('click', function () { showDetail(null); });
+      var kids = [
+        close,
+        el('h4', {class: 'mb-0 pe-3'}, [el('a', {href: d.url, text: d.label})]),
+        el('div', {class: 'text-muted small mb-2', text: [d.role, d.dtype].filter(Boolean).join(' · ')}),
+        row('Status', statusKids),
+        row('IP', [txt(d.ip || '—')]),
+        row('Site', [txt(d.site || '—')])
+      ];
+      if (d.location) { kids.push(row('Location', [txt(d.location)])); }
+      if (d.tenant) { kids.push(row('Tenant', [txt(d.tenant)])); }
+      if (d.serial) { kids.push(row('Serial', [el('code', {text: d.serial})])); }
+      kids.push(row('Dependencies', [txt((d.ups || 0) + ' up · ' + (d.downs || 0) + ' down')]));
+
+      if (d.description || d.comments) {
+        var notes = el('div', {class: 'border-top mt-2 pt-2'});
+        if (d.description) {
+          notes.appendChild(el('div', {class: 'k', text: 'Description'}));
+          notes.appendChild(el('div', {class: 'small mb-2', text: d.description}));
+        }
+        if (d.comments) {
+          notes.appendChild(el('div', {class: 'k', text: 'Comments'}));
+          notes.appendChild(el('div', {class: 'small', style: 'white-space: pre-wrap; max-height: 140px; overflow: auto;', text: d.comments + (d.comments_more ? ' …' : '')}));
+          if (d.comments_more) { notes.appendChild(el('a', {href: d.url, class: 'small', text: 'Read the full comment'})); }
+        }
+        kids.push(notes);
+      }
+      kids.push(el('div', {class: 'd-flex flex-wrap gap-2 border-top mt-2 pt-2'}, [
+        el('a', {class: 'btn btn-sm btn-outline-secondary', href: d.url, text: 'Open'}),
+        el('a', {class: 'btn btn-sm btn-outline-secondary', href: d.url + 'dependencies/', text: 'Dependencies'}),
+        el('a', {class: 'btn btn-sm btn-outline-secondary', href: '?branch=' + d.devid, text: 'Branch'})
+      ]));
+
+      pop.innerHTML = '';
+      kids.forEach(function (k) { pop.appendChild(k); });
+      pop.hidden = false;
+      positionPop();
+    }
+    cy.on('pan zoom resize position', positionPop);
+    document.addEventListener('keydown', function (ev) { if (ev.key === 'Escape' && !pop.hidden && !searchEl.value) { showDetail(null); } });
+
+    // ---- outage simulation
+    var failed = [];
+    var summary = document.getElementById('dep-summary');
+
+    function clearSimulation() {
+      failed = [];
+      cy.elements().removeClass('failed down degraded dim');
+      summary.innerHTML = '';
+      showDetail(null);
+    }
+
+    function simulate() {
+      cy.elements().removeClass('failed down degraded dim');
+      if (!failed.length) { summary.innerHTML = ''; return; }
+      var qs = failed.map(function (id) { return 'device=' + id; }).join('&');
+      fetch(data.impact_url + '?' + qs, {credentials: 'same-origin', headers: {'Accept': 'application/json'}})
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+          cy.elements().addClass('dim');
+          failed.forEach(function (id) { cy.getElementById('d' + id).removeClass('dim').addClass('failed'); });
+          var outside = 0;
+          res.affected.forEach(function (a) {
+            var n = cy.getElementById('d' + a.id);
+            if (n.length) { n.removeClass('dim').addClass(a.state); return; }
+            outside += 1;
+            var cloud = data.remote_map[a.id] ? cy.getElementById(data.remote_map[a.id]) : null;
+            if (cloud && cloud.length && !cloud.hasClass('down')) {  // cloud: the worst state of its devices
+              cloud.removeClass('dim degraded').addClass(a.state);
+            }
+          });
+          cy.edges().forEach(function (e) {
+            if (!e.source().hasClass('dim') && !e.target().hasClass('dim')) { e.removeClass('dim'); }
+          });
+          var names = res.failed.map(function (f) { return f.name; }).join(', ');
+          summary.innerHTML = '<div class="alert alert-info mb-2">Failure of <strong></strong>: ' +
+            '<span class="badge text-bg-red">' + res.summary.down + ' down</span> ' +
+            '<span class="badge text-bg-orange">' + res.summary.degraded + ' degraded</span>' +
+            (outside ? ' <span class="text-muted small">(' + outside + ' affected devices are not on this map)</span>' : '') +
+            '</div>';
+          summary.querySelector('strong').textContent = names;
+        })
+        .catch(function () {
+          summary.innerHTML = '<div class="alert alert-danger mb-2">Failed to load the impact.</div>';
+        });
+    }
+
+    // left click = device info (a cloud opens its map)
+    cy.on('tap', 'node', function (evt) {
+      var node = evt.target;
+      if (node.data('external')) { window.location.href = node.data('map_url'); return; }
+      showDetail(node);
+    });
+    // right click = outage simulation (Shift+right click adds another device)
+    cy.on('cxttap', 'node', function (evt) {
+      var node = evt.target;
+      if (node.data('external')) { return; }
+      hideCtx();
+      var id = node.data('devid');
+      var additive = evt.originalEvent && evt.originalEvent.shiftKey;
+      if (additive) {
+        failed = failed.indexOf(id) >= 0 ? failed.filter(function (x) { return x !== id; }) : failed.concat([id]);
+      } else {
+        failed = (failed.length === 1 && failed[0] === id) ? [] : [id];
+      }
+      showDetail(failed.length ? node : null);
+      simulate();
+    });
+    cy.on('tap', function (evt) { if (evt.target === cy) { clearSimulation(); } });
+    cy.on('dbltap', 'node', function (evt) {
+      var d = evt.target.data();
+      window.location.href = d.external ? d.map_url : d.url;
+    });
+    cy.on('mouseover', 'node', function (evt) {
+      var d = evt.target.data();
+      cy.container().title = d.cloud
+        ? 'Location ' + d.label + ' · ' + d.info + ' — click to open its map'
+        : d.label + (d.site ? ' · ' + d.site : '') + (d.role ? ' · ' + d.role : '') + ' · ' + d.state;
+    });
+
+    // ---- live status and notifications
+    var liveDot = document.getElementById('dep-live-dot');
+    var liveInfo = document.getElementById('dep-live-info');
+    var outagesBox = document.getElementById('dep-outages');
+    var toasts = document.getElementById('dep-toasts');
+    var firstLoad = true, liveTimer = null, lastRoots = {};
+    var members = {};
+    Object.keys(data.remote_map).forEach(function (dev) {
+      var cid = data.remote_map[dev];
+      (members[cid] = members[cid] || []).push(dev);
+    });
+
+    function toast(text) {
+      var box = el('div', {class: 'alert alert-warning alert-dismissible mb-2', role: 'alert'}, [
+        el('i', {class: 'mdi mdi-alert'}), ' ', text,
+        el('button', {type: 'button', class: 'btn-close', 'data-bs-dismiss': 'alert', 'aria-label': 'Close'})
+      ]);
+      toasts.appendChild(box);
+      setTimeout(function () { if (box.parentNode) { box.parentNode.removeChild(box); } }, 20000);
+    }
+    function renderOutages(roots) {
+      outagesBox.innerHTML = '';
+      document.title = roots.length ? '(' + roots.length + '!) ' + originalTitle : originalTitle;
+      if (!roots.length) { return; }
+      var kids = [el('strong', {text: roots.length + (roots.length === 1 ? ' outage' : ' outages') + ' (root cause): '})];
+      roots.forEach(function (r, i) {
+        var node = cy.getElementById('d' + r.id);
+        if (i) { kids.push(', '); }
+        if (node.length) {
+          var a = el('a', {href: '#', text: r.name});
+          a.addEventListener('click', function (ev) {
+            ev.preventDefault();
+            cy.animate({fit: {eles: node.union(node.neighborhood()), padding: 80}, duration: 250});
+            showDetail(node);
+          });
+          kids.push(a);
+        } else {
+          kids.push(el('span', {text: r.name + ' (other map)'}));
+        }
+        kids.push(el('span', {class: 'text-muted small', text: ' — ' + r.down_count + ' down' + (r.degraded_count ? ', ' + r.degraded_count + ' degraded' : '')}));
+      });
+      outagesBox.appendChild(el('div', {class: 'alert alert-danger mb-2'}, kids));
+    }
+    function applyLive(res) {
+      var rootIds = {};
+      res.roots.forEach(function (r) { rootIds[r.id] = r; });
+      var wentDown = [];
+      cy.batch(function () {
+        cy.nodes().forEach(function (n) {
+          if (n.data('cloud')) { return; }
+          var id = n.data('devid'), st = res.states[id];
+          var state = st ? st[0] : 'none';
+          if (!firstLoad && state === 'down' && n.data('state') !== 'down') { wentDown.push(n.data('label')); }
+          n.data({state: state, source: st ? st[1] : '', detail: st ? st[2] : '', since: st ? st[3] : ''});
+          n.toggleClass('root', !!rootIds[id]);
+        });
+        Object.keys(members).forEach(function (cid) {
+          var states = members[cid].map(function (dev) { var s = res.states[dev]; return s ? s[0] : 'none'; });
+          var downN = states.filter(function (x) { return x === 'down'; }).length;
+          var cs = downN ? 'down' : states.every(function (x) { return x === 'up'; }) ? 'up'
+            : states.some(function (x) { return x === 'unknown'; }) ? 'unknown' : 'none';
+          var c = cy.getElementById(cid);
+          var info = members[cid].length + ' linked' + (downN ? ' · ' + downN + ' down' : '');
+          c.data({state: cs, info: info, plabel: c.data('label') + '\n' + info});
+        });
+      });
+      if (!firstLoad) {
+        res.roots.forEach(function (r) {
+          if (!lastRoots[r.id]) { toast('New outage: ' + r.name + ' is down (' + r.down_count + ' devices affected).'); }
+        });
+        if (wentDown.length && !res.roots.length) { toast('Went down: ' + wentDown.join(', ')); }
+      }
+      lastRoots = rootIds;
+      renderOutages(res.roots);
+      if (filtersActive()) { applyFilters(); }
+      if (detailNode) { showDetail(detailNode); }
+      if (searchEl.value) { runSearch(); }
+      var t = new Date(res.updated);
+      liveInfo.textContent = 'updated ' + t.toLocaleTimeString();
+      liveDot.className = 'dep-live-dot on';
+      firstLoad = false;
+      scheduleMini();
+    }
+    function refreshLive() {
+      return fetch(data.states_url, {credentials: 'same-origin', headers: {'Accept': 'application/json'}})
+        .then(function (r) { if (!r.ok) { throw new Error('HTTP ' + r.status); } return r.json(); })
+        .then(applyLive)
+        .catch(function (err) {
+          liveDot.className = 'dep-live-dot err';
+          liveInfo.textContent = 'update failed (' + err.message + ')';
+        });
+    }
+    // the status keeps refreshing: every 30 s (while the tab is visible) and right after returning to the tab
+    liveTimer = setInterval(function () { if (!document.hidden) { refreshLive(); } }, 30000);
+    document.addEventListener('visibilitychange', function () { if (!document.hidden) { refreshLive(); } });
+    refreshLive();   // right after loading: root causes + current states (without notifications)
+
+    // ---- overview minimap
+    var mini = document.getElementById('dep-mini');
+    var miniImg = document.getElementById('dep-mini-img');
+    var miniView = document.getElementById('dep-mini-view');
+    var miniBox = null, miniTimer = null;
+    mini.hidden = lsGet('depMini', data.nodes.length > 15 ? '1' : '0') !== '1';
+    function scheduleMini() {
+      if (mini.hidden) { return; }
+      clearTimeout(miniTimer);
+      miniTimer = setTimeout(buildMini, 400);
+    }
+    function buildMini() {
+      var vis = cy.elements(':visible');
+      if (mini.hidden || !vis.length) { return; }
+      miniBox = vis.boundingBox();
+      miniImg.onload = updateMiniView;
+      miniImg.src = cy.png({output: 'base64uri', full: true, bg: pageBg(), maxWidth: 180, maxHeight: 120});
+    }
+    function updateMiniView() {
+      if (mini.hidden || !miniBox || !miniImg.clientWidth) { return; }
+      var W = miniImg.clientWidth, H = miniImg.clientHeight, ext = cy.extent();
+      var bw = Math.max(1, miniBox.x2 - miniBox.x1), bh = Math.max(1, miniBox.y2 - miniBox.y1);
+      var clamp = function (v, max) { return Math.max(0, Math.min(max, v)); };
+      var x1 = clamp((ext.x1 - miniBox.x1) / bw * W, W), x2 = clamp((ext.x2 - miniBox.x1) / bw * W, W);
+      var y1 = clamp((ext.y1 - miniBox.y1) / bh * H, H), y2 = clamp((ext.y2 - miniBox.y1) / bh * H, H);
+      miniView.style.left = x1 + 'px'; miniView.style.top = y1 + 'px';
+      miniView.style.width = Math.max(4, x2 - x1) + 'px'; miniView.style.height = Math.max(4, y2 - y1) + 'px';
+    }
+    function miniPan(ev) {
+      if (!miniBox) { return; }
+      var r = miniImg.getBoundingClientRect();
+      var fx = Math.max(0, Math.min(1, (ev.clientX - r.left) / r.width));
+      var fy = Math.max(0, Math.min(1, (ev.clientY - r.top) / r.height));
+      var mx = miniBox.x1 + fx * (miniBox.x2 - miniBox.x1), my = miniBox.y1 + fy * (miniBox.y2 - miniBox.y1);
+      cy.pan({x: cy.width() / 2 - cy.zoom() * mx, y: cy.height() / 2 - cy.zoom() * my});
+    }
+    mini.addEventListener('pointerdown', function (ev) {
+      ev.preventDefault();
+      mini.setPointerCapture(ev.pointerId);
+      miniPan(ev);
+      var move = function (e2) { miniPan(e2); };
+      var up = function () { mini.removeEventListener('pointermove', move); mini.removeEventListener('pointerup', up); };
+      mini.addEventListener('pointermove', move);
+      mini.addEventListener('pointerup', up);
+    });
+    cy.on('pan zoom resize', updateMiniView);
+    document.getElementById('dep-mini-toggle').addEventListener('click', function () {
+      mini.hidden = !mini.hidden;
+      lsSet('depMini', mini.hidden ? '0' : '1');
+      if (!mini.hidden) { buildMini(); }
+    });
+    scheduleMini();
+  })();
+  </script>
+{% endblock %}

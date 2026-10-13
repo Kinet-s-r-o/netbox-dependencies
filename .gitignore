@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+dist/
+build/
+*.egg-info/
+env/
+*.env
+!*.env.example
+.venv/
+/Dockerfile
+/.dockerignore

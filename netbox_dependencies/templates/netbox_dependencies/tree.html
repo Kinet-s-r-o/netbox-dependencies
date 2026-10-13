@@ -1,0 +1,62 @@
+{% extends 'generic/_base.html' %}
+{% load helpers %}
+
+{% block title %}Dependency tree{% endblock %}
+
+{% block controls %}
+  <div class="btn-list">
+    <button type="button" class="btn btn-outline-secondary" id="dep-expand"><i class="mdi mdi-unfold-more-horizontal"></i> Expand all</button>
+    <button type="button" class="btn btn-outline-secondary" id="dep-collapse"><i class="mdi mdi-unfold-less-horizontal"></i> Collapse all</button>
+    <a href="{% url 'plugins:netbox_dependencies:graph' %}" class="btn btn-outline-secondary"><i class="mdi mdi-graph-outline"></i> Graph</a>
+    <a href="{% url 'plugins:netbox_dependencies:dependency_list' %}" class="btn btn-outline-secondary"><i class="mdi mdi-format-list-bulleted"></i> List</a>
+    {% if perms.netbox_dependencies.add_dependency %}
+      <a href="{% url 'plugins:netbox_dependencies:add_multiple' %}" class="btn btn-primary"><i class="mdi mdi-plus-thick"></i> Add dependencies</a>
+    {% endif %}
+  </div>
+{% endblock %}
+
+{% block content %}
+  <style>
+    ul.dep-tree { list-style: none; margin: 0; padding-left: 1.6rem; border-left: 1px dashed var(--tblr-border-color, #888); }
+    ul.dep-tree.dep-root { padding-left: 0; border-left: 0; }
+    .dep-node { padding: .2rem 0; }
+    .dep-node > details > summary { cursor: pointer; }
+    .dep-leaf { padding-left: 1.1rem; }
+    .dep-label .badge { vertical-align: middle; }
+  </style>
+
+  <div class="card">
+    <h2 class="card-header">
+      Dependency tree
+      <span class="ms-3 text-muted fs-6">
+        {{ stats.roots }} top-level devices · {{ stats.devices }} devices · {{ stats.dependencies }} dependencies
+        {% if stats.multi_parent %}· {{ stats.multi_parent }} with multiple upstream{% endif %}
+      </span>
+    </h2>
+    <div class="card-body">
+      {% if roots %}
+        <ul class="dep-tree dep-root">
+          {% for node in roots %}
+            {% include 'netbox_dependencies/inc/tree_node.html' with open=expanded %}
+          {% endfor %}
+        </ul>
+      {% else %}
+        <div class="text-muted">No dependencies yet.
+          {% if perms.netbox_dependencies.add_dependency %}
+            <a href="{% url 'plugins:netbox_dependencies:add_multiple' %}">Add the first ones</a>.
+          {% endif %}
+        </div>
+      {% endif %}
+    </div>
+    {% include 'inc/paginator.html' with paginator=paginator page=page %}
+  </div>
+
+  <script>
+    document.getElementById('dep-expand').addEventListener('click', function () {
+      document.querySelectorAll('.dep-tree details').forEach(function (d) { d.open = true; });
+    });
+    document.getElementById('dep-collapse').addEventListener('click', function () {
+      document.querySelectorAll('.dep-tree details').forEach(function (d) { d.open = false; });
+    });
+  </script>
+{% endblock %}

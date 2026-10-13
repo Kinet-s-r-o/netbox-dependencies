@@ -1,0 +1,175 @@
+from django import forms
+
+from dcim.models import Device
+from netbox.forms import NetBoxModelFilterSetForm, NetBoxModelForm, NetBoxModelImportForm
+from utilities.forms.fields import (
+    CSVChoiceField,
+    CSVModelChoiceField,
+    DynamicModelChoiceField,
+    DynamicModelMultipleChoiceField,
+)
+
+from .choices import DependencyTypeChoices, DestinationKindChoices, MediumChoices
+from .models import CustomMap, Dependency, NotificationDestination
+
+
+class DependencyForm(NetBoxModelForm):
+    upstream = DynamicModelChoiceField(queryset=Device.objects.all(), label='Upstream device')
+    downstream = DynamicModelChoiceField(queryset=Device.objects.all(), label='Downstream device')
+
+    class Meta:
+        model = Dependency
+        fields = (
+            'upstream', 'downstream', 'dependency_type', 'medium', 'redundancy_group',
+            'description', 'tags',
+        )
+
+
+class DependencyImportForm(NetBoxModelImportForm):
+    upstream = CSVModelChoiceField(queryset=Device.objects.all(), to_field_name='name')
+    downstream = CSVModelChoiceField(queryset=Device.objects.all(), to_field_name='name')
+    dependency_type = CSVChoiceField(choices=DependencyTypeChoices, required=False)
+    medium = CSVChoiceField(choices=MediumChoices, required=False)
+
+    class Meta:
+        model = Dependency
+        fields = (
+            'upstream', 'downstream', 'dependency_type', 'medium', 'redundancy_group',
+            'description', 'tags',
+        )
+
+
+class DependencyFilterForm(NetBoxModelFilterSetForm):
+    model = Dependency
+    dependency_type = forms.MultipleChoiceField(
+        choices=DependencyTypeChoices, required=False, label='Type'
+    )
+    medium = forms.MultipleChoiceField(choices=MediumChoices, required=False, label='Medium')
+    upstream_id = DynamicModelMultipleChoiceField(
+        queryset=Device.objects.all(), required=False, label='Upstream device'
+    )
+    downstream_id = DynamicModelMultipleChoiceField(
+        queryset=Device.objects.all(), required=False, label='Downstream device'
+    )
+    redundancy_group = forms.CharField(required=False)
+
+
+class ImpactForm(forms.Form):
+    """Selection of devices for the outage simulation."""
+
+    devices = DynamicModelMultipleChoiceField(
+        queryset=Device.objects.all(),
+        label='Failed devices',
+        help_text='Select one or more devices to simulate their outage.',
+    )
+
+
+class DependencyMultiAddForm(forms.Form):
+    """One upstream + several downstream devices at once."""
+
+    upstream = DynamicModelChoiceField(queryset=Device.objects.all(), label='Upstream device')
+    downstreams = DynamicModelMultipleChoiceField(
+        queryset=Device.objects.all(), label='Downstream devices',
+        help_text='All selected devices depend on the upstream device.',
+    )
+    dependency_type = forms.ChoiceField(
+        choices=DependencyTypeChoices, initial=DependencyTypeChoices.TYPE_NETWORK, label='Type'
+    )
+    medium = forms.ChoiceField(
+        choices=MediumChoices, initial=MediumChoices.UNSPECIFIED, required=False, label='Medium',
+        help_text='Physical medium of the created links. It can be changed later by right-clicking a link in the graph.',
+    )
+    redundancy_group = forms.CharField(
+        max_length=100, required=False, label='Redundancy group',
+        help_text='Applied to every created dependency. Empty = no redundancy.',
+    )
+    description = forms.CharField(max_length=200, required=False)
+
+    def clean(self):
+        cleaned = super().clean()
+        upstream = cleaned.get('upstream')
+        downstreams = cleaned.get('downstreams')
+        if not upstream or not downstreams:
+            return cleaned
+        if upstream in downstreams:
+            raise forms.ValidationError('The upstream device cannot also be one of the downstream devices.')
+        return cleaned
+
+
+
+class CustomMapForm(NetBoxModelForm):
+    devices = DynamicModelMultipleChoiceField(
+        queryset=Device.objects.all(), required=False, label='Devices',
+        help_text='Devices shown on this map (their dependencies are drawn automatically).',
+    )
+
+    class Meta:
+        model = CustomMap
+        fields = ('name', 'description', 'devices', 'tags')
+
+
+class CustomMapFilterForm(NetBoxModelFilterSetForm):
+    model = CustomMap
+
+
+class NotificationSettingsForm(forms.Form):
+    """General notification settings (destinations are managed separately)."""
+
+    enabled = forms.BooleanField(required=False, label='Send notifications')
+    delay_seconds = forms.IntegerField(
+        min_value=0, max_value=86400, label='Delay before the first message (seconds)',
+        help_text='A root-cause outage must last at least this long before it is announced. '
+                  'Short outages that end sooner produce no message.',
+    )
+    notify_recovery = forms.BooleanField(
+        required=False, label='Also send a message when the outage ends')
+    public_url = forms.URLField(
+        required=False, label='NetBox address used in links',
+        help_text='For example https://netbox.example.com (no trailing slash). Empty = use the environment value; '
+                  'if that is empty too, messages have no buttons.',
+    )
+
+    def clean_public_url(self):
+        return self.cleaned_data['public_url'].rstrip('/')
+
+
+class DestinationForm(forms.Form):
+    """Notification destination: Teams / Slack / generic webhook."""
+
+    name = forms.CharField(max_length=100, label='Name', help_text='Any label, for example "Teams – NOC".')
+    kind = forms.ChoiceField(choices=DestinationKindChoices, label='Type')
+    webhook_url = forms.CharField(
+        required=False, label='Webhook URL', max_length=2048,
+        widget=forms.TextInput(attrs={'autocomplete': 'off', 'spellcheck': 'false'}),
+        help_text='Stored but never shown again (it usually contains a signature). When editing, leave empty to keep the saved URL.',
+    )
+    secret = forms.CharField(
+        required=False, max_length=200, label='Signing secret (generic webhook only)',
+        widget=forms.TextInput(attrs={'autocomplete': 'off', 'spellcheck': 'false'}),
+        help_text='If set, every request carries the header X-Signature-256: sha256=<HMAC-SHA256 of the body>. '
+                  'When editing, leave empty to keep the saved secret.',
+    )
+    clear_secret = forms.BooleanField(required=False, label='Remove the saved signing secret')
+    enabled = forms.BooleanField(required=False, initial=True, label='Enabled')
+
+    def __init__(self, *args, instance=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.instance = instance
+
+    def clean_name(self):
+        name = self.cleaned_data['name'].strip()
+        clash = NotificationDestination.objects.filter(name__iexact=name)
+        if self.instance is not None:
+            clash = clash.exclude(pk=self.instance.pk)
+        if clash.exists():
+            raise forms.ValidationError('A destination with this name already exists.')
+        return name
+
+    def clean_webhook_url(self):
+        url = self.cleaned_data['webhook_url'].strip()
+        if not url and (self.instance is None or not self.instance.webhook_url):
+            raise forms.ValidationError('The webhook URL is required.')
+        if url:
+            from django.core.validators import URLValidator
+            URLValidator(schemes=['http', 'https'])(url)
+        return url

@@ -1,0 +1,15 @@
+{% load helpers %}
+<li class="dep-node">
+  {% if node.children %}
+    <details{% if open %} open{% endif %}>
+      <summary>{% include 'netbox_dependencies/inc/tree_label.html' %}</summary>
+      <ul class="dep-tree">
+        {% for child in node.children %}
+          {% include 'netbox_dependencies/inc/tree_node.html' with node=child open=open %}
+        {% endfor %}
+      </ul>
+    </details>
+  {% else %}
+    <div class="dep-leaf">{% include 'netbox_dependencies/inc/tree_label.html' %}</div>
+  {% endif %}
+</li>

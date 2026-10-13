@@ -1,0 +1,22 @@
+<li class="dep-scope">
+  {% if node.children %}
+    <details{% if node.open or scope_all %} open{% endif %}>
+      <summary class="{% if node.active %}active{% endif %}">
+        {% if node.url %}<a href="{{ node.url }}">{{ node.name }}</a>{% else %}<span class="text-muted">{{ node.name }}</span>{% endif %}
+        <span class="badge text-bg-secondary">{{ node.count }}</span>
+        {% if node.down %}<span class="badge text-bg-red" title="Devices down">{{ node.down }}</span>{% endif %}
+      </summary>
+      <ul>
+        {% for child in node.children %}
+          {% include 'netbox_dependencies/inc/scope_node.html' with node=child %}
+        {% endfor %}
+      </ul>
+    </details>
+  {% else %}
+    <div class="dep-scope-leaf {% if node.active %}active{% endif %}">
+      <a href="{{ node.url }}">{{ node.name }}</a>
+      <span class="badge text-bg-secondary">{{ node.count }}</span>
+      {% if node.down %}<span class="badge text-bg-red" title="Devices down">{{ node.down }}</span>{% endif %}
+    </div>
+  {% endif %}
+</li>

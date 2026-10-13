@@ -1,0 +1,59 @@
+{% extends 'generic/_base.html' %}
+{% load helpers %}
+{% load form_helpers %}
+
+{% block title %}{% if instance %}Edit destination{% else %}Add destination{% endif %}{% endblock %}
+
+{% block content %}
+  <div class="row">
+    <div class="col-12 col-xl-7 mb-3">
+      <div class="card">
+        <h2 class="card-header">{% if instance %}Edit “{{ instance.name }}”{% else %}New destination{% endif %}</h2>
+        <div class="card-body">
+          <form method="post">
+            {% csrf_token %}
+            {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+            {% render_field form.name %}
+            {% render_field form.kind %}
+            {% render_field form.webhook_url %}
+            {% if instance and instance.webhook_url %}
+              <div class="form-text mb-3">Saved URL: <code>…{{ instance.webhook_url|slice:"-6:" }}</code></div>
+            {% endif %}
+            <div id="dep-generic-fields">
+              {% render_field form.secret %}
+              {% if instance and instance.secret %}{% render_field form.clear_secret %}{% endif %}
+            </div>
+            {% render_field form.enabled %}
+            <div class="text-end">
+              <a href="{% url 'plugins:netbox_dependencies:settings' %}" class="btn btn-outline-secondary">Cancel</a>
+              <button type="submit" class="btn btn-primary">Save</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-xl-5 mb-3">
+      <div class="card">
+        <h2 class="card-header">Which URL goes here?</h2>
+        <div class="card-body small">
+          <p><strong>Teams</strong> — create a Workflow in Teams: <em>When a Teams webhook request is received</em> →
+            <em>Post card in a chat or channel</em>, card = <code>triggerBody()?['card']</code>. Paste the Workflow URL.</p>
+          <p><strong>Slack</strong> — Slack app → <em>Incoming Webhooks</em> → add a webhook to a channel
+            (<code>https://hooks.slack.com/services/…</code>).</p>
+          <p class="mb-0"><strong>Generic webhook</strong> — any HTTPS endpoint that accepts a JSON POST. The body is
+            <code>{"event": "outage" | "recovery", "outages": […], …}</code>; with a signing secret the request carries
+            <code>X-Signature-256: sha256=…</code> (HMAC-SHA256 of the raw body).</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>
+    (function () {
+      var kind = document.getElementById('id_kind');
+      var box = document.getElementById('dep-generic-fields');
+      function sync() { box.style.display = kind.value === 'generic' ? '' : 'none'; }
+      kind.addEventListener('change', sync);
+      sync();
+    })();
+  </script>
+{% endblock %}

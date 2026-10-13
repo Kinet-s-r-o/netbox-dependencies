@@ -1,0 +1,24 @@
+{% load helpers %}
+<span class="dep-label">
+  {% if node.state == 'down' %}<span class="badge text-bg-red" title="Down">●</span>
+  {% elif node.state == 'up' %}<span class="badge text-bg-green" title="Up">●</span>
+  {% elif node.state == 'unknown' %}<span class="badge text-bg-gray" title="Unknown">●</span>{% endif %}
+  <a href="{{ node.device.get_absolute_url }}" class="fw-bold">{{ node.device }}</a>
+  {% if node.device.site %}<span class="text-muted small">{{ node.device.site }}</span>{% endif %}
+  {% if node.edge %}
+    {% badge node.edge.get_dependency_type_display bg_color=node.edge.get_dependency_type_color %}
+    {% if node.edge.medium != 'unspecified' %}{% badge node.edge.get_medium_display bg_color=node.edge.get_medium_color %}{% endif %}
+    {% if node.edge.redundancy_group %}<span class="badge text-bg-purple" title="Redundancy group">⇄ {{ node.edge.redundancy_group }}</span>{% endif %}
+  {% endif %}
+  {% if node.multi_parent %}<span class="badge text-bg-yellow" title="This device has multiple upstream devices">multiple upstream</span>{% endif %}
+  {% if node.direct %}<span class="badge text-bg-secondary" title="Direct dependents">{{ node.direct }}</span>{% endif %}
+  {% if node.total is not None and node.total != node.direct %}<span class="text-muted small">({{ node.total }} in total)</span>{% endif %}
+  {% if node.edge %}
+    {% if perms.netbox_dependencies.change_dependency %}
+      <a href="{% url 'plugins:netbox_dependencies:dependency_edit' pk=node.edge.pk %}?return_url={{ request.get_full_path|urlencode }}" class="text-muted ms-1" title="Edit dependency"><i class="mdi mdi-pencil"></i></a>
+    {% endif %}
+    {% if perms.netbox_dependencies.delete_dependency %}
+      <a href="{% url 'plugins:netbox_dependencies:dependency_delete' pk=node.edge.pk %}?return_url={{ request.get_full_path|urlencode }}" class="text-danger ms-1" title="Delete dependency"><i class="mdi mdi-trash-can-outline"></i></a>
+    {% endif %}
+  {% endif %}
+</span>
