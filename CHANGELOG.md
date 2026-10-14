@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.0 — 2026-10-14
+- New graph design: device cards with a round status badge and role icon, smooth S-curved links, a dot-grid canvas,
+  soft shadows, pulsing root causes, link highlight on hover, and light / dark theme that follows NetBox (also live).
+- Clouds (other locations) redrawn as outlined, softly tinted shapes.
+- Notification times now show the time zone (NetBox `TIME_ZONE`), e.g. `2026-10-14 08:00 CEST`.
+
 ## 1.0.1 — 2026-10-14
 - Fix: notifications were also sent for devices that are down but not part of any dependency. Only devices that
   take part in at least one dependency are announced now.

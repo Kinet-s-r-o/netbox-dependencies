@@ -15,7 +15,11 @@
 
 {% block content %}
   <style>
-    #dep-graph { height: 70vh; min-height: 440px; width: 100%; }
+    #dep-graph { height: 70vh; min-height: 440px; width: 100%;
+                 --dep-dot: rgba(100, 116, 139, .28);
+                 background-image: radial-gradient(circle, var(--dep-dot) 1.1px, transparent 1.3px);
+                 background-size: 24px 24px; }
+    [data-bs-theme="dark"] #dep-graph { --dep-dot: rgba(148, 163, 184, .22); }
     .dep-leg-row { display: flex; align-items: center; gap: .7rem; margin-bottom: .45rem; font-size: .9rem; }
     .dep-leg-row .sw { flex: 0 0 74px; display: flex; align-items: center; justify-content: center; }
     .dep-leg-row .dot { display: inline-block; width: 16px; height: 16px; border-radius: 4px; }
@@ -377,35 +381,73 @@
       return '';
     }
     function svgUri(svg) { return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg); }
-    var ICON_URI = {};
-    Object.keys(ICON_PATHS).forEach(function (k) {
-      ICON_URI[k] = svgUri('<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"><path fill="#fff" d="' + ICON_PATHS[k] + '"/></svg>');
-    });
-
     data.nodes.forEach(function (n) {
       n.data.plabel = n.data.cloud ? n.data.label + '\n' + n.data.info : n.data.label;
       n.data.icon = n.data.cloud ? '' : iconFor(n.data.role);
     });
 
+    // ---- theme: light / dark follow NetBox (data-bs-theme); the palette is read whenever a style is evaluated
+    function isDark() { return document.documentElement.getAttribute('data-bs-theme') === 'dark'; }
+    var PAL = {
+      light: {card: '#ffffff', cardBorder: '#c9d1dc', text: '#1d273b', muted: '#667085', shadow: 0.07,
+              tint: {down: '#fdeaea', degraded: '#fff1e3', failed: '#f6e8fb'}},
+      dark: {card: '#243142', cardBorder: '#3d4d63', text: '#e8edf5', muted: '#9fb0c6', shadow: 0.25,
+             tint: {down: '#43232b', degraded: '#43301f', failed: '#392447'}}
+    };
+    function pal() { return isDark() ? PAL.dark : PAL.light; }
+    // effective state of a node: simulation classes win over the live state
+    function effState(n) {
+      if (n.hasClass('failed')) { return 'failed'; }
+      if (n.hasClass('down')) { return 'down'; }
+      if (n.hasClass('degraded')) { return 'degraded'; }
+      return n.data('state') || 'none';
+    }
+
     // ---- cloud (another location): a wide flat shape of scalloped lobes, like in The Dude
     var CLOUD_LOBES = '<ellipse cx="100" cy="45" rx="80" ry="31"/><circle cx="27" cy="45" r="21"/><circle cx="173" cy="45" r="21"/><circle cx="55" cy="31" r="22"/><circle cx="87" cy="24" r="24"/><circle cx="121" cy="24" r="24"/><circle cx="150" cy="31" r="22"/><circle cx="55" cy="60" r="21"/><circle cx="87" cy="66" r="21"/><circle cx="121" cy="66" r="21"/><circle cx="150" cy="60" r="21"/>';
-    function cloudUri(color) {
-      return svgUri('<svg xmlns="http://www.w3.org/2000/svg" width="200" height="90" viewBox="0 0 200 90">' +
-        '<g fill="' + color + '">' + CLOUD_LOBES + '</g></svg>');
+    function cloudUri(color, dark) {
+      var P = dark ? PAL.dark : PAL.light;
+      // outline first (thick stroke), then the solid card colour over it, then a light tint of the state colour
+      return svgUri('<svg xmlns="http://www.w3.org/2000/svg" width="208" height="98" viewBox="-4 -4 208 98">' +
+        '<g fill="' + color + '" stroke="' + color + '" stroke-width="5">' + CLOUD_LOBES + '</g>' +
+        '<g fill="' + P.card + '">' + CLOUD_LOBES + '</g>' +
+        '<g fill="' + color + '" opacity="0.16">' + CLOUD_LOBES + '</g></svg>');
     }
-    var CLOUD = {};
-    Object.keys(COLORS).forEach(function (k) { CLOUD[k] = cloudUri(COLORS[k]); });
+    var CLOUD = {light: {}, dark: {}};
+    Object.keys(COLORS).forEach(function (k) {
+      CLOUD.light[k] = cloudUri(COLORS[k], false);
+      CLOUD.dark[k] = cloudUri(COLORS[k], true);
+    });
     // preload the cloud images of every state so there is no blank spot when a state changes
-    Object.keys(CLOUD).forEach(function (k) { new Image().src = CLOUD[k]; });
+    ['light', 'dark'].forEach(function (t) { Object.keys(CLOUD[t]).forEach(function (k) { new Image().src = CLOUD[t][k]; }); });
 
-    var iconStyles = Object.keys(ICON_URI).map(function (k) {
-      return {selector: 'node[icon = "' + k + '"]', style: {
-        'background-image': ICON_URI[k], 'background-width': 16, 'background-height': 16,
-        'background-position-x': '8px', 'background-position-y': '50%', 'background-repeat': 'no-repeat',
-        'text-margin-x': 9
-      }};
+    // ---- device badge: a round status-coloured disc with the role icon (or a dot) in it
+    var BADGE_CACHE = {};
+    function badgeUri(icon, state) {
+      var key = icon + '|' + state;
+      if (!BADGE_CACHE[key]) {
+        var glyph = icon && ICON_PATHS[icon]
+          ? '<g transform="translate(6.5 6.5) scale(0.6667)"><path fill="#fff" d="' + ICON_PATHS[icon] + '"/></g>'
+          : '<circle cx="14" cy="14" r="4" fill="#fff"/>';
+        BADGE_CACHE[key] = svgUri('<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28">' +
+          '<circle cx="14" cy="14" r="14" fill="' + (COLORS[state] || COLORS.none) + '"/>' + glyph + '</svg>');
+      }
+      return BADGE_CACHE[key];
+    }
+    // preload every icon/state combination so the disc never flashes empty when a state changes
+    [''].concat(Object.keys(ICON_PATHS)).forEach(function (ic) {
+      Object.keys(COLORS).forEach(function (st) { new Image().src = badgeUri(ic, st); });
     });
 
+    // ---- edges: smooth S-curves that leave the parent and enter the child vertically (like an org chart)
+    function curveOf(e) {
+      var a = e.source().position(), b = e.target().position();
+      var dx = b.x - a.x, dy = b.y - a.y, L = Math.sqrt(dx * dx + dy * dy);
+      if (L < 1 || Math.abs(dy) < 12) { return {w: [0.33, 0.66], d: [0, 0]}; }
+      var w = dy * dy / (2 * L * L), d = CURVE_SIGN * dx * dy / (2 * L);
+      return {w: [w, 1 - w], d: [d, -d]};
+    }
+    var CURVE_SIGN = 1;
     var cy = cytoscape({
       container: document.getElementById('dep-graph'),
       elements: data.nodes.concat(data.edges),
@@ -414,65 +456,121 @@
       maxZoom: 3,
       style: [
         {selector: 'node', style: {
-          'shape': 'round-rectangle', 'label': 'data(plabel)', 'color': '#fff',
-          'font-size': 12, 'text-valign': 'center', 'text-halign': 'center', 'text-wrap': 'wrap',
+          'shape': 'round-rectangle', 'corner-radius': 10, 'label': 'data(plabel)',
+          'color': function () { return pal().text; },
+          'font-family': getComputedStyle(document.body).fontFamily || 'sans-serif',
+          'font-size': 12, 'font-weight': 600,
+          'text-valign': 'center', 'text-halign': 'center', 'text-wrap': 'wrap',
           'width': function (n) {
             var lines = n.data('plabel').split('\n');
-            var w = Math.max.apply(null, lines.map(function (l) { return l.length; })) * 7.2 + 24;
-            return Math.max(70, w + (n.data('icon') ? 22 : 0));
+            var w = Math.max.apply(null, lines.map(function (l) { return l.length; })) * 7.3 + 22;
+            return Math.max(96, w + 38);
           },
-          'height': 28,
-          'background-color': function (n) { return COLORS[n.data('state')] || COLORS.none; },
-          'border-width': 2, 'border-color': 'rgba(0,0,0,0.25)'
-        }}
-      ].concat(iconStyles).concat([
-        {selector: 'node[?cloud]', style: {
-          'shape': 'rectangle', 'background-opacity': 0, 'border-width': 0, 'width': 190, 'height': 86,
-          'background-width': '100%', 'background-height': '100%', 'background-clip': 'none',
-          'background-position-x': '50%', 'background-position-y': '50%', 'text-margin-x': 0,
-          'background-image': CLOUD.none, 'text-max-width': 135, 'font-size': 11, 'text-valign': 'center'
+          'height': 38,
+          'text-margin-x': 17,
+          'background-color': function (n) { var t = pal().tint[effState(n)]; return t || pal().card; },
+          'border-width': function (n) { return {down: 2.5, degraded: 2.5, failed: 3}[effState(n)] || 1.5; },
+          'border-color': function (n) {
+            var st = effState(n);
+            return (st === 'down' || st === 'degraded' || st === 'failed') ? COLORS[st] : pal().cardBorder;
+          },
+          'background-image': function (n) { return badgeUri(n.data('icon'), effState(n)); },
+          'background-width': 26, 'background-height': 26, 'background-fit': 'none',
+          'background-position-x': '6px', 'background-position-y': '50%', 'background-repeat': 'no-repeat',
+          'background-clip': 'none', 'bounds-expansion': 8,
+          'underlay-color': '#000', 'underlay-opacity': function () { return pal().shadow; },
+          'underlay-padding': 4, 'underlay-shape': 'round-rectangle'
         }},
-        {selector: 'node[?cloud][state = "up"]', style: {'background-image': CLOUD.up}},
-        {selector: 'node[?cloud][state = "down"]', style: {'background-image': CLOUD.down}},
-        {selector: 'node[?cloud][state = "unknown"]', style: {'background-image': CLOUD.unknown}},
-        {selector: 'node[?cloud].down', style: {'background-image': CLOUD.down}},
-        {selector: 'node[?cloud].degraded', style: {'background-image': CLOUD.degraded}},
-        {selector: 'node[?focus]', style: {'border-width': 4, 'border-color': '#fff'}},
-        {selector: 'node.root', style: {'border-width': 5, 'border-color': '#ff3b30'}},
-        {selector: 'node.failed', style: {'background-color': COLORS.failed, 'border-width': 4, 'border-color': '#fff'}},
-        {selector: 'node.down', style: {'background-color': COLORS.down}},
-        {selector: 'node.degraded', style: {'background-color': COLORS.degraded}},
-        {selector: 'node.match', style: {'border-width': 4, 'border-color': '#ffd43b'}},
-        {selector: 'node.picked', style: {'border-width': 4, 'border-color': '#4299e1'}},
+        {selector: 'node[?cloud]', style: {
+          'shape': 'rectangle', 'background-opacity': 0, 'border-width': 0, 'width': 190, 'height': 88,
+          'background-width': '100%', 'background-height': '100%', 'background-fit': 'none', 'background-clip': 'none',
+          'background-position-x': '50%', 'background-position-y': '50%', 'text-margin-x': 0,
+          'background-image': function (n) { return CLOUD[isDark() ? 'dark' : 'light'][effState(n)] || CLOUD.light.none; },
+          'text-max-width': 135, 'font-size': 11, 'font-weight': 600, 'text-valign': 'center',
+          'underlay-opacity': 0
+        }},
+        {selector: 'node[?focus]', style: {'border-width': 3, 'border-color': '#4299e1'}},
+        {selector: 'node.root', style: {
+          'border-width': 3, 'border-color': '#ff3b30',
+          'underlay-color': '#ff3b30', 'underlay-opacity': 0.28, 'underlay-padding': 8
+        }},
+        {selector: 'node.match', style: {'border-width': 3, 'border-color': '#ffd43b'}},
+        {selector: 'node.picked', style: {'border-width': 3, 'border-color': '#4299e1'}},
         {selector: 'node.dim', style: {'opacity': 0.25}},
         {selector: 'node.nomatch', style: {'opacity': 0.18}},
         {selector: 'edge', style: {
-          'curve-style': 'bezier', 'target-arrow-shape': 'triangle', 'width': 2,
+          'curve-style': 'unbundled-bezier',
+          'control-point-weights': function (e) { return curveOf(e).w; },
+          'control-point-distances': function (e) { return curveOf(e).d; },
+          'target-arrow-shape': 'triangle', 'arrow-scale': 0.9, 'width': 2, 'opacity': 0.9,
           'line-color': MEDIUM_COLOR.unspecified, 'target-arrow-color': MEDIUM_COLOR.unspecified,
-          'label': 'data(elabel)', 'font-size': 9, 'color': textColor,
-          'text-background-color': '#000', 'text-background-opacity': 0.35, 'text-background-padding': 2
+          'label': 'data(elabel)', 'font-size': 9, 'font-weight': 600,
+          'color': function () { return pal().muted; },
+          'text-background-color': function () { return pal().card; }, 'text-background-opacity': 0.95,
+          'text-background-padding': 3, 'text-background-shape': 'round-rectangle',
+          'text-border-width': 1, 'text-border-opacity': 1, 'text-border-color': function () { return pal().cardBorder; }
         }},
         {selector: 'edge[medium = "ethernet"]', style: {
           'width': 2.5, 'line-color': MEDIUM_COLOR.ethernet, 'target-arrow-color': MEDIUM_COLOR.ethernet
         }},
         {selector: 'edge[medium = "optical"]', style: {
-          'width': 2.5, 'line-color': MEDIUM_COLOR.optical, 'target-arrow-color': MEDIUM_COLOR.optical
+          'width': 3, 'line-color': MEDIUM_COLOR.optical, 'target-arrow-color': MEDIUM_COLOR.optical
         }},
         {selector: 'edge[medium = "radio"]', style: {
           'width': 2.5, 'line-style': 'dashed', 'line-dash-pattern': [7, 5],
           'line-color': MEDIUM_COLOR.radio, 'target-arrow-color': MEDIUM_COLOR.radio
         }},
         {selector: 'edge[group != ""]', style: {
-          'underlay-color': '#ae3ec9', 'underlay-opacity': 0.4, 'underlay-padding': 4
+          'underlay-color': '#ae3ec9', 'underlay-opacity': 0.35, 'underlay-padding': 4
         }},
+        {selector: 'edge.hl', style: {'width': 4, 'opacity': 1, 'z-index': 10}},
         {selector: 'edge.nolabel', style: {'label': ''}},
         {selector: 'edge.dim', style: {'opacity': 0.15}},
         {selector: 'edge.nomatch', style: {'opacity': 0.1}},
         {selector: 'node.hidden', style: {'display': 'none'}},
         {selector: 'edge.hiddenType', style: {'display': 'none'}}
-      ])
+      ]
     });
     window.depCy = cy;
+
+    // ---- modern touches: a dot grid that moves with the map, hover highlight, pulsing root causes, live theme switch
+    var gridEl = document.getElementById('dep-graph');
+    function updateGrid() {
+      var z = cy.zoom(), step = Math.max(10, 24 * z), pan = cy.pan();
+      gridEl.style.backgroundSize = step + 'px ' + step + 'px';
+      gridEl.style.backgroundPosition = (pan.x % step) + 'px ' + (pan.y % step) + 'px';
+    }
+    cy.on('pan zoom resize', updateGrid);
+    updateGrid();
+    cy.on('mouseover', 'node', function (evt) {
+      if (!evt.target.data('cloud')) { evt.target.connectedEdges().addClass('hl'); }
+      gridEl.style.cursor = 'pointer';
+    });
+    cy.on('mouseout', 'node', function (evt) { evt.target.connectedEdges().removeClass('hl'); gridEl.style.cursor = ''; });
+    // curves depend on the positions of both ends: refresh the edges of a node while it moves
+    cy.on('drag position', 'node', function (evt) {
+      evt.target.connectedEdges().forEach(function (e) { e.addClass('flip'); e.removeClass('flip'); });
+    });
+    // a badge image that is used for the first time loads asynchronously: repaint shortly after a state change
+    var repaintTimer = null;
+    cy.on('class data', 'node', function () {
+      clearTimeout(repaintTimer);
+      repaintTimer = setTimeout(function () { cy.forceRender(); }, 150);
+    });
+    function pulseRoots() {
+      cy.nodes('.root').forEach(function (n) {
+        if (n.scratch('_pulse')) { return; }
+        n.scratch('_pulse', true);
+        (function loop() {
+          if (!n.hasClass('root')) { n.scratch('_pulse', false); n.removeStyle('underlay-opacity underlay-padding'); return; }
+          n.animate({style: {'underlay-opacity': 0.5, 'underlay-padding': 13}}, {duration: 900})
+           .animate({style: {'underlay-opacity': 0.18, 'underlay-padding': 7}}, {duration: 900, complete: loop});
+        })();
+      });
+    }
+    new MutationObserver(function () {
+      cy.elements().forEach(function (e) { e.addClass('themeflip'); e.removeClass('themeflip'); });
+    }).observe(document.documentElement, {attributes: true, attributeFilter: ['data-bs-theme']});
 
     // ---- layout: automatic + saved positions
     // Starting point for devices without a saved position; the map is then arranged by hand and saved.
@@ -964,6 +1062,7 @@
         if (wentDown.length && !res.roots.length) { toast('Went down: ' + wentDown.join(', ')); }
       }
       lastRoots = rootIds;
+      pulseRoots();
       renderOutages(res.roots);
       if (filtersActive()) { applyFilters(); }
       if (detailNode) { showDetail(detailNode); }

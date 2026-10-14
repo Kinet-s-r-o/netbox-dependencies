@@ -6,6 +6,12 @@ live, with optional notifications to Microsoft Teams, Slack or any webhook.
 
 ![Dependency graph with a live outage](docs/images/graph.png)
 
+<details><summary>Dark theme</summary>
+
+![Dependency graph, dark theme](docs/images/graph-dark.png)
+
+</details>
+
 *Screenshots use fictional demo data.*
 
 ## Features
@@ -36,7 +42,7 @@ The plugin has no dependencies besides NetBox itself.
 
 ```bash
 # inside the NetBox virtualenv
-pip install git+https://github.com/adrian-13/netbox-dependencies.git@v1.0.1
+pip install git+https://github.com/adrian-13/netbox-dependencies.git@v1.1.0
 ```
 
 `configuration.py` (or `configuration/plugins.py` in netbox-docker):

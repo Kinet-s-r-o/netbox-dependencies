@@ -18,7 +18,7 @@ MAX_LISTED = 8     # affected devices listed for one root cause
 
 # ------------------------------------------------------------------ shared helpers
 def local(dt):
-    return timezone.localtime(dt).strftime('%Y-%m-%d %H:%M')
+    return timezone.localtime(dt).strftime('%Y-%m-%d %H:%M %Z')
 
 
 def since(dt, now):
