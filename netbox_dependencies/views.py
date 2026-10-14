@@ -11,10 +11,11 @@ from django.db.models import Count, Exists, OuterRef
 from django.http import FileResponse, HttpResponse, JsonResponse
 from django.utils import timezone
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.views.generic import View
 
 from dcim.models import Device
-from netbox.object_actions import AddObject, BulkDelete, BulkEdit, BulkExport, BulkImport, BulkRename, ObjectAction
+from netbox.object_actions import AddObject, BulkDelete, BulkEdit, BulkExport, BulkImport, BulkRename
 from netbox.plugins import get_plugin_config
 from netbox.views import generic
 from utilities.paginator import get_paginate_count
@@ -56,12 +57,15 @@ from .status import analyze_outages, poll_targets, poller_config
 from .tree import build_tree
 
 
-class ExportForImport(ObjectAction):
-    """A button next to the standard Export: the same data in the columns the Import page reads."""
-    name = 'export_import'
-    label = 'Export for import'
-    permissions_required = {'view'}
-    template_name = 'netbox_dependencies/buttons/export_import.html'
+class DependencyBulkExport(BulkExport):
+    """NetBox's Export dropdown with one more entry: the list as a CSV the Import page reads again."""
+    template_name = 'netbox_dependencies/buttons/export.html'
+
+    @classmethod
+    def get_context(cls, context, model):
+        data = super().get_context(context, model)
+        data['import_ready_url'] = reverse('plugins:netbox_dependencies:dependency_export_import')
+        return data
 
 
 @register_model_view(Dependency, 'list', path='', detail=False)
@@ -70,7 +74,7 @@ class DependencyListView(generic.ObjectListView):
     table = tables.DependencyTable
     filterset = DependencyFilterSet
     filterset_form = DependencyFilterForm
-    actions = (AddObject, BulkImport, BulkExport, ExportForImport, BulkEdit, BulkRename, BulkDelete)
+    actions = (AddObject, BulkImport, DependencyBulkExport, BulkEdit, BulkRename, BulkDelete)
 
 
 @register_model_view(Dependency, 'export_import', path='export-for-import', detail=False)

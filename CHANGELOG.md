@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.9.1 — 2026-10-14
+- The re-importable CSV is now an entry of the standard **Export** dropdown (*Re-importable CSV*) instead of a separate button.
+
 ## 1.9.0 — 2026-10-14
 - **Export for import** button on the dependency list: a CSV (respecting the list filters) in the exact columns the Import page reads,
   so a list can be exported, edited and imported again, or moved to another NetBox.

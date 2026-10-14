@@ -736,7 +736,10 @@ class ExportForImportTests(Base):
     def test_button_on_the_list_and_permission(self):
         from django.contrib.auth import get_user_model
         from django.test import Client
-        self.assertIn('Export for import', self._client().get('/plugins/dependencies/dependencies/').content.decode())
+        page = self._client().get('/plugins/dependencies/dependencies/').content.decode()
+        self.assertIn('Re-importable CSV', page)                  # an entry of the Export dropdown
+        self.assertIn('Current View', page)                       # the standard entries are still there
+        self.assertIn('/dependencies/export-for-import/', page)
         nobody = Client()
         nobody.force_login(get_user_model().objects.create_user('nobody', 'n@example.com', 'x'))
         self.assertEqual(nobody.get('/plugins/dependencies/dependencies/export-for-import/').status_code, 403)

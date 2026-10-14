@@ -19,7 +19,7 @@ live, with optional notifications to Microsoft Teams, Slack or any webhook.
 - **Dependencies** between devices: upstream → downstream, link medium (Ethernet, optical, radio, VPN / tunnel, LTE / 5G, satellite), optional
   **redundancy groups** (a device goes *down* only when all its redundant parents are down, otherwise it is *degraded*).
   Cycles, self-references and duplicates are rejected. REST API included.
-- **Export and import as CSV:** *All dependencies → Export for import* downloads the (filtered) list in exactly the columns the *Import*
+- **Export and import as CSV:** *All dependencies → Export → Re-importable CSV* downloads the (filtered) list in exactly the columns the *Import*
   page reads (`upstream,downstream,dependency_type,medium,redundancy_group,description,tags`; devices by name). Edit it in a spreadsheet or
   import it into another NetBox. Import adds links and rejects duplicates; it does not update existing ones.
 - **Interactive graph** (Cytoscape.js) per site, region or custom map; other locations appear as clouds that open
@@ -47,7 +47,7 @@ The plugin has no dependencies besides NetBox itself.
 
 ```bash
 # inside the NetBox virtualenv
-pip install git+https://github.com/adrian-13/netbox-dependencies.git@v1.9.0
+pip install git+https://github.com/adrian-13/netbox-dependencies.git@v1.9.1
 ```
 
 `configuration.py` (or `configuration/plugins.py` in netbox-docker):
