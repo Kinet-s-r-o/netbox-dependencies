@@ -118,6 +118,7 @@ class OutageLogicTests(NotifBase):
         urls = [a['url'] for a in walk(card) if a.get('type') == 'Action.OpenUrl']
         self.assertTrue(urls[0].startswith('https://netbox.example.com/plugins/dependencies/graph/?site='))
         self.assertIn(f'focus={self.devs["core"].pk}', urls[0])
+        self.assertIn('impact=1', urls[0])      # the graph opens with the outage already simulated
         self.assertTrue(any(u.endswith(f'/dcim/devices/{self.devs["core"].pk}/') for u in urls))
         self.assertEqual(self.run_n(), {'sent': 0, 'resolved': 0, 'errors': 0})     # no duplicate
         self.assertEqual(len(self.sent), 1)

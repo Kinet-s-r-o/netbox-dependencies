@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.0 — 2026-10-14
+- More device icons (15): firewall, router, switch, Wi-Fi access point, base station, radio link / CPE, satellite, server, storage,
+  camera, VoIP phone, printer, UPS, PDU, media converter. The icon is picked from the device role, then the model, then the name;
+  the Legend lists them.
+- Links in Teams / Slack messages now open the graph with that outage already simulated and the camera framed on the root cause
+  and the devices it takes down (`?focus=<device>&impact=1`).
+- The overview minimap follows the dark theme (also when the theme is switched).
+
 ## 1.1.1 — 2026-10-14
 - The graph canvas is plain again (the dot grid from 1.1.0 is removed).
 

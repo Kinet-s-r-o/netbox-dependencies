@@ -262,6 +262,9 @@ class DependencyGraphView(PermissionRequiredMixin, View):
             graph['too_large'] = {'nodes': len(graph['nodes']), 'limit': limit,
                                   'force_url': f'{request.get_full_path()}{separator}force=1'}
             graph['nodes'], graph['edges'] = [], []   # nothing is drawn until the user picks a smaller map
+        # ?focus=<device>&impact=1 (the link in notifications): open with that device's outage already simulated
+        graph['auto_simulate'] = bool(graph_focus := self._int(request, 'focus')) and request.GET.get('impact') == '1'
+        graph['focus_device'] = graph_focus
         return render(request, self.template_name, {
             'graph': graph,
             'sidebar': build_sidebar(site_id=site_id, region_id=region_id, map_id=map_id),

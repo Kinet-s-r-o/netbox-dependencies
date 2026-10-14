@@ -147,7 +147,7 @@ def _graph_url(device):
     base = _base_url()
     if not base:
         return ''
-    return f"{base}{reverse('plugins:netbox_dependencies:graph')}?site={device.site_id}&focus={device.pk}"
+    return f"{base}{reverse('plugins:netbox_dependencies:graph')}?site={device.site_id}&focus={device.pk}&impact=1"
 
 
 def _outage_view(episode):

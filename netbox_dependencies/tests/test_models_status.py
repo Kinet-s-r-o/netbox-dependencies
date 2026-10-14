@@ -166,6 +166,11 @@ class GraphTests(Base):
         self.assertEqual(client.get('/plugins/dependencies/graph/').status_code, 200)
         self.assertEqual(
             client.get(f'/plugins/dependencies/graph/?branch={self.devs["sw1"].pk}').status_code, 200)
+        pk = self.devs['sw1'].pk
+        page = client.get(f'/plugins/dependencies/graph/?focus={pk}&impact=1').content.decode()
+        self.assertIn('"auto_simulate": true', page)        # link from a notification: simulate and frame the outage
+        self.assertIn(f'"focus_device": {pk}', page)
+        self.assertIn('"auto_simulate": false', client.get(f'/plugins/dependencies/graph/?focus={pk}').content.decode())
         js = client.get('/plugins/dependencies/graph/cytoscape.js')
         self.assertEqual(js.status_code, 200)
         self.assertIn('javascript', js['Content-Type'])

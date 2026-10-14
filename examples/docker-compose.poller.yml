@@ -2,7 +2,7 @@
 services:
   dependencies-poller:
     build:
-      context: https://github.com/adrian-13/netbox-dependencies.git#v1.1.1:poller
+      context: https://github.com/adrian-13/netbox-dependencies.git#v1.2.0:poller
     restart: unless-stopped
     cap_add:
       - NET_RAW            # raw ICMP sockets
