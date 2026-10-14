@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.1 — 2026-10-14
+- Fix: notifications were also sent for devices that are down but not part of any dependency. Only devices that
+  take part in at least one dependency are announced now.
+
 ## 1.0.0 — 2026-10-13
 First public release.
 

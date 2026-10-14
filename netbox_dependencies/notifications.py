@@ -25,6 +25,7 @@ from . import channels
 from .choices import DestinationKindChoices, StateChoices
 from .impact import get_impact
 from .models import (
+    Dependency,
     DeviceStatus,
     NotificationDelivery,
     NotificationDestination,
@@ -241,9 +242,13 @@ def run_notifications(now=None):
     delay = timedelta(seconds=int(_setting('delay_seconds')))
 
     outages, _explained = analyze_outages()
-    roots = {o['device'].pk: o for o in outages}
+    # Only devices that take part in a dependency are announced; a standalone device that is down
+    # (monitored by Zabbix but not modelled here) is none of this plugin's business.
+    in_graph = set(Dependency.objects.values_list('upstream_id', flat=True)) |         set(Dependency.objects.values_list('downstream_id', flat=True))
+    roots = {o['device'].pk: o for o in outages if o['device'].pk in in_graph}
     open_episodes = {
-        e.device_id: e for e in OutageNotification.objects.filter(resolved_at__isnull=True).select_related('device__site')
+        e.device_id: e for e in OutageNotification.objects.filter(resolved_at__isnull=True, device_id__in=in_graph)
+        .select_related('device__site')
     }
 
     # --- episodes: new root-cause outages

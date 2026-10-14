@@ -125,6 +125,12 @@ class OutageLogicTests(NotifBase):
         self.assertEqual((episode.device_id, episode.peak_down), (self.devs['core'].pk, 2))
         self.assertIsNotNone(NotificationDelivery.objects.get(kind='outage').sent_at)
 
+    def test_device_without_any_dependency_is_not_announced(self):
+        self.dep('core', 'sw1')
+        self.status('sw2', 'down')          # monitored and down, but not part of any dependency
+        self.assertEqual(self.run_n(), {'sent': 0, 'resolved': 0, 'errors': 0})
+        self.assertEqual((self.sent, OutageNotification.objects.count()), ([], 0))
+
     def test_short_outage_waits_for_the_delay(self):
         self.dep('core', 'sw1')
         self.status('core', 'down', minutes_ago=1)
@@ -151,6 +157,7 @@ class OutageLogicTests(NotifBase):
 
     def test_several_new_root_causes_are_grouped_into_one_message(self):
         self.dep('core', 'sw1')
+        self.dep('x', 'sw2')                # sw2 is part of the graph, its upstream is fine
         self.status('core', 'down')
         self.status('sw2', 'down')
         self.assertEqual(self.run_n()['sent'], 2)
@@ -287,6 +294,7 @@ class RendererTests(NotifBase):
     def test_teams_card_layout(self):
         self.dep('core', 'sw1')
         self.dep('core', 'sw2')
+        self.dep('x', 'ap')                 # ap is a root cause with no downstream devices
         self.status('core', 'down', minutes_ago=75)
         self.status('sw1', 'down')
         self.status('sw2', 'down')

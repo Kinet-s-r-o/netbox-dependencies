@@ -13,7 +13,7 @@ class Base(TestCase):
         role = DeviceRole.objects.create(name='R', slug='r')
         cls.devs = {
             n: Device.objects.create(name=n, site=site, device_type=dtype, role=role)
-            for n in ('core', 'sw1', 'sw2', 'ap')
+            for n in ('core', 'sw1', 'sw2', 'ap', 'x')
         }
 
     def dep(self, up, down, group=''):
