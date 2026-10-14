@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.5.0 — 2026-10-14
+- Pollers can be registered, edited and unregistered on the ICMP poller page (*Add poller*): description, enabled, **scope (sites)** and
+  own interval / packets / timeout / concurrency. A poller with sites pings only those sites and the others skip them, so several
+  pollers never ping the same device. Pollers that merely report show as *auto-detected* with a *Register* button.
+- The poller sends its name (`?poller=`) when it asks for targets. Update the poller container together with the plugin.
+- Migration 0011.
+
 ## 1.4.0 — 2026-10-14
 - New page **Dependencies → Configuration → ICMP poller**: the state of every poller (last report, round time, devices up / down)
   and its settings. The poller downloads the settings every round, so changing the interval, packets, timeout, concurrency,

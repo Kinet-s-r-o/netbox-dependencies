@@ -9,7 +9,15 @@ from netbox.api.viewsets import NetBoxModelViewSet
 from ..filtersets import DependencyFilterSet
 from ..impact import get_impact
 from ..models import Dependency, DeviceStatus, PollerHeartbeat
-from ..status import analyze_outages, apply_icmp_report, poll_targets, poller_config, status_snapshot, zabbix_covered_device_ids
+from ..status import (
+    analyze_outages,
+    apply_icmp_report,
+    poll_targets,
+    poller_config,
+    poller_settings,
+    status_snapshot,
+    zabbix_covered_device_ids,
+)
 from .serializers import DependencySerializer
 
 
@@ -72,7 +80,8 @@ class StatusTargetsAPIView(APIView):
 
     The devices the ICMP poller should ping (active, with a primary IP, without an active host in Zabbix and
     without the exclusion tag) and the poller settings configured in the UI, so the poller needs no restart to
-    pick up a change. `?in_graph=1|0` overrides the "only devices in the dependency tree" setting."""
+    pick up a change. `?poller=<name>` selects the registered poller (its scope and overrides); `?in_graph=1|0` overrides
+    the "only devices in the dependency tree" setting."""
 
     queryset = DeviceStatus.objects.none()
 
@@ -80,11 +89,13 @@ class StatusTargetsAPIView(APIView):
         cfg = poller_config()
         flag = request.query_params.get('in_graph')
         only_in_graph = None if flag is None else flag in ('1', 'true', 'True')
-        settings = {key: cfg[key] for key in ('enabled', 'interval_seconds', 'ping_count', 'ping_timeout', 'concurrency')}
-        if not cfg['enabled']:
+        name = request.query_params.get('poller')
+        settings, _entry = poller_settings(name, cfg)
+        if not settings['enabled']:
             return Response({'count': 0, 'targets': [], 'settings': settings})
         visible = set(Device.objects.restrict(request.user, 'view').values_list('pk', flat=True))
-        targets = [{'id': d.pk, 'name': d.name, 'ip': ip} for d, ip in poll_targets(cfg, only_in_graph) if d.pk in visible]
+        targets = [{'id': d.pk, 'name': d.name, 'ip': ip}
+                   for d, ip in poll_targets(cfg, only_in_graph, poller=name) if d.pk in visible]
         return Response({'count': len(targets), 'targets': targets, 'settings': settings})
 
 

@@ -10,36 +10,62 @@
       <div class="card mb-3">
         <h2 class="card-header">
           Pollers
-          <span class="ms-2 badge text-bg-secondary">{{ pollers|length }}</span>
-          {% if not cfg.enabled %}<span class="ms-2 badge text-bg-gray">paused in the settings</span>{% endif %}
+          <span class="ms-2 badge text-bg-secondary">{{ rows|length }}</span>
+          {% if not cfg.enabled %}<span class="ms-2 badge text-bg-gray">paused in the shared settings</span>{% endif %}
         </h2>
         <table class="table table-hover">
           <thead>
             <tr><th>Name</th><th>Status</th><th>Last report</th><th>Last round</th><th>Devices</th><th class="text-end"></th></tr>
           </thead>
           <tbody>
-            {% for p in pollers %}
+            {% for r in rows %}
               <tr>
-                <td>{{ p.name }}{% if p.version %}<div class="small text-muted">v{{ p.version }}</div>{% endif %}</td>
                 <td>
-                  {% if p.is_silent %}<span class="badge text-bg-red">silent</span>
-                  {% elif p.paused %}<span class="badge text-bg-gray">paused</span>
+                  {{ r.name }}
+                  {% if not r.entry %}<span class="badge text-bg-gray" title="Reports to NetBox but is not registered: it uses the shared settings">auto-detected</span>{% endif %}
+                  {% if r.entry and not r.entry.enabled %}<span class="badge text-bg-gray">disabled</span>{% endif %}
+                  {% if r.entry.description %}<div class="small text-muted">{{ r.entry.description }}</div>{% endif %}
+                  {% if r.beat.version %}<div class="small text-muted">v{{ r.beat.version }}</div>{% endif %}
+                  {% if r.entry %}
+                    <div class="small">
+                      {% if r.entry.sites.all %}<span class="text-muted">Sites:</span> {% for s in r.entry.sites.all %}<a href="{{ s.get_absolute_url }}">{{ s }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}
+                      {% else %}<span class="text-muted">Sites: everything not claimed by another poller</span>{% endif %}
+                    </div>
+                    {% if r.overrides %}<div class="small text-muted">own: {{ r.overrides|join:", " }}</div>{% endif %}
+                  {% endif %}
+                </td>
+                <td>
+                  {% if not r.beat %}<span class="badge text-bg-orange">never reported</span>
+                  {% elif r.beat.is_silent %}<span class="badge text-bg-red">silent</span>
+                  {% elif r.beat.paused %}<span class="badge text-bg-gray">paused</span>
                   {% else %}<span class="badge text-bg-green">reporting</span>{% endif %}
-                  {% if p.alerted_at %}<div class="small text-muted" title="An alert was sent">alert sent {{ p.alerted_at|date:"H:i" }}</div>{% endif %}
+                  {% if r.beat.alerted_at %}<div class="small text-muted" title="An alert was sent">alert sent {{ r.beat.alerted_at|date:"H:i" }}</div>{% endif %}
                 </td>
-                <td>{{ p.last_seen|date:"Y-m-d H:i:s" }}<div class="small text-muted">{{ p.last_seen|timesince }} ago</div></td>
-                <td>{% if p.cycle_seconds is not None %}{{ p.cycle_seconds|floatformat:1 }} s{% else %}—{% endif %}</td>
                 <td>
-                  {{ p.targets }}
-                  {% if p.targets %}<div class="small"><span class="text-success">{{ p.reachable }} up</span>{% if p.unreachable %} · <span class="text-danger">{{ p.unreachable }} down</span>{% endif %}</div>{% endif %}
+                  {% if r.beat %}{{ r.beat.last_seen|date:"Y-m-d H:i:s" }}<div class="small text-muted">{{ r.beat.last_seen|timesince }} ago</div>{% else %}—{% endif %}
                 </td>
-                <td class="text-end">
+                <td>{% if r.beat and r.beat.cycle_seconds is not None %}{{ r.beat.cycle_seconds|floatformat:1 }} s{% else %}—{% endif %}</td>
+                <td>
+                  {{ r.target_count }} <span class="text-muted small">assigned</span>
+                  {% if r.beat and r.beat.targets %}<div class="small"><span class="text-success">{{ r.beat.reachable }} up</span>{% if r.beat.unreachable %} · <span class="text-danger">{{ r.beat.unreachable }} down</span>{% endif %}</div>{% endif %}
+                </td>
+                <td class="text-end text-nowrap">
                   {% if can_change %}
-                    <form method="post" class="d-inline" onsubmit="return confirm('Forget the poller &quot;{{ p.name|escapejs }}&quot;? It appears again when it reports.');">
-                      {% csrf_token %}
-                      <input type="hidden" name="forget" value="{{ p.pk }}">
-                      <button type="submit" class="btn btn-sm btn-outline-secondary" title="Forget this poller (for example after it was removed)"><i class="mdi mdi-close"></i></button>
-                    </form>
+                    {% if r.entry %}
+                      <a href="{% url 'plugins:netbox_dependencies:poller_edit' pk=r.entry.pk %}" class="btn btn-sm btn-outline-secondary" title="Edit"><i class="mdi mdi-pencil"></i></a>
+                      <form method="post" action="{% url 'plugins:netbox_dependencies:poller_delete' pk=r.entry.pk %}" class="d-inline"
+                            onsubmit="return confirm('Unregister the poller &quot;{{ r.name|escapejs }}&quot;? The container keeps working with the shared settings.');">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Unregister"><i class="mdi mdi-trash-can-outline"></i></button>
+                      </form>
+                    {% else %}
+                      <a href="{% url 'plugins:netbox_dependencies:poller_add' %}?name={{ r.name|urlencode }}" class="btn btn-sm btn-outline-primary" title="Register this poller (description, scope, own settings)"><i class="mdi mdi-plus-thick"></i> Register</a>
+                      <form method="post" class="d-inline" onsubmit="return confirm('Forget &quot;{{ r.name|escapejs }}&quot;? It appears again when it reports.');">
+                        {% csrf_token %}
+                        <input type="hidden" name="forget" value="{{ r.beat.pk }}">
+                        <button type="submit" class="btn btn-sm btn-outline-secondary" title="Forget (for example after it was removed)"><i class="mdi mdi-close"></i></button>
+                      </form>
+                    {% endif %}
                   {% endif %}
                 </td>
               </tr>
@@ -48,16 +74,22 @@
             {% endfor %}
           </tbody>
         </table>
+        {% if can_change %}
+          <div class="card-footer">
+            <a href="{% url 'plugins:netbox_dependencies:poller_add' %}" class="btn btn-primary"><i class="mdi mdi-plus-thick"></i> Add poller</a>
+            <span class="text-muted small ms-2">Registers a poller in advance or gives it a scope; NetBox does not start the container.</span>
+          </div>
+        {% endif %}
       </div>
 
       <div class="card">
         <h2 class="card-header">What is pinged</h2>
         <table class="table table-sm mb-0">
-          <tr><th>Devices pinged now</th><td>{{ target_count }}
-            <span class="text-muted small">(active, with a primary IP{% if cfg.only_in_graph %}, with a dependency{% endif %}, not monitored in Zabbix{% if cfg.exclude_tag %}, without the tag “{{ cfg.exclude_tag }}”{% endif %})</span></td></tr>
+          <tr><th>Which devices</th><td>
+            <span class="text-muted small">Active, with a primary IP{% if cfg.only_in_graph %}, with a dependency{% endif %}, not monitored in Zabbix{% if cfg.exclude_tag %}, without the tag “{{ cfg.exclude_tag }}”{% endif %}. A poller with sites pings only those sites.</span></td></tr>
           <tr><th>Exclusion tag</th><td>
             {% if cfg.exclude_tag %}
-              <code>{{ cfg.exclude_tag }}</code> — {{ tagged }} device{{ tagged|pluralize }} carry{{ tagged|pluralize:"s," }} it
+              <code>{{ cfg.exclude_tag }}</code> — {{ tagged }} device{{ tagged|pluralize }} {% if tagged == 1 %}carries{% else %}carry{% endif %} it
               {% if tagged %}(<a href="{% url 'dcim:device_list' %}?tag={{ cfg.exclude_tag }}">show</a>){% endif %}
               <div class="small text-muted">Add the tag to a device in NetBox to stop pinging it.</div>
             {% else %}<span class="text-muted">none</span>{% endif %}
@@ -68,7 +100,7 @@
 
     <div class="col-12 col-xl-5 mb-3">
       <div class="card mb-3">
-        <h2 class="card-header">Settings</h2>
+        <h2 class="card-header">Shared settings</h2>
         <div class="card-body">
           {% if can_change %}
             <form method="post">

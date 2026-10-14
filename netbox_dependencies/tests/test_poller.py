@@ -9,8 +9,9 @@ from extras.models import Tag
 from ipam.models import IPAddress
 from netbox_dependencies import channels
 from netbox_dependencies import notifications as n
-from netbox_dependencies.models import DeviceStatus, PollerHeartbeat, PollerSettings
-from netbox_dependencies.status import apply_icmp_report, poll_targets, poller_config
+from dcim.models import Device, Site
+from netbox_dependencies.models import Dependency, DeviceStatus, Poller, PollerHeartbeat, PollerSettings
+from netbox_dependencies.status import apply_icmp_report, poll_targets, poller_config, poller_settings
 from netbox_dependencies.tests.base import Base
 from netbox_dependencies.tests.test_notifications import NotifBase, card_text, slack_text
 
@@ -127,7 +128,7 @@ class PollerPageTests(PollerBase):
         page = self.client.get('/plugins/dependencies/poller/').content.decode()
         self.assertIn('poller-1', page)
         self.assertIn('reporting', page)
-        self.assertIn('Devices pinged now', page)
+        self.assertIn('Which devices', page)
 
     def test_silent_poller_is_marked_on_the_page(self):
         PollerHeartbeat.objects.create(name='old', first_seen=timezone.now(), last_seen=timezone.now() - timedelta(hours=1))
@@ -150,6 +151,84 @@ class PollerPageTests(PollerBase):
         viewer = Client()
         viewer.force_login(get_user_model().objects.create_user('nobody', 'n@example.com', 'x'))
         self.assertEqual(viewer.get('/plugins/dependencies/poller/').status_code, 403)
+
+
+class RegisteredPollerTests(PollerBase):
+    """Registered pollers: own settings, switching off, and scopes (sites)."""
+
+    def setUp(self):
+        super().setUp()
+        self.branch = Site.objects.create(name='Branch', slug='branch')
+        d = self.devs['sw1']
+        remote = Device.objects.create(name='br-sw', site=self.branch, device_type=d.device_type, role=d.role)
+        give_ip(remote, '10.9.0.1/24')
+        Dependency.objects.create(upstream=self.devs['core'], downstream=remote)
+
+    def names(self, name=None):
+        url = TARGETS + (f'?poller={name}' if name else '')
+        return sorted(t['name'] for t in self.client.get(url).json()['targets'])
+
+    def test_unregistered_poller_uses_the_shared_settings_and_all_devices(self):
+        self.assertEqual(self.names('whoever'), ['br-sw', 'core', 'sw1'])
+        self.assertEqual(self.names(), ['br-sw', 'core', 'sw1'])
+
+    def test_own_settings_override_only_what_is_filled_in(self):
+        Poller.objects.create(name='branch', interval_seconds=15, ping_timeout=2.5)
+        settings, entry = poller_settings('branch')
+        self.assertEqual((settings['interval_seconds'], settings['ping_timeout'], settings['ping_count']), (15, 2.5, 3))
+        self.assertEqual(entry.name, 'branch')
+        body = self.client.get(TARGETS + '?poller=branch').json()['settings']
+        self.assertEqual((body['interval_seconds'], body['ping_timeout'], body['concurrency']), (15, 2.5, 500))
+
+    def test_disabled_poller_gets_nothing_but_others_are_unaffected(self):
+        Poller.objects.create(name='off', enabled=False)
+        body = self.client.get(TARGETS + '?poller=off').json()
+        self.assertEqual((body['count'], body['settings']['enabled']), (0, False))
+        self.assertEqual(self.names('other'), ['br-sw', 'core', 'sw1'])
+
+    def test_sites_scope_splits_the_devices_between_pollers(self):
+        mine = Poller.objects.create(name='branch')
+        mine.sites.set([self.branch])
+        self.assertEqual(self.names('branch'), ['br-sw'])             # only its sites
+        self.assertEqual(self.names('main'), ['core', 'sw1'])         # the rest: everything not claimed
+        self.assertEqual(self.names(), ['br-sw', 'core', 'sw1'])      # no name = no scope
+        mine.enabled = False
+        mine.save()
+        self.assertEqual(self.names('main'), ['br-sw', 'core', 'sw1'])  # a disabled poller claims nothing
+
+    def test_add_edit_and_unregister_through_the_pages(self):
+        r = self.client.post('/plugins/dependencies/poller/add/', {
+            'name': 'branch', 'description': 'Branch office', 'enabled': 'on', 'sites': [self.branch.pk],
+            'interval_seconds': '30', 'ping_timeout': '1.5'})
+        self.assertEqual(r.status_code, 302, getattr(r, 'content', b'')[:300])
+        entry = Poller.objects.get()
+        self.assertEqual((entry.description, entry.interval_seconds, entry.ping_timeout, entry.ping_count),
+                         ('Branch office', 30, 1.5, None))
+        self.assertEqual(list(entry.sites.all()), [self.branch])
+        self.assertEqual(self.client.get(f'/plugins/dependencies/poller/{entry.pk}/edit/').status_code, 200)
+        r = self.client.post(f'/plugins/dependencies/poller/{entry.pk}/edit/', {
+            'name': 'branch', 'enabled': 'on', 'interval_seconds': '', 'sites': []})
+        self.assertEqual(r.status_code, 302)
+        entry.refresh_from_db()
+        self.assertEqual((entry.interval_seconds, entry.sites.count(), entry.description), (None, 0, ''))
+        dup = self.client.post('/plugins/dependencies/poller/add/', {'name': 'BRANCH', 'enabled': 'on'})
+        self.assertEqual(dup.status_code, 200)                         # the name is unique (case-insensitive)
+        self.assertEqual(Poller.objects.count(), 1)
+        self.client.post(f'/plugins/dependencies/poller/{entry.pk}/delete/')
+        self.assertFalse(Poller.objects.exists())
+
+    def test_page_lists_registered_and_auto_detected_pollers(self):
+        Poller.objects.create(name='planned', description='Not started yet')
+        PollerHeartbeat.objects.create(name='stranger', first_seen=timezone.now(), last_seen=timezone.now())
+        page = self.client.get('/plugins/dependencies/poller/').content.decode()
+        self.assertIn('never reported', page)       # registered, no heartbeat yet
+        self.assertIn('auto-detected', page)        # heartbeat without a registration
+        self.assertIn('Register', page)
+
+    def test_only_those_who_may_change_can_add(self):
+        viewer = Client()
+        viewer.force_login(get_user_model().objects.create_user('nobody', 'n@example.com', 'x'))
+        self.assertEqual(viewer.get('/plugins/dependencies/poller/add/').status_code, 403)
 
 
 class AlertTests(NotifBase):
@@ -207,6 +286,11 @@ class AlertTests(NotifBase):
         PollerSettings.objects.update(alert_enabled=True)
         n.NotificationDestination.objects.update(enabled=False)
         self.assertIn('skipped', self.run_alerts(self.now + timedelta(hours=1)))
+        self.assertEqual(self.sent, [])
+
+    def test_switched_off_poller_does_not_alert(self):
+        Poller.objects.create(name='poller-1', enabled=False)
+        self.assertEqual(self.run_alerts(self.now + timedelta(hours=2)), {'down': 0, 'up': 0, 'errors': 0})
         self.assertEqual(self.sent, [])
 
     def test_message_formats(self):

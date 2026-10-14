@@ -307,3 +307,27 @@ class PollerHeartbeat(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class Poller(models.Model):
+    """A registered ICMP poller. A poller that is not registered still works (it appears on the page as auto-detected and
+    uses the shared settings); registering it gives it a description, a scope (sites) and its own interval / packets /
+    timeout / concurrency. Empty override = the shared value. Deliberately a plain model."""
+
+    name = models.CharField(max_length=100, unique=True, help_text='Must equal the POLLER_NAME of the container.')
+    description = models.CharField(max_length=200, blank=True)
+    enabled = models.BooleanField(default=True, help_text='Off: this poller keeps reporting but pings nothing.')
+    sites = models.ManyToManyField(
+        to='dcim.Site', blank=True, related_name='+',
+        help_text='This poller pings only devices of these sites. Empty = everything not claimed by another poller.')
+    interval_seconds = models.PositiveIntegerField(null=True, blank=True)
+    ping_count = models.PositiveSmallIntegerField(null=True, blank=True)
+    ping_timeout = models.FloatField(null=True, blank=True)
+    concurrency = models.PositiveIntegerField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ('name',)
+
+    def __str__(self):
+        return self.name

@@ -31,6 +31,7 @@ from .forms import (
     DestinationForm,
     ImpactForm,
     NotificationSettingsForm,
+    PollerForm,
     PollerSettingsForm,
 )
 from .graph_data import build_graph, build_sidebar
@@ -42,6 +43,7 @@ from .models import (
     NotificationDestination,
     NotificationSettings,
     OutageNotification,
+    Poller,
     PollerHeartbeat,
     PollerSettings,
 )
@@ -407,7 +409,7 @@ class NotificationSettingsView(PermissionRequiredMixin, View):
 
 
 class PollerView(PermissionRequiredMixin, View):
-    """ICMP poller: is it alive, what does it ping, and its settings."""
+    """ICMP pollers: are they alive, what do they ping, and the shared settings."""
 
     permission_required = 'netbox_dependencies.view_pollersettings'
     template_name = 'netbox_dependencies/poller.html'
@@ -421,14 +423,25 @@ class PollerView(PermissionRequiredMixin, View):
     def _render(self, request, form):
         cfg = poller_config()
         now = timezone.now()
-        pollers = list(PollerHeartbeat.objects.all())
-        for poller in pollers:
-            poller.silent_for = (now - poller.last_seen).total_seconds()
-            poller.is_silent = poller.silent_for > cfg['alert_after_seconds']
-        targets = poll_targets(cfg)
+        beats = {b.name: b for b in PollerHeartbeat.objects.all()}
+        rows = []
+        for entry in Poller.objects.prefetch_related('sites'):
+            rows.append({'name': entry.name, 'entry': entry, 'beat': beats.pop(entry.name, None)})
+        for beat in beats.values():       # reporting, but not registered
+            rows.append({'name': beat.name, 'entry': None, 'beat': beat})
+        rows.sort(key=lambda r: r['name'].lower())
+        for row in rows:
+            beat = row['beat']
+            if beat:
+                beat.silent_for = (now - beat.last_seen).total_seconds()
+                beat.is_silent = beat.silent_for > cfg['alert_after_seconds']
+            row['overrides'] = [label for label, key in (
+                ('interval', 'interval_seconds'), ('packets', 'ping_count'), ('timeout', 'ping_timeout'),
+                ('parallel', 'concurrency')) if row['entry'] and getattr(row['entry'], key) is not None]
+            row['target_count'] = len(poll_targets(cfg, poller=row['name']))
         tagged = Device.objects.filter(tags__slug=cfg['exclude_tag']).count() if cfg['exclude_tag'] else 0
         return render(request, self.template_name, {
-            'form': form, 'cfg': cfg, 'pollers': pollers, 'target_count': len(targets), 'tagged': tagged,
+            'form': form, 'cfg': cfg, 'rows': rows, 'tagged': tagged,
             'row': PollerSettings.objects.select_related('updated_by').first(),
             'can_change': self._can_change(request),
         })
@@ -454,7 +467,58 @@ class PollerView(PermissionRequiredMixin, View):
             setattr(row, key, form.cleaned_data[key])
         row.updated_by = request.user
         row.save()
-        messages.success(request, 'Poller settings saved. The poller picks them up in its next round.')
+        messages.success(request, 'Poller settings saved. The pollers pick them up in their next round.')
+        return redirect('plugins:netbox_dependencies:poller')
+
+
+class PollerEditView(PermissionRequiredMixin, View):
+    """Register / edit a poller."""
+
+    permission_required = 'netbox_dependencies.change_pollersettings'
+    template_name = 'netbox_dependencies/poller_form.html'
+
+    @staticmethod
+    def _instance(pk):
+        return get_object_or_404(Poller, pk=pk) if pk else None
+
+    def _form_initial(self, instance, request):
+        if not instance:
+            return {'name': request.GET.get('name', ''), 'enabled': True}
+        initial = {key: getattr(instance, key) for key in (
+            'name', 'description', 'enabled', 'interval_seconds', 'ping_count', 'concurrency')}
+        initial['ping_timeout'] = None if instance.ping_timeout is None else str(instance.ping_timeout)
+        initial['sites'] = list(instance.sites.all())
+        return initial
+
+    def get(self, request, pk=None):
+        instance = self._instance(pk)
+        return render(request, self.template_name, {
+            'form': PollerForm(initial=self._form_initial(instance, request), instance=instance), 'instance': instance})
+
+    def post(self, request, pk=None):
+        instance = self._instance(pk)
+        form = PollerForm(request.POST, instance=instance)
+        if not form.is_valid():
+            return render(request, self.template_name, {'form': form, 'instance': instance})
+        entry = instance or Poller()
+        for key in ('name', 'description', 'enabled', 'interval_seconds', 'ping_count', 'ping_timeout', 'concurrency'):
+            setattr(entry, key, form.cleaned_data[key])
+        entry.save()
+        entry.sites.set(form.cleaned_data['sites'])
+        messages.success(request, f'Poller "{entry.name}" saved. It picks the change up in its next round.')
+        return redirect('plugins:netbox_dependencies:poller')
+
+
+class PollerDeleteView(PermissionRequiredMixin, View):
+    """Unregister a poller (the container is not touched; it keeps working with the shared settings)."""
+
+    permission_required = 'netbox_dependencies.change_pollersettings'
+
+    def post(self, request, pk):
+        entry = get_object_or_404(Poller, pk=pk)
+        name = entry.name
+        entry.delete()
+        messages.success(request, f'Poller "{name}" was unregistered.')
         return redirect('plugins:netbox_dependencies:poller')
 
 

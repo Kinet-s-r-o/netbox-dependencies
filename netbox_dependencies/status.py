@@ -12,7 +12,7 @@ from netbox.plugins import get_plugin_config
 from .choices import SourceChoices, StateChoices
 from .graph import compute_impact
 from .impact import load_edges
-from .models import DeviceStatus, PollerSettings
+from .models import DeviceStatus, Poller, PollerSettings
 
 PLUGIN = 'netbox_dependencies'
 
@@ -37,9 +37,30 @@ def poller_config():
     return cfg
 
 
-def poll_targets(cfg=None, only_in_graph=None):
+OVERRIDABLE = ('interval_seconds', 'ping_count', 'ping_timeout', 'concurrency')
+
+
+def poller_settings(name, cfg=None):
+    """The settings one poller works with: the shared ones, with the overrides of its registered entry (if any).
+    Returns (settings, registered Poller or None). `enabled` is False when it is switched off globally or for this poller."""
+    cfg = cfg or poller_config()
+    entry = Poller.objects.prefetch_related('sites').filter(name=name).first() if name else None
+    settings = {key: cfg[key] for key in ('enabled',) + OVERRIDABLE}
+    if entry:
+        settings['enabled'] = settings['enabled'] and entry.enabled
+        for key in OVERRIDABLE:
+            if getattr(entry, key) is not None:
+                settings[key] = getattr(entry, key)
+    return settings, entry
+
+
+def poll_targets(cfg=None, only_in_graph=None, poller=None):
     """Devices the poller should ping: active, with a primary IP, not carrying the exclusion tag
-    and without an active host in Zabbix. Returns a list of (device, ip)."""
+    and without an active host in Zabbix. Returns a list of (device, ip).
+
+    `poller` is the name of the asking poller. A registered poller with sites pings only the devices of those
+    sites; any other poller (unregistered, or registered without sites) pings the devices of the sites that no
+    other enabled poller claims. Without a name nothing is filtered by site."""
     cfg = cfg or poller_config()
     if only_in_graph is None:
         only_in_graph = cfg['only_in_graph']
@@ -48,6 +69,15 @@ def poll_targets(cfg=None, only_in_graph=None):
         devices = devices.filter(Q(upstream_dependencies__isnull=False) | Q(downstream_dependencies__isnull=False)).distinct()
     if cfg['exclude_tag']:
         devices = devices.exclude(tags__slug=cfg['exclude_tag'])
+    if poller is not None:
+        mine = Poller.objects.filter(name=poller).first()
+        if mine and mine.sites.exists():
+            devices = devices.filter(site__in=mine.sites.all())
+        else:
+            claimed = Poller.objects.filter(enabled=True, sites__isnull=False).exclude(name=poller)
+            claimed_sites = set(claimed.values_list('sites', flat=True))
+            if claimed_sites:
+                devices = devices.exclude(site__in=claimed_sites)
     covered = zabbix_covered_device_ids()
     result = []
     for device in devices.select_related('primary_ip4', 'primary_ip6'):

@@ -42,7 +42,7 @@ The plugin has no dependencies besides NetBox itself.
 
 ```bash
 # inside the NetBox virtualenv
-pip install git+https://github.com/adrian-13/netbox-dependencies.git@v1.4.0
+pip install git+https://github.com/adrian-13/netbox-dependencies.git@v1.5.0
 ```
 
 `configuration.py` (or `configuration/plugins.py` in netbox-docker):
@@ -105,15 +105,18 @@ fallbacks until NetBox answers.
 
 Everything else is managed in **Dependencies → Configuration → ICMP poller**, and a change applies in the poller's next round (no restart):
 
-- **Is it alive?** One row per poller: last report, how long the last round took, how many devices it pinged and how many are down.
-- **Settings:** enabled / paused, interval, packets per device, timeout, devices pinged at once, only devices that have a dependency,
+- **Is it alive?** One row per poller: status, last report, how long the last round took, how many devices it was assigned and how many are
+  up / down. A poller that reports but is not registered shows as *auto-detected*.
+- **Add / edit pollers** (*Add poller*, the pencil, *Register*): a description, enabled or not, a **scope** (sites) and its own interval,
+  packets, timeout and concurrency (empty = the shared value). The *name* must equal the container's `POLLER_NAME`.
+  A poller with sites pings only the devices of those sites and every other poller skips them, so one poller per network never pings a
+  device twice. Pollers without sites share everything that nobody claims. NetBox does not start the container — it only manages it.
+- **Shared settings:** enabled / paused, interval, packets per device, timeout, devices pinged at once, only devices that have a dependency,
   failed rounds before DOWN, how long a status stays valid.
 - **Exclusion tag:** devices carrying this NetBox tag (default `no-ping`) are never pinged.
 - **Silent-poller alert:** if a poller has not reported for the configured time (default 5 minutes) a message goes to the notification
-  destinations, and another one when it is back. Use *forget* on the page for a poller that was removed on purpose.
-
-With several pollers all of them share the same settings and the same list of targets (no sharding), so run one per network only if
-the networks do not overlap.
+  destinations, and another one when it is back. Use *forget* for a poller that was removed on purpose; a poller switched off in NetBox
+  does not alert.
 
 ## Zabbix (optional)
 

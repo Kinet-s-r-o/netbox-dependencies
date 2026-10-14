@@ -27,6 +27,7 @@ from .impact import get_impact
 from .models import (
     Dependency,
     DeviceStatus,
+    Poller,
     PollerHeartbeat,
     NotificationDelivery,
     NotificationDestination,
@@ -328,7 +329,10 @@ def run_poller_alerts(now=None):
     base = _base_url()
     url = f"{base}{reverse('plugins:netbox_dependencies:poller')}" if base else ''
     result = {'down': 0, 'up': 0, 'errors': 0}
+    switched_off = set(Poller.objects.filter(enabled=False).values_list('name', flat=True))
     for heartbeat in PollerHeartbeat.objects.all():
+        if heartbeat.name in switched_off:
+            continue    # switched off on purpose
         silent_for = (now - heartbeat.last_seen).total_seconds()
         silent = silent_for > cfg['alert_after_seconds']
         if silent and heartbeat.alerted_at is None:

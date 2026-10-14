@@ -11,7 +11,7 @@ Environment variables:
   NETBOX_URL        e.g. http://netbox:8080
   NETBOX_TOKEN      API token (v1 and v2; the Bearer/Token prefix is optional)
                     (permissions: view device, view dependency, change devicestatus)
-  POLLER_NAME       name shown in NetBox (default: the host name of the container)
+  POLLER_NAME       name shown in NetBox and used to find the poller registered there (default: the host name of the container)
   POLL_INTERVAL     fallback: seconds between rounds (default 60)
   PING_COUNT        fallback: number of ICMP packets per device (default 3)
   PING_TIMEOUT      fallback: timeout of one packet in seconds (default 1)
@@ -26,13 +26,14 @@ import socket
 import ssl
 import sys
 import time
+import urllib.parse
 import urllib.request
 
 from icmplib import multiping
 
 log = logging.getLogger('poller')
 
-VERSION = '1.4.0'
+VERSION = '1.5.0'
 NETBOX_URL = os.environ.get('NETBOX_URL', 'http://netbox:8080').rstrip('/')
 TOKEN = os.environ.get('NETBOX_TOKEN', '')
 NAME = os.environ.get('POLLER_NAME') or socket.gethostname()
@@ -91,7 +92,7 @@ def _heartbeat(started, targets=0, reachable=0, unreachable=0, paused=False):
 
 def cycle():
     started = time.monotonic()
-    answer = _request('GET', 'status/targets/')
+    answer = _request('GET', 'status/targets/?poller=' + urllib.parse.quote(NAME))
     for key, value in (answer.get('settings') or {}).items():
         if key in SETTINGS and value is not None:
             SETTINGS[key] = value

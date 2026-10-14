@@ -1,6 +1,6 @@
 from django import forms
 
-from dcim.models import Device
+from dcim.models import Device, Site
 from netbox.forms import NetBoxModelFilterSetForm, NetBoxModelForm, NetBoxModelImportForm
 from utilities.forms.fields import (
     CSVChoiceField,
@@ -10,7 +10,7 @@ from utilities.forms.fields import (
 )
 
 from .choices import DependencyTypeChoices, DestinationKindChoices, MediumChoices
-from .models import CustomMap, Dependency, NotificationDestination
+from .models import CustomMap, Dependency, NotificationDestination, Poller
 
 
 class DependencyForm(NetBoxModelForm):
@@ -174,6 +174,41 @@ class PollerSettingsForm(forms.Form):
         if stale and interval and stale <= interval:
             self.add_error('stale_after_seconds', 'Must be longer than the interval, otherwise statuses expire between rounds.')
         return cleaned
+
+
+class PollerForm(forms.Form):
+    """Register / edit one ICMP poller: description, scope and its own settings."""
+
+    name = forms.CharField(
+        max_length=100, label='Name',
+        help_text='Exactly the POLLER_NAME of the poller container (or its host name when POLLER_NAME is not set).')
+    description = forms.CharField(max_length=200, required=False, label='Description',
+                                  help_text='For example "Branch office network".')
+    enabled = forms.BooleanField(required=False, initial=True, label='Enabled',
+                                 help_text='Off: the poller keeps reporting but pings nothing.')
+    sites = DynamicModelMultipleChoiceField(
+        queryset=Site.objects.all(), required=False, label='Sites',
+        help_text='The poller pings only devices of these sites. Empty = every device that no other poller claims.')
+    interval_seconds = forms.IntegerField(min_value=10, max_value=3600, required=False, label='Interval (seconds)')
+    ping_count = forms.IntegerField(min_value=1, max_value=10, required=False, label='Packets per device')
+    ping_timeout = forms.FloatField(min_value=0.2, max_value=10, required=False, label='Timeout per packet (seconds)',
+                                    widget=forms.NumberInput(attrs={'step': '0.1'}))
+    concurrency = forms.IntegerField(min_value=1, max_value=5000, required=False, label='Devices pinged at once')
+
+    def __init__(self, *args, instance=None, **kwargs):
+        self.instance = instance
+        super().__init__(*args, **kwargs)
+        for field in ('interval_seconds', 'ping_count', 'ping_timeout', 'concurrency'):
+            self.fields[field].help_text = self.fields[field].help_text or 'Empty = the shared value.'
+
+    def clean_name(self):
+        name = self.cleaned_data['name'].strip()
+        clash = Poller.objects.filter(name__iexact=name)
+        if self.instance:
+            clash = clash.exclude(pk=self.instance.pk)
+        if clash.exists():
+            raise forms.ValidationError('A poller with this name is registered already.')
+        return name
 
 
 class DestinationForm(forms.Form):
