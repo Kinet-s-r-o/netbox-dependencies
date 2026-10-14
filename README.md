@@ -42,7 +42,7 @@ The plugin has no dependencies besides NetBox itself.
 
 ```bash
 # inside the NetBox virtualenv
-pip install git+https://github.com/adrian-13/netbox-dependencies.git@v1.5.0
+pip install git+https://github.com/adrian-13/netbox-dependencies.git@v1.6.0
 ```
 
 `configuration.py` (or `configuration/plugins.py` in netbox-docker):
@@ -92,14 +92,26 @@ Devices that are not monitored in Zabbix can be pinged by a small separate conta
 list of targets **and its settings** from NetBox, pings the targets in parallel and reports raw results plus a heartbeat; the decision "DOWN"
 (failure threshold) is made by the plugin.
 
-1. Create a NetBox user for the poller and an API token. Give it exactly these permissions:
-   *view device*, *view dependency*, *change device status* (Dependencies → device status).
-2. Run the container — see [examples/docker-compose.poller.yml](examples/docker-compose.poller.yml). It needs
-   `cap_add: NET_RAW` for raw ICMP sockets.
+Setting it up takes three steps and no Docker build:
 
-Container environment variables: `NETBOX_URL`, `NETBOX_TOKEN` (v1 and v2 tokens both work), `POLLER_NAME` (shown in NetBox; default the
-container's host name) and `VERIFY_SSL` (1). `POLL_INTERVAL` (60), `PING_COUNT` (3), `PING_TIMEOUT` (1) and `PING_CONCURRENCY` (500) are only
-fallbacks until NetBox answers.
+1. **Create the user and token** — run this once where NetBox runs (in netbox-docker: `docker compose exec netbox /opt/netbox/venv/bin/python
+   /opt/netbox/netbox/manage.py dependencies_setup_poller --write /tmp/dependencies-poller.env`, then copy the file out):
+
+   ```bash
+   python manage.py dependencies_setup_poller --name netbox-poller --netbox-url http://netbox:8080 --write dependencies-poller.env
+   ```
+
+   It creates a dedicated user `dependencies-poller` (no password, not a superuser) that may only read devices and report device status,
+   makes an API token for it and writes the environment file (mode 600, never overwritten). The token is shown only once; without `--write`
+   it is printed instead. Add `--allowed-ip 10.0.0.5/32` to accept the token only from the poller's address, or run with `--rotate` later to
+   replace it.
+2. **Add the service** printed by the command to your compose file (see [examples/docker-compose.poller.yml](examples/docker-compose.poller.yml)).
+   The image is published on every release as `ghcr.io/adrian-13/netbox-dependencies-poller:<version>`; use the same version as the plugin.
+   It drops all Linux capabilities except `NET_RAW` (raw ICMP sockets) and has a read-only filesystem.
+3. **Start it:** `docker compose up -d dependencies-poller`. After its first round it appears under *Dependencies → Configuration → ICMP poller*.
+
+Container environment variables: `NETBOX_URL`, `NETBOX_TOKEN`, `POLLER_NAME` (shown in NetBox; default the container's host name) and
+`VERIFY_SSL` (1). `POLL_INTERVAL` (60), `PING_COUNT` (3), `PING_TIMEOUT` (1) and `PING_CONCURRENCY` (500) are only fallbacks until NetBox answers.
 
 ![ICMP poller page](docs/images/poller.png)
 
@@ -182,7 +194,7 @@ The command `manage.py dependencies_test_notifications [--destination NAME]` sen
 - Webhook URLs and signing secrets are stored **in plaintext in the NetBox database** (many webhook URLs are bearer secrets themselves).
   They are never shown again in the UI (only a masked form), never written to the change log and never logged.
   Restrict database access accordingly and use dedicated webhooks that can be revoked.
-- The poller token only needs the three permissions listed above — do not use an administrator token.
+- The poller token is limited to what the poller does (read devices, report status); `dependencies_setup_poller` creates exactly that. Do not use an administrator token.
 - Reporting a vulnerability: please open a private security advisory on GitHub instead of a public issue.
 
 ## Development

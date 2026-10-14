@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.6.0 — 2026-10-14
+- `manage.py dependencies_setup_poller`: creates a restricted user (read devices, report status — nothing else), its API token and the
+  environment file / compose service for the poller. The token is shown once; the file is written with mode 600 and never overwritten;
+  `--rotate` replaces the token, `--allowed-ip` restricts where it works.
+- The poller image is built by GitHub Actions on every release and published as `ghcr.io/adrian-13/netbox-dependencies-poller:<version>`
+  (amd64 and arm64); no clone or build needed. The example compose service runs it with all capabilities dropped except `NET_RAW`
+  and a read-only filesystem.
+
 ## 1.5.0 — 2026-10-14
 - Pollers can be registered, edited and unregistered on the ICMP poller page (*Add poller*): description, enabled, **scope (sites)** and
   own interval / packets / timeout / concurrency. A poller with sites pings only those sites and the others skip them, so several
