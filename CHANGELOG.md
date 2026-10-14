@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.10.0 — 2026-10-14
+- ICMP poller page: worst-case round time per poller against its interval, with a warning and a suggested "devices at once"
+  when the round may not finish in time (and when the last real round did not).
+- Recommended settings: five profiles (small, medium, large, fast detection, slow links) with the detection time and the worst-case
+  round for your device count; *Use* fills the form. A sizing section in the README.
+
 ## 1.9.1 — 2026-10-14
 - The re-importable CSV is now an entry of the standard **Export** dropdown (*Re-importable CSV*) instead of a separate button.
 

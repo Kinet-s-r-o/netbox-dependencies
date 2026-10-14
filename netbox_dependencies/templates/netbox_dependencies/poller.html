@@ -1,6 +1,7 @@
 {% extends 'generic/_base.html' %}
 {% load helpers %}
 {% load form_helpers %}
+{% load l10n %}
 
 {% block title %}ICMP poller{% endblock %}
 
@@ -47,6 +48,20 @@
                 <td>{% if r.beat and r.beat.cycle_seconds is not None %}{{ r.beat.cycle_seconds|floatformat:1 }} s{% else %}—{% endif %}</td>
                 <td>
                   {{ r.target_count }} <span class="text-muted small">assigned</span>
+                  {% if r.target_count %}
+                    <div class="small {% if r.too_slow %}text-danger fw-bold{% else %}text-muted{% endif %}"
+                         title="Worst case: every device is down, so every packet waits for its timeout. Devices that answer are done in milliseconds.">
+                      worst round {{ r.worst_round|floatformat:0 }} s of {{ r.interval }} s{% if r.too_slow %} ⚠{% endif %}
+                    </div>
+                  {% endif %}
+                  {% if r.too_slow %}
+                    <div class="small text-danger" style="max-width: 18rem">
+                      The round may not finish within the interval.
+                      {% if r.needed_concurrency %}Raise “devices pinged at once” to about {{ r.needed_concurrency }}, or{% else %}Even one batch is too long: {% endif %}
+                      lower the packets or the timeout, lengthen the interval, or give some sites to another poller.
+                    </div>
+                  {% endif %}
+                  {% if r.last_slow %}<div class="small text-danger">last round took {{ r.beat.cycle_seconds|floatformat:0 }} s, longer than the interval</div>{% endif %}
                   {% if r.beat and r.beat.targets %}<div class="small"><span class="text-success">{{ r.beat.reachable }} up</span>{% if r.beat.unreachable %} · <span class="text-danger">{{ r.beat.unreachable }} down</span>{% endif %}</div>{% endif %}
                 </td>
                 <td class="text-end text-nowrap">
@@ -80,6 +95,44 @@
             <span class="text-muted small ms-2">Registers a poller in advance or gives it a scope; NetBox does not start the container.</span>
           </div>
         {% endif %}
+      </div>
+
+      <div class="card mb-3">
+        <h2 class="card-header">
+          Recommended settings
+          <span class="ms-2 text-muted fs-6 fw-normal">for {{ total_targets }} device{{ total_targets|pluralize }} pinged now</span>
+        </h2>
+        <table class="table table-sm mb-0" id="dep-presets">
+          <thead>
+            <tr><th>Profile</th><th>Round / packets / timeout / at once</th><th title="Failed rounds x interval">Detects a down device in</th><th title="Every device down: all packets time out">Worst round</th><th></th></tr>
+          </thead>
+          <tbody>
+            {% for p in presets %}
+              <tr>
+                <td><strong>{{ p.name }}</strong><div class="small text-muted">{{ p.for_devices }}</div></td>
+                <td class="small">{{ p.interval_seconds }} s · {{ p.ping_count }} × · {{ p.ping_timeout }} s · {{ p.concurrency }}
+                  <div class="text-muted">DOWN after {{ p.fail_threshold }} failed rounds; a status is valid {{ p.stale_after_seconds }} s</div></td>
+                <td class="small">~{{ p.detection }} s</td>
+                <td class="small {% if p.worst > p.interval_seconds %}text-danger fw-bold{% endif %}">{{ p.worst|floatformat:0 }} s{% if p.worst > p.interval_seconds %} ⚠{% endif %}</td>
+                <td class="text-end">
+                  {% if can_change %}
+                    <button type="button" class="btn btn-sm btn-outline-primary dep-preset"
+                            data-interval_seconds="{{ p.interval_seconds }}" data-ping_count="{{ p.ping_count }}" data-ping_timeout="{{ p.ping_timeout|unlocalize }}"
+                            data-concurrency="{{ p.concurrency }}" data-fail_threshold="{{ p.fail_threshold }}" data-stale_after_seconds="{{ p.stale_after_seconds }}"
+                            title="Fills the settings form; nothing is saved until you press Save">Use</button>
+                  {% endif %}
+                </td>
+              </tr>
+              <tr><td colspan="5" class="small text-muted border-top-0 pt-0">{{ p.note }}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        <div class="card-footer small text-muted">
+          A round is the time to ping every device once. If it takes longer than the interval, rounds simply follow each other without a pause,
+          and when a status gets older than its validity the device turns to “unknown”. The worst round is
+          <code>ceil(devices / at once) × (packets × timeout + (packets − 1) × 0.2 s)</code>; in practice most devices answer immediately and
+          rounds are much shorter. The <strong>Devices</strong> column above shows the same estimate for each poller.
+        </div>
       </div>
 
       <div class="card">
@@ -153,4 +206,16 @@
       </div>
     </div>
   </div>
+  <script>
+    document.querySelectorAll('.dep-preset').forEach(function (button) {
+      button.addEventListener('click', function () {
+        ['interval_seconds', 'ping_count', 'ping_timeout', 'concurrency', 'fail_threshold', 'stale_after_seconds'].forEach(function (name) {
+          var input = document.getElementById('id_' + name);
+          if (input) { input.value = button.dataset[name]; input.classList.add('is-valid'); }
+        });
+        var first = document.getElementById('id_interval_seconds');
+        if (first) { first.scrollIntoView({behavior: 'smooth', block: 'center'}); }
+      });
+    });
+  </script>
 {% endblock %}

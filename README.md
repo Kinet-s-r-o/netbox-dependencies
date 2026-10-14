@@ -47,7 +47,7 @@ The plugin has no dependencies besides NetBox itself.
 
 ```bash
 # inside the NetBox virtualenv
-pip install git+https://github.com/adrian-13/netbox-dependencies.git@v1.9.1
+pip install git+https://github.com/adrian-13/netbox-dependencies.git@v1.10.0
 ```
 
 `configuration.py` (or `configuration/plugins.py` in netbox-docker):
@@ -134,6 +134,25 @@ Everything else is managed in **Dependencies → Configuration → ICMP poller**
 - **Silent-poller alert:** if a poller has not reported for the configured time (default 5 minutes) a message goes to the notification
   destinations, and another one when it is back. Use *forget* for a poller that was removed on purpose; a poller switched off in NetBox
   does not alert.
+
+### Sizing
+
+A *round* is the time to ping every device once; it should finish well within the interval. The worst case (every device is down, so every
+packet waits for its timeout) is `ceil(devices / at once) × (packets × timeout + (packets − 1) × 0.2 s)`; devices that answer are done in
+milliseconds, so real rounds are usually much shorter. The ICMP poller page shows this estimate per poller, warns when it exceeds the interval
+and offers recommended profiles (*Use* fills the form, nothing is saved until *Save*):
+
+| Profile | For | Interval | Packets × timeout | At once | Down device noticed after |
+|---|---|---|---|---|---|
+| Small network | up to ~200 devices | 60 s | 3 × 1.0 s | 200 | ~3 min (3 failed rounds) |
+| Medium network | 200 – 1000 | 60 s | 2 × 1.0 s | 500 | ~3 min |
+| Large network | 1000 – 5000 | 120 s | 2 × 0.8 s | 1000 | ~6 min |
+| Fast detection | up to ~500, reliable network | 30 s | 2 × 0.5 s | 500 | ~1 min (2 failed rounds) |
+| Slow links (radio, VPN, satellite) | any | 120 s | 4 × 2.0 s | 200 | ~6 min |
+
+If a round is slower than the interval, rounds follow each other without a pause and a status older than its validity turns to *unknown*.
+Fixes, in order: raise *devices pinged at once* (the page suggests a value), lower packets or timeout, lengthen the interval (and the validity),
+or split the network: register several pollers and give each its own sites.
 
 ## Zabbix (optional)
 

@@ -54,6 +54,42 @@ def poller_settings(name, cfg=None):
     return settings, entry
 
 
+def round_estimate(devices, settings):
+    """How long one poller round can take in the worst case (every device is down, so every packet runs into its timeout).
+
+    The poller pings `concurrency` devices at once; a device that answers is done in milliseconds, one that does not
+    takes `count` timeouts plus the 0.2 s gaps between packets. Returns (seconds, concurrency that would finish within
+    70 % of the interval - or None when even one batch is longer than that and only fewer packets, a shorter timeout
+    or a longer interval help)."""
+    per_host = settings['ping_count'] * settings['ping_timeout'] + (settings['ping_count'] - 1) * 0.2
+    if not devices:
+        return 0.0, 1
+    batches = -(-devices // max(1, settings['concurrency']))
+    allowed_batches = int(settings['interval_seconds'] * 0.7 // per_host)
+    needed = -(-devices // allowed_batches) if allowed_batches >= 1 else None
+    return batches * per_host, needed
+
+
+# recommended starting points (shown on the poller page; "Use" fills the form, nothing is saved until Save)
+PRESETS = (
+    {'key': 'small', 'name': 'Small network', 'for_devices': 'up to ~200 devices', 'interval_seconds': 60, 'ping_count': 3,
+     'ping_timeout': 1.0, 'concurrency': 200, 'fail_threshold': 3, 'stale_after_seconds': 600,
+     'note': 'The defaults. A down device is noticed after about 3 minutes.'},
+    {'key': 'medium', 'name': 'Medium network', 'for_devices': '200 - 1000 devices', 'interval_seconds': 60, 'ping_count': 2,
+     'ping_timeout': 1.0, 'concurrency': 500, 'fail_threshold': 3, 'stale_after_seconds': 600,
+     'note': 'Two packets per device keep the round short.'},
+    {'key': 'large', 'name': 'Large network', 'for_devices': '1000 - 5000 devices', 'interval_seconds': 120, 'ping_count': 2,
+     'ping_timeout': 0.8, 'concurrency': 1000, 'fail_threshold': 3, 'stale_after_seconds': 900,
+     'note': 'Longer interval and more devices at once. Above ~5000 devices run several pollers, each for some sites.'},
+    {'key': 'fast', 'name': 'Fast detection', 'for_devices': 'up to ~500 devices', 'interval_seconds': 30, 'ping_count': 2,
+     'ping_timeout': 0.5, 'concurrency': 500, 'fail_threshold': 2, 'stale_after_seconds': 300,
+     'note': 'A down device is noticed after about a minute; use it only on a fast, reliable network.'},
+    {'key': 'gentle', 'name': 'Slow links (radio, VPN, satellite)', 'for_devices': 'any size', 'interval_seconds': 120,
+     'ping_count': 4, 'ping_timeout': 2.0, 'concurrency': 200, 'fail_threshold': 3, 'stale_after_seconds': 900,
+     'note': 'More packets and a long timeout so that a lossy or slow link is not reported down by mistake.'},
+)
+
+
 def poll_targets(cfg=None, only_in_graph=None, poller=None):
     """Devices the poller should ping: active, with a primary IP, not carrying the exclusion tag
     and without an active host in Zabbix. Returns a list of (device, ip).

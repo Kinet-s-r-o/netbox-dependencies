@@ -11,7 +11,7 @@ from netbox_dependencies import channels
 from netbox_dependencies import notifications as n
 from dcim.models import Device, Site
 from netbox_dependencies.models import Dependency, DeviceStatus, Poller, PollerHeartbeat, PollerSettings
-from netbox_dependencies.status import apply_icmp_report, poll_targets, poller_config, poller_settings
+from netbox_dependencies.status import PRESETS, apply_icmp_report, poll_targets, poller_config, poller_settings, round_estimate
 from netbox_dependencies.tests.base import Base
 from netbox_dependencies.tests.test_notifications import NotifBase, card_text, slack_text
 
@@ -54,6 +54,35 @@ class SettingsTests(PollerBase):
         self.assertNotEqual(DeviceStatus.objects.get(device=self.devs['sw1']).state, 'down')
         apply_icmp_report(self.devs['sw1'].pk, False)
         self.assertEqual(DeviceStatus.objects.get(device=self.devs['sw1']).state, 'down')
+
+
+class SizingTests(PollerBase):
+    def test_worst_case_round_estimate(self):
+        settings = {'ping_count': 3, 'ping_timeout': 1.0, 'concurrency': 100, 'interval_seconds': 60}
+        seconds, needed = round_estimate(760, settings)
+        self.assertAlmostEqual(seconds, 8 * 3.4)               # 8 batches of 3 packets x 1 s + 2 gaps of 0.2 s (the figure measured in the field)
+        self.assertEqual(needed, 760 // 12 + 1)                 # 12 batches fit into 70 % of 60 s
+        self.assertEqual(round_estimate(0, settings), (0.0, 1))
+        self.assertEqual(round_estimate(10, dict(settings, ping_timeout=20.0, ping_count=2, interval_seconds=30))[1], None)   # one batch alone is too long
+
+    def test_every_preset_is_valid_for_the_form_and_fits_its_target_size(self):
+        from netbox_dependencies.forms import PollerSettingsForm
+        for preset in PRESETS:
+            form = PollerSettingsForm({**{k: preset[k] for k in ('interval_seconds', 'ping_count', 'ping_timeout', 'concurrency',
+                                                                   'fail_threshold', 'stale_after_seconds', 'alert_after_seconds')
+                                         if k in preset}, 'alert_after_seconds': 600, 'enabled': 'on', 'exclude_tag': ''})
+            self.assertTrue(form.is_valid(), (preset['key'], form.errors))
+        # the profile for 1000 - 5000 devices finishes a worst-case round for 5000 devices within its interval
+        large = next(p for p in PRESETS if p['key'] == 'large')
+        self.assertLess(round_estimate(5000, large)[0], large['interval_seconds'])
+
+    def test_page_warns_when_the_round_cannot_finish(self):
+        PollerSettings.objects.create(interval_seconds=10, ping_count=4, ping_timeout=5.0, concurrency=1, stale_after_seconds=60)
+        PollerHeartbeat.objects.create(name='slow', first_seen=timezone.now(), last_seen=timezone.now(), cycle_seconds=42.0)
+        page = self.client.get('/plugins/dependencies/poller/').content.decode()
+        self.assertIn('may not finish within the interval', page)
+        self.assertIn('Recommended settings', page)
+        self.assertIn('data-interval_seconds="30"', page)             # the "Fast detection" profile can be applied to the form
 
 
 class TargetsTests(PollerBase):

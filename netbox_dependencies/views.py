@@ -53,7 +53,7 @@ from .models import (
 )
 from .notifications import DeliveryError, effective_settings, mask_url, seed_from_environment, send_samples
 from .pagination import paginate
-from .status import analyze_outages, poll_targets, poller_config
+from .status import PRESETS, analyze_outages, poll_targets, poller_config, poller_settings, round_estimate
 from .tree import build_tree
 
 
@@ -493,9 +493,20 @@ class PollerView(PermissionRequiredMixin, View):
                 ('interval', 'interval_seconds'), ('packets', 'ping_count'), ('timeout', 'ping_timeout'),
                 ('parallel', 'concurrency')) if row['entry'] and getattr(row['entry'], key) is not None]
             row['target_count'] = len(poll_targets(cfg, poller=row['name']))
+            settings, _entry = poller_settings(row['name'], cfg)
+            worst, needed = round_estimate(row['target_count'], settings)
+            row['worst_round'] = worst
+            row['interval'] = settings['interval_seconds']
+            row['too_slow'] = worst > settings['interval_seconds']
+            row['needed_concurrency'] = needed
+            beat = row['beat']
+            row['last_slow'] = bool(beat and beat.cycle_seconds and beat.cycle_seconds > settings['interval_seconds'])
         tagged = Device.objects.filter(tags__slug=cfg['exclude_tag']).count() if cfg['exclude_tag'] else 0
+        total = len(poll_targets(cfg))
+        presets = [dict(preset, worst=round_estimate(total, preset)[0], detection=preset['fail_threshold'] * preset['interval_seconds'])
+                   for preset in PRESETS]
         return render(request, self.template_name, {
-            'form': form, 'cfg': cfg, 'rows': rows, 'tagged': tagged,
+            'form': form, 'cfg': cfg, 'rows': rows, 'tagged': tagged, 'presets': presets, 'total_targets': total,
             'row': PollerSettings.objects.select_related('updated_by').first(),
             'can_change': self._can_change(request),
         })
