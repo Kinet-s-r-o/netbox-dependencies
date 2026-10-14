@@ -29,6 +29,8 @@ live, with optional notifications to Microsoft Teams, Slack or any webhook.
   one when it ends.
 - Tree view, device tab "Dependencies", pagination and limits for large networks.
 
+![Dependency tree](docs/images/tree.png)
+
 ![Outage simulation](docs/images/impact.png)
 
 ## Compatibility
@@ -42,7 +44,7 @@ The plugin has no dependencies besides NetBox itself.
 
 ```bash
 # inside the NetBox virtualenv
-pip install git+https://github.com/adrian-13/netbox-dependencies.git@v1.7.0
+pip install git+https://github.com/adrian-13/netbox-dependencies.git@v1.8.0
 ```
 
 `configuration.py` (or `configuration/plugins.py` in netbox-docker):

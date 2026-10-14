@@ -27,7 +27,7 @@ def build_tree(site_id=None, page_number=None, per_page=None):
         device_ids.update((e.upstream_id, e.downstream_id))
 
     devices = {
-        d.pk: d for d in Device.objects.filter(pk__in=device_ids).select_related('site', 'role')
+        d.pk: d for d in Device.objects.filter(pk__in=device_ids).select_related('site', 'role', 'device_type')
     }
     states = dict(DeviceStatus.objects.filter(device_id__in=device_ids).values_list('device_id', 'state'))
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.8.0 — 2026-10-14
+- New look of the **Dependency tree**: rows with a round status disc holding the device icon, guide lines between levels, chips for
+  the link medium (with the same line pattern as in the graph), redundancy group and multiple upstream, a "Down" highlight, counters of
+  direct / total dependents, edit and delete actions on hover. Works in the dark theme.
+- The device icon set and its selection rules now live in one place (`icons.py`) and are shared by the tree and the graph.
+
 ## 1.7.0 — 2026-10-14
 - *Recent notifications* is paginated (it showed only the last 15) and can be filtered: ongoing outages, ended, not delivered,
   and a device-name search.

@@ -6,7 +6,7 @@
 # 2. Add the service below and start it:    docker compose up -d dependencies-poller
 services:
   dependencies-poller:
-    image: ghcr.io/adrian-13/netbox-dependencies-poller:1.7.0
+    image: ghcr.io/adrian-13/netbox-dependencies-poller:1.8.0
     restart: unless-stopped
     env_file: dependencies-poller.env   # NETBOX_URL, NETBOX_TOKEN, POLLER_NAME - keep it out of git
     cap_drop: [ALL]

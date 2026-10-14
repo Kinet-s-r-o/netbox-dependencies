@@ -13,6 +13,7 @@ from django.urls import reverse
 
 from dcim.models import Device, Region, Site
 
+from .icons import graph_icons
 from .models import CustomMap, Dependency, DeviceStatus, NodePosition
 from .status import down_device_ids
 
@@ -256,6 +257,7 @@ def build_graph(site_id=None, region_id=None, device_id=None, focus_id=None, map
         'impact_url': reverse('plugins-api:netbox_dependencies-api:impact'),
         'states_url': reverse('plugins-api:netbox_dependencies-api:status_states'),
         'dependency_api': reverse('plugins-api:netbox_dependencies-api:dependency-list'),
+        'icons': graph_icons(),
         'layout_url': reverse('plugins:netbox_dependencies:graph_layout'),
     }
 

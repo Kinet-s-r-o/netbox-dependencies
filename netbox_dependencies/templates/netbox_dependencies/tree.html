@@ -17,20 +17,56 @@
 
 {% block content %}
   <style>
-    ul.dep-tree { list-style: none; margin: 0; padding-left: 1.6rem; border-left: 1px dashed var(--tblr-border-color, #888); }
-    ul.dep-tree.dep-root { padding-left: 0; border-left: 0; }
-    .dep-node { padding: .2rem 0; }
-    .dep-node > details > summary { cursor: pointer; }
-    .dep-leaf { padding-left: 1.1rem; }
-    .dep-label .badge { vertical-align: middle; }
+    /* tree: rows with a status disc, guide lines, chips and hover actions */
+    .dep-tree { list-style: none; margin: 0; padding: 0; }
+    details > ul.dep-tree { margin-left: 1.05rem; padding-left: 1.2rem; border-left: 1px solid var(--tblr-border-color, #c9d1dc); }
+    .dep-node { position: relative; }
+    details > ul.dep-tree > .dep-node::before {
+      content: ''; position: absolute; left: -1.2rem; top: 1.25rem; width: 1.5rem; border-top: 1px solid var(--tblr-border-color, #c9d1dc); }
+    details > ul.dep-tree > .dep-node:has(> .dep-leaf)::before { width: 2.95rem; }     /* a leaf has no chevron: reach its disc */
+    .dep-node > details > summary { list-style: none; cursor: pointer; }
+    .dep-node > details > summary::-webkit-details-marker { display: none; }
+    .dep-row { display: flex; align-items: center; flex-wrap: wrap; gap: .45rem; min-height: 2.5rem; padding: .2rem .55rem;
+               border-radius: .5rem; border-left: 3px solid transparent; }
+    .dep-row:hover { background: var(--tblr-active-bg, rgba(100, 116, 139, .1)); }
+    .dep-row.is-down { background: rgba(214, 57, 57, .08); border-left-color: #d63939; }
+    .dep-caret { flex: 0 0 1.1rem; width: 1.1rem; text-align: center; color: var(--tblr-secondary-color, #667085); font: normal 1.1rem/1 "Material Design Icons"; }
+    details > summary .dep-caret::before { content: "\F0142"; }
+    details[open] > summary .dep-caret::before { content: "\F0140"; }
+    .dep-disc { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; width: 1.7rem; height: 1.7rem;
+                border-radius: 50%; color: #fff; box-shadow: 0 1px 2px rgba(0, 0, 0, .25); }
+    .dep-disc svg { width: 1.05rem; height: 1.05rem; fill: currentColor; }
+    .dep-disc-up { background: #2fb344; }
+    .dep-disc-down { background: #d63939; }
+    .dep-disc-unknown { background: #9aa0a6; }
+    .dep-disc-none { background: #566a80; }
+    .dep-name { font-weight: 600; }
+    .dep-site { color: var(--tblr-secondary-color, #667085); font-size: .8rem; }
+    .dep-chips { display: inline-flex; align-items: center; flex-wrap: wrap; gap: .35rem; }
+    .dep-chip { display: inline-flex; align-items: center; gap: .35rem; padding: .05rem .5rem; border: 1px solid var(--tblr-border-color, #c9d1dc);
+                border-radius: 999px; font-size: .72rem; line-height: 1.5; color: var(--tblr-secondary-color, #667085); white-space: nowrap; }
+    .dep-chip-down { color: #fff; background: #d63939; border-color: #d63939; font-weight: 600; }
+    .dep-chip-group { color: #ae3ec9; border-color: rgba(174, 62, 201, .45); }
+    .dep-chip-multi { color: #b8860b; border-color: rgba(245, 159, 0, .55); }
+    .dep-count { margin-left: auto; font-size: .78rem; color: var(--tblr-secondary-color, #667085); white-space: nowrap; }
+    .dep-count .dep-total { margin-left: .3rem; opacity: .8; }
+    .dep-actions { flex: 0 0 auto; display: inline-flex; gap: .3rem; opacity: 0; transition: opacity .12s; }
+    .dep-row:hover .dep-actions, .dep-row:focus-within .dep-actions { opacity: 1; }
+    .dep-actions a { color: var(--tblr-secondary-color, #667085); }
+    .dep-actions a.text-danger { color: #d63939; }
+    @media (hover: none) { .dep-actions { opacity: 1; } }
+    .dep-stats { display: inline-flex; flex-wrap: wrap; gap: .4rem; margin-left: .75rem; vertical-align: middle; }
+    .dep-leaf { padding: 0; }
   </style>
 
   <div class="card">
     <h2 class="card-header">
       Dependency tree
-      <span class="ms-3 text-muted fs-6">
-        {{ stats.roots }} top-level devices · {{ stats.devices }} devices · {{ stats.dependencies }} dependencies
-        {% if stats.multi_parent %}· {{ stats.multi_parent }} with multiple upstream{% endif %}
+      <span class="dep-stats fw-normal">
+        <span class="dep-chip">{{ stats.roots }} top-level</span>
+        <span class="dep-chip">{{ stats.devices }} devices</span>
+        <span class="dep-chip">{{ stats.dependencies }} dependencies</span>
+        {% if stats.multi_parent %}<span class="dep-chip dep-chip-multi">{{ stats.multi_parent }} with multiple upstream</span>{% endif %}
       </span>
     </h2>
     <div class="card-body">

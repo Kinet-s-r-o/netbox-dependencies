@@ -1,24 +1,31 @@
-{% load helpers %}
-<span class="dep-label">
-  {% if node.state == 'down' %}<span class="badge text-bg-red" title="Down">●</span>
-  {% elif node.state == 'up' %}<span class="badge text-bg-green" title="Up">●</span>
-  {% elif node.state == 'unknown' %}<span class="badge text-bg-gray" title="Unknown">●</span>{% endif %}
-  <a href="{{ node.device.get_absolute_url }}" class="fw-bold">{{ node.device }}</a>
-  {% if node.device.site %}<span class="text-muted small">{{ node.device.site }}</span>{% endif %}
-  {% if node.edge %}
-    {% badge node.edge.get_dependency_type_display bg_color=node.edge.get_dependency_type_color %}
-    {% if node.edge.medium != 'unspecified' %}{% badge node.edge.get_medium_display bg_color=node.edge.get_medium_color %}{% endif %}
-    {% if node.edge.redundancy_group %}<span class="badge text-bg-purple" title="Redundancy group">⇄ {{ node.edge.redundancy_group }}</span>{% endif %}
-  {% endif %}
-  {% if node.multi_parent %}<span class="badge text-bg-yellow" title="This device has multiple upstream devices">multiple upstream</span>{% endif %}
-  {% if node.direct %}<span class="badge text-bg-secondary" title="Direct dependents">{{ node.direct }}</span>{% endif %}
-  {% if node.total is not None and node.total != node.direct %}<span class="text-muted small">({{ node.total }} in total)</span>{% endif %}
-  {% if node.edge %}
-    {% if perms.netbox_dependencies.change_dependency %}
-      <a href="{% url 'plugins:netbox_dependencies:dependency_edit' pk=node.edge.pk %}?return_url={{ request.get_full_path|urlencode }}" class="text-muted ms-1" title="Edit dependency"><i class="mdi mdi-pencil"></i></a>
+{% load helpers dependencies_tags %}
+<div class="dep-row{% if node.state == 'down' %} is-down{% endif %}">
+  <span class="dep-caret" aria-hidden="true"></span>
+  {% dep_disc node.device node.state %}
+  <a href="{{ node.device.get_absolute_url }}" class="dep-name">{{ node.device }}</a>
+  {% if node.device.site %}<span class="dep-site">{{ node.device.site }}</span>{% endif %}
+  {% if node.state == 'down' %}<span class="dep-chip dep-chip-down">Down</span>{% endif %}
+  <span class="dep-chips">
+    {% if node.edge %}
+      {% dep_medium node.edge.medium node.edge.get_medium_display %}
+      {% if node.edge.dependency_type != 'network' %}{% badge node.edge.get_dependency_type_display bg_color=node.edge.get_dependency_type_color %}{% endif %}
+      {% if node.edge.redundancy_group %}<span class="dep-chip dep-chip-group" title="Redundancy group: the device goes down only when all of its links in this group are down"><i class="mdi mdi-swap-horizontal"></i>{{ node.edge.redundancy_group }}</span>{% endif %}
     {% endif %}
-    {% if perms.netbox_dependencies.delete_dependency %}
-      <a href="{% url 'plugins:netbox_dependencies:dependency_delete' pk=node.edge.pk %}?return_url={{ request.get_full_path|urlencode }}" class="text-danger ms-1" title="Delete dependency"><i class="mdi mdi-trash-can-outline"></i></a>
-    {% endif %}
+    {% if node.multi_parent %}<span class="dep-chip dep-chip-multi" title="This device depends on several upstream devices and appears under each of them"><i class="mdi mdi-source-fork"></i>multiple upstream</span>{% endif %}
+  </span>
+  {% if node.direct %}
+    <span class="dep-count" title="Direct dependents{% if node.total is not None and node.total != node.direct %}, {{ node.total }} in total{% endif %}">
+      <i class="mdi mdi-arrow-down-thin"></i>{{ node.direct }}{% if node.total is not None and node.total != node.direct %}<span class="dep-total">· {{ node.total }} in total</span>{% endif %}
+    </span>
   {% endif %}
-</span>
+  {% if node.edge %}
+    <span class="dep-actions">
+      {% if perms.netbox_dependencies.change_dependency %}
+        <a href="{% url 'plugins:netbox_dependencies:dependency_edit' pk=node.edge.pk %}?return_url={{ request.get_full_path|urlencode }}" title="Edit dependency"><i class="mdi mdi-pencil"></i></a>
+      {% endif %}
+      {% if perms.netbox_dependencies.delete_dependency %}
+        <a href="{% url 'plugins:netbox_dependencies:dependency_delete' pk=node.edge.pk %}?return_url={{ request.get_full_path|urlencode }}" class="text-danger" title="Delete dependency"><i class="mdi mdi-trash-can-outline"></i></a>
+      {% endif %}
+    </span>
+  {% endif %}
+</div>

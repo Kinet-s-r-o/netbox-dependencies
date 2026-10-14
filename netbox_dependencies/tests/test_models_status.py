@@ -656,3 +656,33 @@ class PaginationAndLimitsTests(Base):
             self.assertEqual(n.purge_old_notifications(), 1)
         self.assertEqual(set(OutageNotification.objects.values_list('pk', flat=True)), {recent.pk, ongoing.pk})
         self.assertNotIn(old.pk, OutageNotification.objects.values_list('pk', flat=True))
+
+
+class IconTests(Base):
+    def test_icon_is_chosen_from_role_then_model_then_name(self):
+        from netbox_dependencies.icons import graph_icons, icon_for
+        self.assertEqual(icon_for('Firewall', 'whatever', 'sw-1'), 'firewall')       # the role wins
+        self.assertEqual(icon_for('Generic', 'CCR2004 router', 'sw-1'), 'router')    # then the model
+        self.assertEqual(icon_for('', '', 'cam-gate-01'), 'camera')                  # then the name
+        self.assertEqual(icon_for('Generic', 'Model', 'thing'), '')                   # nothing matches: no icon
+        icons = graph_icons()
+        self.assertEqual({r['key'] for r in icons['rules']}, set(icons['paths']))     # every rule has a path
+
+    def test_tree_shows_status_discs_chips_and_the_graph_gets_the_icon_set(self):
+        from django.contrib.auth import get_user_model
+        from django.test import Client
+        from netbox_dependencies.graph_data import build_graph
+        from netbox_dependencies.models import DeviceStatus
+        dep = self.dep('core', 'sw1', group='g1')
+        dep.medium = 'vpn'
+        dep.save()
+        now = timezone.now()
+        DeviceStatus.objects.create(device=self.devs['sw1'], state='down', source='icmp', last_checked=now, last_changed=now)
+        client = Client()
+        client.force_login(get_user_model().objects.create_superuser('t', 't@example.com', 'x'))
+        page = client.get('/plugins/dependencies/tree/?expanded=1').content.decode()
+        self.assertIn('dep-disc-down', page)
+        self.assertIn('VPN / tunnel', page)
+        self.assertIn('g1', page)
+        self.assertIn('is-down', page)
+        self.assertIn('paths', build_graph()['icons'])
