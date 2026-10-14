@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.7.0 — 2026-10-14
+- *Recent notifications* is paginated (it showed only the last 15) and can be filtered: ongoing outages, ended, not delivered,
+  and a device-name search.
+
 ## 1.6.0 — 2026-10-14
 - `manage.py dependencies_setup_poller`: creates a restricted user (read devices, report status — nothing else), its API token and the
   environment file / compose service for the poller. The token is shown once; the file is written with mode 600 and never overwritten;

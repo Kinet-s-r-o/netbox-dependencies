@@ -33,7 +33,7 @@ from icmplib import multiping
 
 log = logging.getLogger('poller')
 
-VERSION = '1.6.0'
+VERSION = '1.7.0'
 NETBOX_URL = os.environ.get('NETBOX_URL', 'http://netbox:8080').rstrip('/')
 TOKEN = os.environ.get('NETBOX_TOKEN', '')
 NAME = os.environ.get('POLLER_NAME') or socket.gethostname()

@@ -60,7 +60,21 @@
       </div>
 
       <div class="card">
-        <h2 class="card-header">Recent notifications</h2>
+        <h2 class="card-header">
+          Recent notifications
+          <span class="ms-2 badge text-bg-secondary">{{ paginator.count }}</span>
+        </h2>
+        <form method="get" class="d-flex flex-wrap gap-2 align-items-center px-3 py-2 border-bottom">
+          <select name="state" class="form-select form-select-sm w-auto" aria-label="Show">
+            <option value="" {% if not state %}selected{% endif %}>All</option>
+            <option value="ongoing" {% if state == 'ongoing' %}selected{% endif %}>Ongoing outages</option>
+            <option value="ended" {% if state == 'ended' %}selected{% endif %}>Ended</option>
+            <option value="problems" {% if state == 'problems' %}selected{% endif %}>Not delivered</option>
+          </select>
+          <input type="search" name="q" value="{{ search }}" class="form-control form-control-sm w-auto" placeholder="Device name…">
+          <button type="submit" class="btn btn-sm btn-outline-secondary">Filter</button>
+          {% if state or search %}<a href="{% url 'plugins:netbox_dependencies:settings' %}" class="btn btn-sm btn-link">Clear</a>{% endif %}
+        </form>
         <table class="table table-hover">
           <thead>
             <tr><th>Device</th><th>Started</th><th>Ended</th><th>Delivery</th></tr>
@@ -84,10 +98,11 @@
                 </td>
               </tr>
             {% empty %}
-              <tr><td colspan="4" class="text-muted text-center">No notifications yet.</td></tr>
+              <tr><td colspan="4" class="text-muted text-center">{% if state or search %}No notification matches the filter.{% else %}No notifications yet.{% endif %}</td></tr>
             {% endfor %}
           </tbody>
         </table>
+        {% include 'inc/paginator.html' with paginator=paginator page=page %}
       </div>
     </div>
 

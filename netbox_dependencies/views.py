@@ -6,7 +6,7 @@ from django.contrib import messages
 from django.contrib.auth.mixins import PermissionRequiredMixin
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
-from django.db.models import Count
+from django.db.models import Count, Exists, OuterRef
 from django.http import FileResponse, JsonResponse
 from django.utils import timezone
 from django.shortcuts import get_object_or_404, redirect, render
@@ -40,6 +40,7 @@ from .models import (
     CustomMap,
     Dependency,
     NodePosition,
+    NotificationDelivery,
     NotificationDestination,
     NotificationSettings,
     OutageNotification,
@@ -375,12 +376,26 @@ class NotificationSettingsView(PermissionRequiredMixin, View):
         destinations = list(NotificationDestination.objects.all())
         for destination in destinations:
             destination.masked_url = mask_url(destination.webhook_url)
+        state = request.GET.get('state', '')
+        search = request.GET.get('q', '').strip()
+        recent = OutageNotification.objects.select_related('device').prefetch_related('deliveries__destination')
+        if state == 'ongoing':
+            recent = recent.filter(resolved_at__isnull=True)
+        elif state == 'ended':
+            recent = recent.filter(resolved_at__isnull=False)
+        elif state == 'problems':     # a message that was tried but never delivered
+            recent = recent.filter(Exists(NotificationDelivery.objects.filter(
+                episode=OuterRef('pk'), sent_at__isnull=True, attempts__gt=0)))
+        if search:
+            recent = recent.filter(device__name__icontains=search)
+        paginator, page = paginate(request, recent)
         return render(request, self.template_name, {
             'form': form,
             'cfg': cfg,
             'destinations': destinations,
             'row': NotificationSettings.objects.select_related('updated_by').first(),
-            'recent': OutageNotification.objects.select_related('device').prefetch_related('deliveries__destination')[:15],
+            'recent': page, 'paginator': paginator, 'page': page,
+            'state': state, 'search': search,
             'can_change': self._can_change(request),
         })
 

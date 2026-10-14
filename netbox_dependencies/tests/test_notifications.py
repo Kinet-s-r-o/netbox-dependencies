@@ -629,6 +629,44 @@ class SettingsPageTests(Base):
         self.assertEqual(client.get('/plugins/dependencies/settings/destinations/add/').status_code, 200)
 
 
+class RecentNotificationsTests(Base):
+    """The "Recent notifications" list: pagination and filters."""
+
+    def setUp(self):
+        now = timezone.now()
+        self.teams = NotificationDestination.objects.create(name='Teams', kind='teams', webhook_url='https://t.example/h')
+        # 14 ended episodes of core / sw1 alternately + 1 ongoing + 1 whose message was never delivered
+        for i in range(14):
+            OutageNotification.objects.create(device=self.devs['core' if i % 2 else 'sw1'], started_at=now - timedelta(days=30 - i),
+                                              resolved_at=now - timedelta(days=29 - i))
+        self.ongoing = OutageNotification.objects.create(device=self.devs['ap'], started_at=now - timedelta(hours=1))
+        self.broken = OutageNotification.objects.create(device=self.devs['sw2'], started_at=now - timedelta(days=20),
+                                                        resolved_at=now - timedelta(days=19))
+        NotificationDelivery.objects.create(episode=self.broken, destination=self.teams, kind='outage', attempts=3, last_error='HTTP 500')
+        NotificationDelivery.objects.create(episode=self.ongoing, destination=self.teams, kind='outage', attempts=1, sent_at=now)
+        from django.contrib.auth import get_user_model
+        from django.test import Client
+        self.client = Client()
+        self.client.force_login(get_user_model().objects.create_superuser('rn', 'rn@example.com', 'x'))
+
+    def page(self, query=''):
+        return self.client.get('/plugins/dependencies/settings/' + query).content.decode()
+
+    def test_pagination(self):
+        self.assertIn('Showing 1-10 of 16', self.page('?per_page=10'))
+        self.assertIn('Showing 11-16 of 16', self.page('?per_page=10&page=2'))
+        self.assertIn('Showing 1-10 of 16', self.page('?per_page=10&page=nonsense'))      # an invalid page does not break it
+
+    def test_filters(self):
+        self.assertIn('Showing 1-1 of 1', self.page('?state=ongoing'))
+        self.assertIn('ap', self.page('?state=ongoing'))
+        self.assertIn('of 15', self.page('?state=ended&per_page=10'))
+        problems = self.page('?state=problems')
+        self.assertIn('Showing 1-1 of 1', problems)
+        self.assertIn('failed', problems)
+        self.assertIn('Showing 1-7 of 7', self.page('?q=core'))           # seven episodes of the device "core"
+        self.assertIn('No notification matches the filter', self.page('?q=nothing-like-this'))
+
 class PurgeTests(Base):
     def test_old_episodes_and_their_deliveries_are_purged(self):
         now = timezone.now()
