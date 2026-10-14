@@ -1,3 +1,4 @@
+import csv
 import json
 import re
 from pathlib import Path
@@ -7,12 +8,13 @@ from django.contrib.auth.mixins import PermissionRequiredMixin
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
 from django.db.models import Count, Exists, OuterRef
-from django.http import FileResponse, JsonResponse
+from django.http import FileResponse, HttpResponse, JsonResponse
 from django.utils import timezone
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.generic import View
 
 from dcim.models import Device
+from netbox.object_actions import AddObject, BulkDelete, BulkEdit, BulkExport, BulkImport, BulkRename, ObjectAction
 from netbox.plugins import get_plugin_config
 from netbox.views import generic
 from utilities.paginator import get_paginate_count
@@ -54,12 +56,45 @@ from .status import analyze_outages, poll_targets, poller_config
 from .tree import build_tree
 
 
+class ExportForImport(ObjectAction):
+    """A button next to the standard Export: the same data in the columns the Import page reads."""
+    name = 'export_import'
+    label = 'Export for import'
+    permissions_required = {'view'}
+    template_name = 'netbox_dependencies/buttons/export_import.html'
+
+
 @register_model_view(Dependency, 'list', path='', detail=False)
 class DependencyListView(generic.ObjectListView):
     queryset = Dependency.objects.select_related('upstream', 'downstream')
     table = tables.DependencyTable
     filterset = DependencyFilterSet
     filterset_form = DependencyFilterForm
+    actions = (AddObject, BulkImport, BulkExport, ExportForImport, BulkEdit, BulkRename, BulkDelete)
+
+
+@register_model_view(Dependency, 'export_import', path='export-for-import', detail=False)
+class DependencyExportForImportView(PermissionRequiredMixin, View):
+    """CSV of the (filtered) dependencies that the Import page accepts again: devices by name, choices by value, tags as slugs.
+    Devices are identified by name, so two devices with the same name cannot be told apart on import."""
+
+    permission_required = 'netbox_dependencies.view_dependency'
+    COLUMNS = ('upstream', 'downstream', 'dependency_type', 'medium', 'redundancy_group', 'description', 'tags')
+
+    def get(self, request):
+        queryset = Dependency.objects.restrict(request.user, 'view').select_related('upstream', 'downstream')             .prefetch_related('tags').order_by('upstream__name', 'downstream__name')
+        queryset = DependencyFilterSet(request.GET, queryset).qs
+        response = HttpResponse(content_type='text/csv; charset=utf-8')
+        response['Content-Disposition'] = f'attachment; filename="dependencies-{timezone.localdate():%Y%m%d}.csv"'
+        writer = csv.writer(response)
+        writer.writerow(self.COLUMNS)
+        for dependency in queryset:
+            writer.writerow([
+                dependency.upstream.name, dependency.downstream.name, dependency.dependency_type, dependency.medium,
+                dependency.redundancy_group, dependency.description,
+                ','.join(sorted(tag.slug for tag in dependency.tags.all())),
+            ])
+        return response
 
 
 @register_model_view(Dependency)

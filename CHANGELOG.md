@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.9.0 — 2026-10-14
+- **Export for import** button on the dependency list: a CSV (respecting the list filters) in the exact columns the Import page reads,
+  so a list can be exported, edited and imported again, or moved to another NetBox.
+
 ## 1.8.0 — 2026-10-14
 - New look of the **Dependency tree**: rows with a round status disc holding the device icon, guide lines between levels, chips for
   the link medium (with the same line pattern as in the graph), redundancy group and multiple upstream, a "Down" highlight, counters of

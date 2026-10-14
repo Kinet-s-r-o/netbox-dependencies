@@ -686,3 +686,57 @@ class IconTests(Base):
         self.assertIn('g1', page)
         self.assertIn('is-down', page)
         self.assertIn('paths', build_graph()['icons'])
+
+
+class ExportForImportTests(Base):
+    def _client(self):
+        from django.contrib.auth import get_user_model
+        from django.test import Client
+        client = Client()
+        client.force_login(get_user_model().objects.create_superuser('ex', 'ex@example.com', 'x'))
+        return client
+
+    def _make(self):
+        from extras.models import Tag
+        first = self.dep('core', 'sw1', group='uplink')
+        first.medium, first.description = 'optical', 'Main uplink, "fiber"'
+        first.save()
+        first.tags.add(Tag.objects.create(name='Critical', slug='critical'), Tag.objects.create(name='Core', slug='core-tag'))
+        second = self.dep('core', 'sw2')
+        second.medium = 'radio'
+        second.save()
+        self.dep('sw1', 'ap')
+
+    @staticmethod
+    def _snapshot():
+        return sorted((d.upstream.name, d.downstream.name, d.dependency_type, d.medium, d.redundancy_group, d.description,
+                       tuple(sorted(t.slug for t in d.tags.all()))) for d in Dependency.objects.all())
+
+    def test_exported_csv_can_be_imported_again(self):
+        client = self._client()
+        self._make()
+        before = self._snapshot()
+        response = client.get('/plugins/dependencies/dependencies/export-for-import/')
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('attachment', response['Content-Disposition'])
+        text = response.content.decode('utf-8')
+        self.assertEqual(text.splitlines()[0], 'upstream,downstream,dependency_type,medium,redundancy_group,description,tags')
+        Dependency.objects.all().delete()
+        imported = client.post('/plugins/dependencies/dependencies/import/', {'data': text, 'format': 'csv', 'csv_delimiter': ','})
+        self.assertEqual(imported.status_code, 302, imported.content.decode()[:500])
+        self.assertEqual(self._snapshot(), before)
+
+    def test_export_follows_the_list_filters(self):
+        client = self._client()
+        self._make()
+        text = client.get('/plugins/dependencies/dependencies/export-for-import/?medium=radio').content.decode('utf-8')
+        self.assertEqual(len(text.strip().splitlines()), 2)         # the header and the one radio link
+        self.assertIn('sw2', text)
+
+    def test_button_on_the_list_and_permission(self):
+        from django.contrib.auth import get_user_model
+        from django.test import Client
+        self.assertIn('Export for import', self._client().get('/plugins/dependencies/dependencies/').content.decode())
+        nobody = Client()
+        nobody.force_login(get_user_model().objects.create_user('nobody', 'n@example.com', 'x'))
+        self.assertEqual(nobody.get('/plugins/dependencies/dependencies/export-for-import/').status_code, 403)
