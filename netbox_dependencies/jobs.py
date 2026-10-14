@@ -2,7 +2,7 @@ from netbox.jobs import JobRunner, system_job
 from netbox.plugins import get_plugin_config
 
 from .status import sync_from_zabbix
-from .notifications import purge_old_notifications, run_notifications
+from .notifications import purge_old_notifications, run_notifications, run_poller_alerts
 from .watchdog import heal_zabbix_sync
 
 SYNC_JOB_TIMEOUT = 120   # sending notifications can take tens of seconds during a network outage
@@ -32,6 +32,9 @@ class ZabbixStatusSyncJob(JobRunner):
         teams = run_notifications()
         if teams.get('sent') or teams.get('resolved') or teams.get('errors'):
             self.job.data['teams'] = teams
+        poller = run_poller_alerts()
+        if poller.get('down') or poller.get('up') or poller.get('errors'):
+            self.job.data['poller_alerts'] = poller
         purged = purge_old_notifications()      # the notification records do not grow forever
         if purged:
             self.job.data['purged_notifications'] = purged

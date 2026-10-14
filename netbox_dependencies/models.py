@@ -257,3 +257,53 @@ class NotificationSettings(models.Model):
     def save(self, *args, **kwargs):
         self.pk = 1   # singleton
         super().save(*args, **kwargs)
+
+
+class PollerSettings(models.Model):
+    """Settings of the ICMP poller, editable in the UI (singleton). The poller downloads them every cycle, so a change
+    takes effect without restarting its container. Without a row the defaults are used (the threshold and staleness
+    values fall back to PLUGINS_CONFIG)."""
+
+    enabled = models.BooleanField(default=True, help_text='Off = the poller keeps reporting that it is alive but pings nothing.')
+    interval_seconds = models.PositiveIntegerField(default=60)
+    ping_count = models.PositiveSmallIntegerField(default=3)
+    ping_timeout = models.FloatField(default=1.0)
+    concurrency = models.PositiveIntegerField(default=500)
+    only_in_graph = models.BooleanField(default=True)
+    fail_threshold = models.PositiveSmallIntegerField(default=3)
+    stale_after_seconds = models.PositiveIntegerField(default=600)
+    exclude_tag = models.CharField(max_length=100, blank=True, default='no-ping')
+    alert_enabled = models.BooleanField(default=True)
+    alert_after_seconds = models.PositiveIntegerField(default=300)
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.ForeignKey(
+        to='users.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+
+    class Meta:
+        verbose_name = 'poller settings'
+        verbose_name_plural = 'poller settings'
+
+    def save(self, *args, **kwargs):
+        self.pk = 1   # singleton
+        super().save(*args, **kwargs)
+
+
+class PollerHeartbeat(models.Model):
+    """The last report of one ICMP poller (a plain model: written every cycle, must not fill the changelog)."""
+
+    name = models.CharField(max_length=100, unique=True)
+    first_seen = models.DateTimeField()
+    last_seen = models.DateTimeField()
+    cycle_seconds = models.FloatField(null=True, blank=True)
+    targets = models.PositiveIntegerField(default=0)
+    reachable = models.PositiveIntegerField(default=0)
+    unreachable = models.PositiveIntegerField(default=0)
+    paused = models.BooleanField(default=False)
+    version = models.CharField(max_length=40, blank=True)
+    alerted_at = models.DateTimeField(null=True, blank=True, help_text='Set while a "poller is silent" alert is open.')
+
+    class Meta:
+        ordering = ('name',)
+
+    def __str__(self):
+        return self.name

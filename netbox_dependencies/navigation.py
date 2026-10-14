@@ -51,6 +51,11 @@ menu = PluginMenu(
                 link_text='Notifications',
                 permissions=['netbox_dependencies.view_notificationsettings'],
             ),
+            PluginMenuItem(
+                link='plugins:netbox_dependencies:poller',
+                link_text='ICMP poller',
+                permissions=['netbox_dependencies.view_pollersettings'],
+            ),
         )),
     ),
 )

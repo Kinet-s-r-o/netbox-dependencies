@@ -326,6 +326,66 @@ def _generic_recovery(views, now, test):
     return payload
 
 
+# ================================================================== ICMP poller health (silent / back)
+# view: {name, last_seen, silent_seconds, url}  (url = the Poller page in NetBox, '' = no button)
+def poller_text(event, view):
+    silent = duration(timedelta(seconds=view['silent_seconds']))
+    if event == 'down':
+        return f'ICMP poller "{view["name"]}" has not reported for {silent}.'
+    return f'ICMP poller "{view["name"]}" is reporting again (it was silent for {silent}).'
+
+
+def _poller_lines(event, view, now):
+    if event == 'down':
+        return [f'Last report: {local(view["last_seen"])}.',
+                'Devices watched only by the poller are no longer updated; their status turns to unknown after a while.']
+    return [f'Last report: {local(view["last_seen"])}.']
+
+
+def _teams_poller(event, view, now, test):
+    down = event == 'down'
+    body = []
+    if test:
+        body.append(_t_banner())
+    body.append(_t_header('🟠' if down else '🟢', 'ICMP poller not reporting' if down else 'ICMP poller is back',
+                          view['name'], 'warning' if down else 'good', 'Warning' if down else 'Good'))
+    body.append({'type': 'Container', 'style': 'emphasis', 'spacing': 'Medium',
+                 'items': [_t_text(poller_text(event, view), weight='Bolder')] +
+                          [_t_text(line, isSubtle=True, spacing='Small') for line in _poller_lines(event, view, now)]})
+    card = _t_card(body)
+    if view['url']:
+        card['actions'] = [{'type': 'Action.OpenUrl', 'title': 'Open poller status', 'url': view['url']}]
+    return {'text': poller_text(event, view), 'card': card, 'card_json': json.dumps(card, ensure_ascii=False)}
+
+
+def _slack_poller(event, view, now, test):
+    down = event == 'down'
+    tiles = [_s_banner()] if test else []
+    tiles.append({'type': 'section', 'text': {'type': 'mrkdwn', 'text': '\n'.join(
+        [f'*{_esc(poller_text(event, view))}*'] + [_esc(line) for line in _poller_lines(event, view, now)])}})
+    buttons = _s_buttons([('Open poller status', view['url'])])
+    if buttons:
+        tiles.append(buttons)
+    return _s_message(poller_text(event, view), '#f59f00' if down else '#2fb344',
+                      ('🟠 ' if down else '🟢 ') + ('ICMP poller not reporting' if down else 'ICMP poller is back'),
+                      view['name'], tiles, f'NetBox Dependencies · {local(now)}')
+
+
+def _generic_poller(event, view, now, test):
+    payload = _g_base('poller_down' if event == 'down' else 'poller_up', poller_text(event, view), now, test)
+    payload['poller'] = {'name': view['name'], 'last_seen': view['last_seen'].isoformat(),
+                         'silent_seconds': int(view['silent_seconds']), 'url': view['url'] or None}
+    return payload
+
+
+POLLER_RENDERERS = {'teams': _teams_poller, 'slack': _slack_poller, 'generic': _generic_poller}
+
+
+def render_poller(kind, event, view, now, test=False):
+    """Message about the ICMP poller going silent (event='down') or reporting again (event='up')."""
+    return POLLER_RENDERERS[kind](event, view, now, test)
+
+
 # ================================================================== entry points
 RENDERERS = {
     'teams': (_teams_outage, _teams_recovery),

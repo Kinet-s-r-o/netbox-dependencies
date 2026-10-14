@@ -27,12 +27,13 @@ from .impact import get_impact
 from .models import (
     Dependency,
     DeviceStatus,
+    PollerHeartbeat,
     NotificationDelivery,
     NotificationDestination,
     NotificationSettings,
     OutageNotification,
 )
-from .status import analyze_outages
+from .status import analyze_outages, poller_config
 
 logger = logging.getLogger('netbox_dependencies.notifications')
 
@@ -244,7 +245,8 @@ def run_notifications(now=None):
     outages, _explained = analyze_outages()
     # Only devices that take part in a dependency are announced; a standalone device that is down
     # (monitored by Zabbix but not modelled here) is none of this plugin's business.
-    in_graph = set(Dependency.objects.values_list('upstream_id', flat=True)) |         set(Dependency.objects.values_list('downstream_id', flat=True))
+    in_graph = (set(Dependency.objects.values_list('upstream_id', flat=True))
+                | set(Dependency.objects.values_list('downstream_id', flat=True)))
     roots = {o['device'].pk: o for o in outages if o['device'].pk in in_graph}
     open_episodes = {
         e.device_id: e for e in OutageNotification.objects.filter(resolved_at__isnull=True, device_id__in=in_graph)
@@ -306,4 +308,53 @@ def run_notifications(now=None):
             sent_at__isnull=True, attempts__lt=MAX_ATTEMPTS).exists()]
         if pending:
             _deliver(destination, NotificationDelivery.KIND_RECOVERY, pending, now, 'resolved', result)
+    return result
+
+
+# ------------------------------------------------------------------ health of the ICMP poller
+def run_poller_alerts(now=None):
+    """Called from the minute job. A poller that has not reported for `alert_after_seconds` raises one "silent" alert
+    (to every enabled destination); when it reports again one "back" message follows (if recovery messages are on).
+    Returns {'down', 'up', 'errors'} (alerts sent) or {'skipped': reason}."""
+    cfg = poller_config()
+    if not cfg['alert_enabled']:
+        return {'skipped': 'Poller alerts are disabled'}
+    if not _setting('enabled'):
+        return {'skipped': 'Notifications are disabled'}
+    destinations = list(NotificationDestination.objects.filter(enabled=True))
+    if not destinations:
+        return {'skipped': 'No enabled notification destination'}
+    now = now or timezone.now()
+    base = _base_url()
+    url = f"{base}{reverse('plugins:netbox_dependencies:poller')}" if base else ''
+    result = {'down': 0, 'up': 0, 'errors': 0}
+    for heartbeat in PollerHeartbeat.objects.all():
+        silent_for = (now - heartbeat.last_seen).total_seconds()
+        silent = silent_for > cfg['alert_after_seconds']
+        if silent and heartbeat.alerted_at is None:
+            event = 'down'
+        elif not silent and heartbeat.alerted_at is not None:
+            event = 'up'
+        else:
+            continue
+        if event == 'up' and not _setting('notify_recovery'):
+            heartbeat.alerted_at = None
+            heartbeat.save(update_fields=['alerted_at'])
+            continue
+        # for "back": the silence ran from the last report before the alert (about `alert_after_seconds` before it) to the first one after
+        silence = silent_for if event == 'down' else (
+            max(0.0, (heartbeat.last_seen - heartbeat.alerted_at).total_seconds()) + cfg['alert_after_seconds'])
+        view = {'name': heartbeat.name, 'last_seen': heartbeat.last_seen, 'silent_seconds': silence, 'url': url}
+        delivered = False
+        for destination in destinations:
+            try:
+                send_to(destination, channels.render_poller(destination.kind, event, view, now))
+                delivered = True
+            except DeliveryError as exc:
+                result['errors'] += 1
+                logger.warning('Poller alert to "%s" failed: %s', destination.name, exc)
+        if delivered:   # nothing reached any destination: try again next minute
+            heartbeat.alerted_at = now if event == 'down' else None
+            heartbeat.save(update_fields=['alerted_at'])
+            result[event] += 1
     return result

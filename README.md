@@ -42,7 +42,7 @@ The plugin has no dependencies besides NetBox itself.
 
 ```bash
 # inside the NetBox virtualenv
-pip install git+https://github.com/adrian-13/netbox-dependencies.git@v1.3.0
+pip install git+https://github.com/adrian-13/netbox-dependencies.git@v1.4.0
 ```
 
 `configuration.py` (or `configuration/plugins.py` in netbox-docker):
@@ -77,8 +77,8 @@ All keys of `PLUGINS_CONFIG['netbox_dependencies']` are optional:
 
 | Key | Default | Meaning |
 |---|---|---|
-| `fail_threshold` | `3` | consecutive failed ICMP rounds before a device is marked DOWN |
-| `status_stale_after` | `600` | seconds after which a poller result is treated as unknown |
+| `fail_threshold` | `3` | default for "failed rounds before DOWN" (change it later on the ICMP poller page) |
+| `status_stale_after` | `600` | default for "a status older than this is unknown" (also editable on the poller page) |
 | `zabbix_stale_after` | `900` | the same for the Zabbix snapshot |
 | `zabbix_down_patterns` | see `__init__.py` | regexes; a Zabbix problem whose name matches means "unavailable" |
 | `zabbix_sync_interval` | `1` | minutes between status syncs |
@@ -88,17 +88,32 @@ All keys of `PLUGINS_CONFIG['netbox_dependencies']` are optional:
 
 ## ICMP poller
 
-Devices that are not monitored in Zabbix can be pinged by a small separate container. It downloads the list of
-targets from NetBox, pings them in parallel and reports raw results back; the decision "DOWN" (failure threshold) is made by the plugin.
+Devices that are not monitored in Zabbix can be pinged by a small separate container. At the start of every round it downloads the
+list of targets **and its settings** from NetBox, pings the targets in parallel and reports raw results plus a heartbeat; the decision "DOWN"
+(failure threshold) is made by the plugin.
 
 1. Create a NetBox user for the poller and an API token. Give it exactly these permissions:
    *view device*, *view dependency*, *change device status* (Dependencies → device status).
 2. Run the container — see [examples/docker-compose.poller.yml](examples/docker-compose.poller.yml). It needs
    `cap_add: NET_RAW` for raw ICMP sockets.
 
-Environment variables: `NETBOX_URL`, `NETBOX_TOKEN` (v1 and v2 tokens both work), `POLL_INTERVAL` (60),
-`PING_COUNT` (3), `PING_TIMEOUT` (1), `PING_CONCURRENCY` (500), `ONLY_IN_GRAPH` (1 = only devices that have a dependency),
-`VERIFY_SSL` (1).
+Container environment variables: `NETBOX_URL`, `NETBOX_TOKEN` (v1 and v2 tokens both work), `POLLER_NAME` (shown in NetBox; default the
+container's host name) and `VERIFY_SSL` (1). `POLL_INTERVAL` (60), `PING_COUNT` (3), `PING_TIMEOUT` (1) and `PING_CONCURRENCY` (500) are only
+fallbacks until NetBox answers.
+
+![ICMP poller page](docs/images/poller.png)
+
+Everything else is managed in **Dependencies → Configuration → ICMP poller**, and a change applies in the poller's next round (no restart):
+
+- **Is it alive?** One row per poller: last report, how long the last round took, how many devices it pinged and how many are down.
+- **Settings:** enabled / paused, interval, packets per device, timeout, devices pinged at once, only devices that have a dependency,
+  failed rounds before DOWN, how long a status stays valid.
+- **Exclusion tag:** devices carrying this NetBox tag (default `no-ping`) are never pinged.
+- **Silent-poller alert:** if a poller has not reported for the configured time (default 5 minutes) a message goes to the notification
+  destinations, and another one when it is back. Use *forget* on the page for a poller that was removed on purpose.
+
+With several pollers all of them share the same settings and the same list of targets (no sharding), so run one per network only if
+the networks do not overlap.
 
 ## Zabbix (optional)
 
@@ -137,6 +152,9 @@ Each destination has a **Test** button that sends two clearly marked sample mess
 `recovery` carries `recoveries: [{device, started_at, resolved_at, duration_seconds, peak_impact: {down, degraded}}]`.
 If a **signing secret** is set, every request has the header `X-Signature-256: sha256=<hex HMAC-SHA256 of the raw body>` —
 verify it before trusting a request.
+
+Poller health messages use the same destinations: for the generic webhook `event` is `poller_down` or `poller_up` and the body carries
+`poller: {name, last_seen, silent_seconds, url}`.
 
 The command `manage.py dependencies_test_notifications [--destination NAME]` sends the sample messages from the command line.
 

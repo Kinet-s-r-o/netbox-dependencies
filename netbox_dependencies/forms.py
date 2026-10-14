@@ -133,6 +133,49 @@ class NotificationSettingsForm(forms.Form):
         return self.cleaned_data['public_url'].rstrip('/')
 
 
+class PollerSettingsForm(forms.Form):
+    """Settings of the ICMP poller; the poller downloads them every cycle (no restart needed)."""
+
+    enabled = forms.BooleanField(
+        required=False, label='Poller enabled',
+        help_text='Off: the poller keeps reporting that it is alive but pings nothing (statuses age out to unknown).')
+    interval_seconds = forms.IntegerField(
+        min_value=10, max_value=3600, label='Interval between rounds (seconds)',
+        help_text='How often all devices are pinged. A round must finish within the interval, otherwise rounds follow back to back.')
+    ping_count = forms.IntegerField(min_value=1, max_value=10, label='Packets per device')
+    ping_timeout = forms.FloatField(
+        min_value=0.2, max_value=10, label='Timeout per packet (seconds)',
+        widget=forms.NumberInput(attrs={'step': '0.1'}))
+    concurrency = forms.IntegerField(
+        min_value=1, max_value=5000, label='Devices pinged at once',
+        help_text='Higher is faster but opens more raw sockets at the same time.')
+    only_in_graph = forms.BooleanField(
+        required=False, label='Only devices that have a dependency',
+        help_text='Off: every active device with a primary IP (without a Zabbix host) is pinged, also standalone ones.')
+    fail_threshold = forms.IntegerField(
+        min_value=1, max_value=20, label='Failed rounds before a device is DOWN',
+        help_text='Protection against flapping: a single lost round does not raise an outage.')
+    stale_after_seconds = forms.IntegerField(
+        min_value=60, max_value=86400, label='A status older than this is "unknown" (seconds)',
+        help_text='Should be a few times the interval, otherwise a slow round turns statuses to unknown.')
+    exclude_tag = forms.SlugField(
+        required=False, max_length=100, label='Exclusion tag',
+        help_text='Devices carrying this NetBox tag are never pinged (for example "no-ping"). Empty = no exclusion.')
+    alert_enabled = forms.BooleanField(
+        required=False, label='Notify when the poller goes silent',
+        help_text='Sent to the notification destinations (Dependencies → Notifications).')
+    alert_after_seconds = forms.IntegerField(
+        min_value=60, max_value=86400, label='Silent for this long means an alert (seconds)',
+        help_text='Should be longer than the interval plus the time one round takes.')
+
+    def clean(self):
+        cleaned = super().clean()
+        stale, interval = cleaned.get('stale_after_seconds'), cleaned.get('interval_seconds')
+        if stale and interval and stale <= interval:
+            self.add_error('stale_after_seconds', 'Must be longer than the interval, otherwise statuses expire between rounds.')
+        return cleaned
+
+
 class DestinationForm(forms.Form):
     """Notification destination: Teams / Slack / generic webhook."""
 

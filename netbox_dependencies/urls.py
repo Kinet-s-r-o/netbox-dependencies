@@ -15,6 +15,7 @@ urlpatterns = [
     path('tree/', views.DependencyTreeView.as_view(), name='tree'),
     path('add/', views.DependencyMultiAddView.as_view(), name='add_multiple'),
     path('settings/', views.NotificationSettingsView.as_view(), name='settings'),
+    path('poller/', views.PollerView.as_view(), name='poller'),
     path('settings/destinations/add/', views.DestinationEditView.as_view(), name='destination_add'),
     path('settings/destinations/<int:pk>/edit/', views.DestinationEditView.as_view(), name='destination_edit'),
     path('settings/destinations/<int:pk>/delete/', views.DestinationDeleteView.as_view(), name='destination_delete'),

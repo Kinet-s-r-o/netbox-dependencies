@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.4.0 — 2026-10-14
+- New page **Dependencies → Configuration → ICMP poller**: the state of every poller (last report, round time, devices up / down)
+  and its settings. The poller downloads the settings every round, so changing the interval, packets, timeout, concurrency,
+  failure threshold or pausing it needs no container restart. Environment variables are only the fallback.
+- Devices carrying the exclusion tag (default `no-ping`) are never pinged; "only devices with a dependency" is now a setting too.
+- The poller sends a heartbeat after every round. A poller silent for longer than the limit raises one alert to the notification
+  destinations (Teams / Slack / generic webhook), and a message when it is back.
+- Poller: `POLLER_NAME` variable. Poller image / plugin must be updated together (the poller now reads its settings from the plugin).
+- Migration 0010 (two new tables).
+
 ## 1.3.0 — 2026-10-14
 - Link media: added VPN / tunnel, LTE / 5G and satellite (each with its own colour and line pattern in the graph, legend,
   filters and the right-click menu). No migration needed.

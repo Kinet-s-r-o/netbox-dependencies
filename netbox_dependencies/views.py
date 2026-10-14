@@ -8,6 +8,7 @@ from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
 from django.db.models import Count
 from django.http import FileResponse, JsonResponse
+from django.utils import timezone
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.generic import View
 
@@ -30,6 +31,7 @@ from .forms import (
     DestinationForm,
     ImpactForm,
     NotificationSettingsForm,
+    PollerSettingsForm,
 )
 from .graph_data import build_graph, build_sidebar
 from .impact import get_impact
@@ -40,10 +42,12 @@ from .models import (
     NotificationDestination,
     NotificationSettings,
     OutageNotification,
+    PollerHeartbeat,
+    PollerSettings,
 )
 from .notifications import DeliveryError, effective_settings, mask_url, seed_from_environment, send_samples
 from .pagination import paginate
-from .status import analyze_outages
+from .status import analyze_outages, poll_targets, poller_config
 from .tree import build_tree
 
 
@@ -400,6 +404,58 @@ class NotificationSettingsView(PermissionRequiredMixin, View):
         row.save()
         messages.success(request, 'Notification settings saved.')
         return redirect('plugins:netbox_dependencies:settings')
+
+
+class PollerView(PermissionRequiredMixin, View):
+    """ICMP poller: is it alive, what does it ping, and its settings."""
+
+    permission_required = 'netbox_dependencies.view_pollersettings'
+    template_name = 'netbox_dependencies/poller.html'
+    FIELDS = ('enabled', 'interval_seconds', 'ping_count', 'ping_timeout', 'concurrency', 'only_in_graph',
+              'fail_threshold', 'stale_after_seconds', 'exclude_tag', 'alert_enabled', 'alert_after_seconds')
+
+    @staticmethod
+    def _can_change(request):
+        return request.user.has_perm('netbox_dependencies.change_pollersettings')
+
+    def _render(self, request, form):
+        cfg = poller_config()
+        now = timezone.now()
+        pollers = list(PollerHeartbeat.objects.all())
+        for poller in pollers:
+            poller.silent_for = (now - poller.last_seen).total_seconds()
+            poller.is_silent = poller.silent_for > cfg['alert_after_seconds']
+        targets = poll_targets(cfg)
+        tagged = Device.objects.filter(tags__slug=cfg['exclude_tag']).count() if cfg['exclude_tag'] else 0
+        return render(request, self.template_name, {
+            'form': form, 'cfg': cfg, 'pollers': pollers, 'target_count': len(targets), 'tagged': tagged,
+            'row': PollerSettings.objects.select_related('updated_by').first(),
+            'can_change': self._can_change(request),
+        })
+
+    def get(self, request):
+        cfg = poller_config()
+        initial = {key: cfg[key] for key in self.FIELDS}
+        initial['ping_timeout'] = str(cfg['ping_timeout'])      # a float would be rendered with a decimal comma
+        return self._render(request, PollerSettingsForm(initial=initial))
+
+    def post(self, request):
+        if not self._can_change(request):
+            raise PermissionDenied
+        if request.POST.get('forget'):          # drop the heartbeat of a poller that no longer exists
+            PollerHeartbeat.objects.filter(pk=request.POST['forget']).delete()
+            messages.success(request, 'The poller was forgotten.')
+            return redirect('plugins:netbox_dependencies:poller')
+        form = PollerSettingsForm(request.POST)
+        if not form.is_valid():
+            return self._render(request, form)
+        row = PollerSettings.objects.first() or PollerSettings()
+        for key in self.FIELDS:
+            setattr(row, key, form.cleaned_data[key])
+        row.updated_by = request.user
+        row.save()
+        messages.success(request, 'Poller settings saved. The poller picks them up in its next round.')
+        return redirect('plugins:netbox_dependencies:poller')
 
 
 class DestinationEditView(PermissionRequiredMixin, View):

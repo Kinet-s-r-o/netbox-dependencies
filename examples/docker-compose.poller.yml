@@ -2,12 +2,13 @@
 services:
   dependencies-poller:
     build:
-      context: https://github.com/adrian-13/netbox-dependencies.git#v1.3.0:poller
+      context: https://github.com/adrian-13/netbox-dependencies.git#v1.4.0:poller
     restart: unless-stopped
     cap_add:
       - NET_RAW            # raw ICMP sockets
     environment:
       NETBOX_URL: http://netbox:8080
+      POLLER_NAME: netbox-poller         # shown on the ICMP poller page in NetBox
       NETBOX_TOKEN: ${DEPENDENCIES_POLLER_TOKEN}   # e.g. from an env file that is NOT committed
       # POLL_INTERVAL: 60        # seconds between rounds
       # PING_COUNT: 3            # packets per device

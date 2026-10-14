@@ -8,8 +8,8 @@ from netbox.api.viewsets import NetBoxModelViewSet
 
 from ..filtersets import DependencyFilterSet
 from ..impact import get_impact
-from ..models import Dependency, DeviceStatus
-from ..status import analyze_outages, apply_icmp_report, status_snapshot, zabbix_covered_device_ids
+from ..models import Dependency, DeviceStatus, PollerHeartbeat
+from ..status import analyze_outages, apply_icmp_report, poll_targets, poller_config, status_snapshot, zabbix_covered_device_ids
 from .serializers import DependencySerializer
 
 
@@ -70,43 +70,62 @@ class ImpactAPIView(APIView):
 class StatusTargetsAPIView(APIView):
     """GET /api/plugins/dependencies/status/targets/
 
-    Devices the ICMP poller should ping: active, with a primary IP and without an
-    active host in Zabbix. `?in_graph=1` = only devices in the dependency tree."""
+    The devices the ICMP poller should ping (active, with a primary IP, without an active host in Zabbix and
+    without the exclusion tag) and the poller settings configured in the UI, so the poller needs no restart to
+    pick up a change. `?in_graph=1|0` overrides the "only devices in the dependency tree" setting."""
 
     queryset = DeviceStatus.objects.none()
 
     def get(self, request):
-        devices = Device.objects.restrict(request.user, 'view').filter(
-            status='active'
-        ).filter(Q(primary_ip4__isnull=False) | Q(primary_ip6__isnull=False))
-        if request.query_params.get('in_graph') in ('1', 'true', 'True'):
-            devices = devices.filter(
-                Q(upstream_dependencies__isnull=False) | Q(downstream_dependencies__isnull=False)
-            ).distinct()
-        covered = zabbix_covered_device_ids()
-        targets = []
-        for d in devices.select_related('primary_ip4', 'primary_ip6'):
-            if d.pk in covered:
-                continue
-            ip = d.primary_ip4 or d.primary_ip6
-            targets.append({'id': d.pk, 'name': d.name, 'ip': str(ip.address.ip)})
-        return Response({'count': len(targets), 'targets': targets})
+        cfg = poller_config()
+        flag = request.query_params.get('in_graph')
+        only_in_graph = None if flag is None else flag in ('1', 'true', 'True')
+        settings = {key: cfg[key] for key in ('enabled', 'interval_seconds', 'ping_count', 'ping_timeout', 'concurrency')}
+        if not cfg['enabled']:
+            return Response({'count': 0, 'targets': [], 'settings': settings})
+        visible = set(Device.objects.restrict(request.user, 'view').values_list('pk', flat=True))
+        targets = [{'id': d.pk, 'name': d.name, 'ip': ip} for d, ip in poll_targets(cfg, only_in_graph) if d.pk in visible]
+        return Response({'count': len(targets), 'targets': targets, 'settings': settings})
 
 
 class StatusReportAPIView(APIView):
     """POST /api/plugins/dependencies/status/report/
 
-    Body: {"results": [{"device": 12, "reachable": true, "detail": "rtt 3 ms"}, ...]}
-    Requires the add + change permissions on device status."""
+    Body: {"results": [{"device": 12, "reachable": true, "detail": "rtt 3 ms"}, ...],
+           "poller": {"name": "poller-1", "cycle_seconds": 4.2, "targets": 120, "reachable": 118, "unreachable": 2,
+                      "paused": false, "version": "1.4.0"}}      ("poller" is optional: the heartbeat of the poller)
+    Requires the change permission on device status."""
 
     queryset = DeviceStatus.objects.none()
+
+    @staticmethod
+    def _heartbeat(info):
+        """Records the heartbeat of a poller; malformed values are ignored rather than rejected."""
+        def number(key, cast, default=0):
+            try:
+                return cast(info.get(key, default))
+            except (TypeError, ValueError):
+                return default
+        name = str(info.get('name') or 'poller')[:100]
+        now = timezone.now()
+        heartbeat, _ = PollerHeartbeat.objects.get_or_create(name=name, defaults={'first_seen': now, 'last_seen': now})
+        heartbeat.last_seen = now
+        heartbeat.cycle_seconds = number('cycle_seconds', float, None)
+        heartbeat.targets = max(0, number('targets', int))
+        heartbeat.reachable = max(0, number('reachable', int))
+        heartbeat.unreachable = max(0, number('unreachable', int))
+        heartbeat.paused = bool(info.get('paused'))
+        heartbeat.version = str(info.get('version') or '')[:40]
+        heartbeat.save()
 
     def post(self, request):
         if not request.user.has_perm('netbox_dependencies.change_devicestatus'):
             return Response({'detail': 'Missing change_devicestatus permission.'}, status=403)
-        results = request.data.get('results') if isinstance(request.data, dict) else None
+        body = request.data if isinstance(request.data, dict) else {}
+        results = body.get('results', [] if isinstance(body.get('poller'), dict) else None)
         if not isinstance(results, list):
             return Response({'detail': '"results" must be a list.'}, status=400)
+        cfg = poller_config()
         covered = zabbix_covered_device_ids()
         ids = [r['device'] for r in results if isinstance(r, dict) and isinstance(r.get('device'), int)]
         known = set(Device.objects.filter(pk__in=ids).values_list('pk', flat=True))
@@ -119,8 +138,10 @@ class StatusReportAPIView(APIView):
                 skipped += 1  # the device is monitored by Zabbix — it is the source of truth
                 continue
             updated += 1
-            if apply_icmp_report(r['device'], bool(r['reachable']), str(r.get('detail') or '')):
+            if apply_icmp_report(r['device'], bool(r['reachable']), str(r.get('detail') or ''), cfg):
                 changed += 1
+        if isinstance(body.get('poller'), dict):
+            self._heartbeat(body['poller'])
         return Response({'updated': updated, 'changed': changed, 'skipped': skipped})
 
 
