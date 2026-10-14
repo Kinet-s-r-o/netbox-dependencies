@@ -15,11 +15,7 @@
 
 {% block content %}
   <style>
-    #dep-graph { height: 70vh; min-height: 440px; width: 100%;
-                 --dep-dot: rgba(100, 116, 139, .28);
-                 background-image: radial-gradient(circle, var(--dep-dot) 1.1px, transparent 1.3px);
-                 background-size: 24px 24px; }
-    [data-bs-theme="dark"] #dep-graph { --dep-dot: rgba(148, 163, 184, .22); }
+    #dep-graph { height: 70vh; min-height: 440px; width: 100%; }
     .dep-leg-row { display: flex; align-items: center; gap: .7rem; margin-bottom: .45rem; font-size: .9rem; }
     .dep-leg-row .sw { flex: 0 0 74px; display: flex; align-items: center; justify-content: center; }
     .dep-leg-row .dot { display: inline-block; width: 16px; height: 16px; border-radius: 4px; }
@@ -533,15 +529,8 @@
     });
     window.depCy = cy;
 
-    // ---- modern touches: a dot grid that moves with the map, hover highlight, pulsing root causes, live theme switch
-    var gridEl = document.getElementById('dep-graph');
-    function updateGrid() {
-      var z = cy.zoom(), step = Math.max(10, 24 * z), pan = cy.pan();
-      gridEl.style.backgroundSize = step + 'px ' + step + 'px';
-      gridEl.style.backgroundPosition = (pan.x % step) + 'px ' + (pan.y % step) + 'px';
-    }
-    cy.on('pan zoom resize', updateGrid);
-    updateGrid();
+    // ---- modern touches: hover highlight, pulsing root causes, live theme switch
+    var gridEl = document.getElementById('dep-graph');   // used for the pointer cursor on hover
     cy.on('mouseover', 'node', function (evt) {
       if (!evt.target.data('cloud')) { evt.target.connectedEdges().addClass('hl'); }
       gridEl.style.cursor = 'pointer';

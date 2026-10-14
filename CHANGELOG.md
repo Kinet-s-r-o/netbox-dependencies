@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.1.1 — 2026-10-14
+- The graph canvas is plain again (the dot grid from 1.1.0 is removed).
+
 ## 1.1.0 — 2026-10-14
 - New graph design: device cards with a round status badge and role icon, smooth S-curved links, a dot-grid canvas,
   soft shadows, pulsing root causes, link highlight on hover, and light / dark theme that follows NetBox (also live).

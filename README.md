@@ -42,7 +42,7 @@ The plugin has no dependencies besides NetBox itself.
 
 ```bash
 # inside the NetBox virtualenv
-pip install git+https://github.com/adrian-13/netbox-dependencies.git@v1.1.0
+pip install git+https://github.com/adrian-13/netbox-dependencies.git@v1.1.1
 ```
 
 `configuration.py` (or `configuration/plugins.py` in netbox-docker):
