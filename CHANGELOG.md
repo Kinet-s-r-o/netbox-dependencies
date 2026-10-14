@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.3.0 — 2026-10-14
+- Link media: added VPN / tunnel, LTE / 5G and satellite (each with its own colour and line pattern in the graph, legend,
+  filters and the right-click menu). No migration needed.
+- Click a link in the graph to see its details (medium, type, redundancy group, description) with Open / Edit buttons.
+
 ## 1.2.0 — 2026-10-14
 - More device icons (15): firewall, router, switch, Wi-Fi access point, base station, radio link / CPE, satellite, server, storage,
   camera, VoIP phone, printer, UPS, PDU, media converter. The icon is picked from the device role, then the model, then the name;

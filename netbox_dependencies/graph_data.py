@@ -197,8 +197,10 @@ def build_graph(site_id=None, region_id=None, device_id=None, focus_id=None, map
             'type': e.dependency_type,
             'medium': e.medium,
             'group': e.redundancy_group,
+            'description': e.description,
             'elabel': label,
             'url': e.get_absolute_url(),
+            'edit_url': f'{e.get_absolute_url()}edit/',
         }})
 
     # navigation: parent locations + neighbouring maps

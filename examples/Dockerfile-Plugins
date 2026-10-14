@@ -4,4 +4,4 @@ ARG NETBOX_VERSION=v4.6
 FROM netboxcommunity/netbox:${NETBOX_VERSION}
 
 RUN /usr/local/bin/uv pip install --python /opt/netbox/venv/bin/python \
-    "netbox-dependencies @ git+https://github.com/adrian-13/netbox-dependencies.git@v1.2.0"
+    "netbox-dependencies @ git+https://github.com/adrian-13/netbox-dependencies.git@v1.3.0"

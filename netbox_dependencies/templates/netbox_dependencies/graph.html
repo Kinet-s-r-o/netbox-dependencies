@@ -232,11 +232,8 @@
               <div class="dep-leg-row"><span class="sw"><i class="dot" style="background:transparent;border:2px solid #ffd43b"></i></span>Search match</div>
             </div>
             <div class="col-12 col-md-6 mb-3">
-              <h6 class="text-uppercase text-muted small">Links (right-click a link to change its medium)</h6>
-              <div class="dep-leg-row"><span class="sw"><svg width="70" height="14"><line x1="2" y1="7" x2="68" y2="7" stroke="#4299e1" stroke-width="2.5"/></svg></span>Ethernet</div>
-              <div class="dep-leg-row"><span class="sw"><svg width="70" height="14"><line x1="2" y1="7" x2="68" y2="7" stroke="#f59f00" stroke-width="2.5"/></svg></span>Optical</div>
-              <div class="dep-leg-row"><span class="sw"><svg width="70" height="14"><line x1="2" y1="7" x2="68" y2="7" stroke="#22b8cf" stroke-width="2.5" stroke-dasharray="7 5"/></svg></span>Radio</div>
-              <div class="dep-leg-row"><span class="sw"><svg width="70" height="14"><line x1="2" y1="7" x2="68" y2="7" stroke="#868e96" stroke-width="2"/></svg></span>Unspecified</div>
+              <h6 class="text-uppercase text-muted small">Links (click a link for details, right-click to change its medium)</h6>
+              <div id="dep-leg-media"></div>
               <div class="dep-leg-row"><span class="sw"><svg width="70" height="14"><line x1="2" y1="7" x2="68" y2="7" stroke="#ae3ec9" stroke-opacity=".4" stroke-width="10" stroke-linecap="round"/><line x1="2" y1="7" x2="68" y2="7" stroke="#4299e1" stroke-width="2.5"/></svg></span>Purple glow = redundancy group (backup path)</div>
               <h6 class="text-uppercase text-muted small mt-3">Device icons</h6>
               <div id="dep-leg-icons" class="row row-cols-2 g-1 small"></div>
@@ -249,7 +246,7 @@
           <ul class="small mb-0">
             <li>Click a device: info popup next to it (description, status, IP, …). Right-click a device: outage simulation (Shift+right-click adds more devices). Click empty space to clear.</li>
             <li>Double-click a device to open it. Drag devices to arrange; the layout of this map is saved automatically.</li>
-            <li>Right-click a link to set its medium (Ethernet, Optical, Radio).</li>
+            <li>Click a link for its details; right-click it to set its medium (Ethernet, optical, radio, VPN, LTE / 5G, satellite).</li>
             <li>Search: Enter zooms to the matches, Esc clears. Filters hide devices and links by status, role, type and medium.</li>
           </ul>
         </div>
@@ -319,8 +316,15 @@
     var data = JSON.parse(document.getElementById('dep-graph-data').textContent);
     var textColor = getComputedStyle(document.body).color || '#fff';
     var COLORS = {up: '#2fb344', down: '#d63939', unknown: '#9aa0a6', none: '#566a80', degraded: '#f76707', failed: '#ae3ec9'};
-    var MEDIUM_COLOR = {ethernet: '#4299e1', optical: '#f59f00', radio: '#22b8cf', unspecified: '#868e96'};
-    var MEDIUM_LABEL = {ethernet: 'Ethernet', optical: 'Optical', radio: 'Radio', unspecified: 'Unspecified'};
+    var MEDIA = ['ethernet', 'optical', 'radio', 'vpn', 'lte', 'satellite', 'unspecified'];
+    var MEDIUM_COLOR = {ethernet: '#4299e1', optical: '#f59f00', radio: '#22b8cf', vpn: '#e64980', lte: '#12b886',
+                        satellite: '#845ef7', unspecified: '#868e96'};
+    var MEDIUM_LABEL = {ethernet: 'Ethernet', optical: 'Optical', radio: 'Radio', vpn: 'VPN / tunnel', lte: 'LTE / 5G',
+                        satellite: 'Satellite', unspecified: 'Unspecified'};
+    // line pattern per medium (null = solid); the same patterns are used for the graph, the legend and the menus
+    var MEDIUM_DASH = {radio: [7, 5], vpn: [2, 5], lte: [10, 4, 2, 4], satellite: [16, 6]};
+    var MEDIUM_WIDTH = {optical: 3, unspecified: 2};
+    var TYPE_LABEL = {network: 'Network', power: 'Power', other: 'Other'};
     var STATE_LABEL = {up: 'Up', down: 'Down', unknown: 'Unknown', none: 'No status'};
     var BADGE = {up: 'green', down: 'red', unknown: 'gray', none: 'secondary'};
     var originalTitle = document.title;
@@ -547,9 +551,22 @@
           'width': 3, 'line-color': MEDIUM_COLOR.optical, 'target-arrow-color': MEDIUM_COLOR.optical
         }},
         {selector: 'edge[medium = "radio"]', style: {
-          'width': 2.5, 'line-style': 'dashed', 'line-dash-pattern': [7, 5],
+          'width': 2.5, 'line-style': 'dashed', 'line-dash-pattern': MEDIUM_DASH.radio,
           'line-color': MEDIUM_COLOR.radio, 'target-arrow-color': MEDIUM_COLOR.radio
         }},
+        {selector: 'edge[medium = "vpn"]', style: {
+          'width': 2.5, 'line-style': 'dashed', 'line-dash-pattern': MEDIUM_DASH.vpn, 'line-cap': 'round',
+          'line-color': MEDIUM_COLOR.vpn, 'target-arrow-color': MEDIUM_COLOR.vpn
+        }},
+        {selector: 'edge[medium = "lte"]', style: {
+          'width': 2.5, 'line-style': 'dashed', 'line-dash-pattern': MEDIUM_DASH.lte,
+          'line-color': MEDIUM_COLOR.lte, 'target-arrow-color': MEDIUM_COLOR.lte
+        }},
+        {selector: 'edge[medium = "satellite"]', style: {
+          'width': 2.5, 'line-style': 'dashed', 'line-dash-pattern': MEDIUM_DASH.satellite,
+          'line-color': MEDIUM_COLOR.satellite, 'target-arrow-color': MEDIUM_COLOR.satellite
+        }},
+        {selector: 'edge.picked', style: {'width': 4.5, 'opacity': 1, 'z-index': 10}},
         {selector: 'edge[group != ""]', style: {
           'underlay-color': '#ae3ec9', 'underlay-opacity': 0.35, 'underlay-padding': 4
         }},
@@ -682,17 +699,23 @@
       if (saveFailed) { e.preventDefault(); e.returnValue = ''; }
     });
 
-    // ---- right click on an edge: change the medium of the link (Ethernet / Optical / Radio)
+    // ---- right click on an edge: change the medium of the link
     var ctx = document.getElementById('dep-ctx');
     function hideCtx() { ctx.classList.remove('show'); }
     function mediumSwatch(m) {
       var c = MEDIUM_COLOR[m], extra = '';
       var line = '<line x1="2" y1="7" x2="36" y2="7" stroke="' + c + '" stroke-width="' + (m === 'unspecified' ? 2 : 2.5) + '"' +
-        (m === 'radio' ? ' stroke-dasharray="6 4"' : '') + '/>';
+        (MEDIUM_DASH[m] ? ' stroke-dasharray="' + MEDIUM_DASH[m].join(' ') + '" stroke-linecap="' + (m === 'vpn' ? 'round' : 'butt') + '"' : '') + '/>';
       var span = document.createElement('span');
       span.innerHTML = '<svg width="38" height="14">' + extra + line + '</svg>';
       return span.firstChild;
     }
+    // legend: one row per medium
+    MEDIA.forEach(function (m) {
+      var row = el('div', {class: 'dep-leg-row'}, [el('span', {class: 'sw'}, [mediumSwatch(m)]), MEDIUM_LABEL[m]]);
+      document.getElementById('dep-leg-media').appendChild(row);
+    });
+
     function setMedium(edge, medium) {
       var old = edge.data('medium');
       if (old === medium) { return; }
@@ -712,7 +735,7 @@
     function showCtx(edge, x, y) {
       ctx.innerHTML = '';
       ctx.appendChild(el('h6', {class: 'dropdown-header', text: edge.source().data('label') + ' → ' + edge.target().data('label')}));
-      ['ethernet', 'optical', 'radio', 'unspecified'].forEach(function (m) {
+      MEDIA.forEach(function (m) {
         var item = el('button', {type: 'button', class: 'dropdown-item d-flex align-items-center gap-2' + (canSave ? '' : ' disabled')},
           [mediumSwatch(m), el('span', {text: MEDIUM_LABEL[m]})]);
         if (edge.data('medium') === m) { item.appendChild(el('i', {class: 'mdi mdi-check ms-auto'})); }
@@ -817,7 +840,7 @@
     buildCheckboxes('dep-f-states', ['up', 'down', 'unknown', 'none'], filters.states, function (k) { return STATE_LABEL[k]; });
     buildCheckboxes('dep-f-roles', roles, filters.roles, function (k) { return k; });
     buildCheckboxes('dep-f-types', ['network', 'power', 'other'], filters.types, function (k) { return k.charAt(0).toUpperCase() + k.slice(1); });
-    buildCheckboxes('dep-f-media', ['ethernet', 'optical', 'radio', 'unspecified'], filters.media, function (k) { return MEDIUM_LABEL[k]; });
+    buildCheckboxes('dep-f-media', MEDIA, filters.media, function (k) { return MEDIUM_LABEL[k]; });
     document.getElementById('dep-f-problems').addEventListener('change', function () { filters.problems = this.checked; applyFilters(); });
     document.getElementById('dep-f-labels').addEventListener('change', function () { filters.labels = this.checked; applyFilters(); });
     document.getElementById('dep-f-clear').addEventListener('click', function () {
@@ -872,7 +895,7 @@
     var detailNode = null;
     function positionPop() {
       if (!detailNode || pop.hidden) { return; }
-      if (detailNode.removed() || detailNode.hasClass('hidden')) { showDetail(null); return; }
+      if (detailNode.removed() || detailNode.hasClass('hidden') || detailNode.hasClass('hiddenType')) { showDetail(null); return; }
       var bb = detailNode.renderedBoundingBox({includeLabels: false, includeOverlays: false});
       var cw = cy.width(), ch = cy.height(), w = pop.offsetWidth, h = pop.offsetHeight;
       var x = bb.x2 + 14;
@@ -882,8 +905,41 @@
       pop.style.left = x + 'px';
       pop.style.top = y + 'px';
     }
+    function showEdgeDetail(edge) {
+      var d = edge.data();
+      detailNode = edge;
+      edge.addClass('picked');
+      var row = function (k, kids) { return el('div', {class: 'dep-row'}, [el('span', {class: 'k align-self-center', text: k}), el('span', {class: 'v'}, kids)]); };
+      var close = el('button', {type: 'button', class: 'dep-close', title: 'Close', 'aria-label': 'Close', text: '×'});
+      close.addEventListener('click', function () { showDetail(null); });
+      var s = edge.source().data(), t = edge.target().data();
+      var title = el('h5', {class: 'mb-2 pe-3'}, [
+        el('span', {text: s.label}), el('span', {class: 'text-muted mx-1', text: '→'}), el('span', {text: t.label})]);
+      var kids = [
+        close, title,
+        row('Medium', [mediumSwatch(d.medium), el('span', {class: 'ms-1', text: MEDIUM_LABEL[d.medium] || d.medium})]),
+        row('Type', [document.createTextNode(TYPE_LABEL[d.type] || d.type)])
+      ];
+      if (d.group) { kids.push(row('Redundancy group', [el('span', {class: 'badge text-bg-purple', text: d.group})])); }
+      kids.push(el('div', {class: 'text-muted small mt-1', text: 'The downstream device depends on the upstream one' +
+        (d.group ? '; with others in the same group it only goes down when all of them are down.' : '.')}));
+      if (d.description) {
+        var notes = el('div', {class: 'border-top mt-2 pt-2'});
+        notes.appendChild(el('div', {class: 'k', text: 'Description'}));
+        notes.appendChild(el('div', {class: 'small', text: d.description}));
+        kids.push(notes);
+      }
+      var actions = [el('a', {class: 'btn btn-sm btn-outline-secondary', href: d.url, text: 'Open'})];
+      if (canSave) { actions.push(el('a', {class: 'btn btn-sm btn-outline-secondary', href: d.edit_url, text: 'Edit'})); }
+      kids.push(el('div', {class: 'd-flex flex-wrap gap-2 border-top mt-2 pt-2'}, actions));
+      pop.innerHTML = '';
+      kids.forEach(function (k) { pop.appendChild(k); });
+      pop.hidden = false;
+      positionPop();
+    }
     function showDetail(node) {
-      cy.nodes().removeClass('picked');
+      cy.elements().removeClass('picked');
+      if (node && node.isEdge()) { showEdgeDetail(node); return; }
       if (!node || node.data('cloud')) { detailNode = null; pop.hidden = true; return; }
       detailNode = node;
       node.addClass('picked');
@@ -1006,6 +1062,7 @@
       showDetail(failed.length ? node : null);
       simulate();
     });
+    cy.on('tap', 'edge', function (evt) { hideCtx(); showDetail(evt.target); });
     cy.on('tap', function (evt) { if (evt.target === cy) { clearSimulation(); } });
     cy.on('dbltap', 'node', function (evt) {
       var d = evt.target.data();

@@ -21,12 +21,18 @@ class MediumChoices(ChoiceSet):
     ETHERNET = 'ethernet'
     OPTICAL = 'optical'
     RADIO = 'radio'
+    VPN = 'vpn'
+    LTE = 'lte'
+    SATELLITE = 'satellite'
     UNSPECIFIED = 'unspecified'
 
     CHOICES = [
         (ETHERNET, 'Ethernet', 'blue'),
         (OPTICAL, 'Optical', 'orange'),
         (RADIO, 'Radio', 'cyan'),
+        (VPN, 'VPN / tunnel', 'pink'),
+        (LTE, 'LTE / 5G', 'teal'),
+        (SATELLITE, 'Satellite', 'indigo'),
         (UNSPECIFIED, 'Unspecified', 'gray'),
     ]
 

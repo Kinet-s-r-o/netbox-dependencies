@@ -16,11 +16,11 @@ live, with optional notifications to Microsoft Teams, Slack or any webhook.
 
 ## Features
 
-- **Dependencies** between devices: upstream → downstream, link medium (Ethernet / optical / radio), optional
+- **Dependencies** between devices: upstream → downstream, link medium (Ethernet, optical, radio, VPN / tunnel, LTE / 5G, satellite), optional
   **redundancy groups** (a device goes *down* only when all its redundant parents are down, otherwise it is *degraded*).
   Cycles, self-references and duplicates are rejected. CSV import and REST API included.
 - **Interactive graph** (Cytoscape.js) per site, region or custom map; other locations appear as clouds that open
-  their own map. Search, filters, role icons, PNG export, minimap. Layouts are saved automatically.
+  their own map. Search, filters, role icons, PNG export, minimap. Click a link for its details (medium, type, redundancy group, description). Layouts are saved automatically.
 - **Outage simulation**: right-click a device in the graph (or use the simulation page) to see everything it would take down.
 - **Live status** from two sources: the [Zabbix](#zabbix-optional) sync and a built-in **ICMP poller** for devices
   that are not monitored elsewhere.
@@ -42,7 +42,7 @@ The plugin has no dependencies besides NetBox itself.
 
 ```bash
 # inside the NetBox virtualenv
-pip install git+https://github.com/adrian-13/netbox-dependencies.git@v1.2.0
+pip install git+https://github.com/adrian-13/netbox-dependencies.git@v1.3.0
 ```
 
 `configuration.py` (or `configuration/plugins.py` in netbox-docker):

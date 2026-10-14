@@ -417,6 +417,7 @@ class LinkMediumTests(Base):
         d.save()
         edge = build_graph()['edges'][0]['data']
         self.assertEqual((edge['medium'], edge['pk']), ('radio', d.pk))
+        self.assertEqual((edge['description'], edge['edit_url']), ('', f'{d.get_absolute_url()}edit/'))   # for the link popup
         self.assertTrue(build_graph()['dependency_api'].endswith('/dependencies/'))
 
     def test_change_medium_via_api_like_the_graph_context_menu(self):
@@ -433,6 +434,10 @@ class LinkMediumTests(Base):
         d.refresh_from_db()
         self.assertEqual(d.medium, 'optical')
         self.assertEqual(c.get(url).json()['medium'], 'optical')
+        for medium in ('vpn', 'lte', 'satellite'):          # the newer media are accepted too
+            r = c.patch(url, data=json.dumps({'medium': medium}), content_type='application/json', HTTP_X_CSRFTOKEN=token)
+            self.assertEqual((r.status_code, r.json()['medium']['value'] if isinstance(r.json()['medium'], dict) else r.json()['medium']),
+                             (200, medium))
         bad = c.patch(url, data=json.dumps({'medium': 'laser'}), content_type='application/json',
                       HTTP_X_CSRFTOKEN=token)
         self.assertEqual(bad.status_code, 400)
