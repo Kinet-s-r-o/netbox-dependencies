@@ -93,3 +93,25 @@ class SetupPollerTests(Base):
         User.objects.create_superuser('dependencies-poller', 'x@example.com', 'x')
         with self.assertRaises(CommandError):
             run()
+
+    def test_output_walks_through_the_three_steps(self):
+        output = run('--name', 'p1', '--netbox-url', 'http://nb:8080')
+        for text in ('Step 1', 'Step 2', 'Step 3', 'services:', 'docker compose up -d dependencies-poller',
+                     'docker compose logs -f dependencies-poller', 'http://nb:8080', '"p1"'):
+            self.assertIn(text, output)
+        with tempfile.TemporaryDirectory() as folder:
+            written = run('--rotate', '--write', os.path.join(folder, 'p.env'))
+            self.assertIn('Step 1', written)
+            self.assertNotIn('NETBOX_TOKEN', written)
+            if os.path.exists('/.dockerenv'):                           # inside a container the file must be taken out
+                self.assertIn('docker compose cp netbox:', written)
+
+    def test_poller_page_explains_how_to_add_the_first_poller(self):
+        from django.contrib.auth import get_user_model
+        from django.test import Client
+        client = Client()
+        client.force_login(get_user_model().objects.create_superuser('first', 'f@example.com', 'x'))
+        page = client.get('/plugins/dependencies/poller/').content.decode()
+        self.assertIn('No poller has reported yet', page)
+        self.assertIn('dependencies_setup_poller', page)
+        self.assertIn('docker compose up -d dependencies-poller', page)

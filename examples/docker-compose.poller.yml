@@ -1,17 +1,29 @@
-# The ICMP poller as a service next to NetBox (for example in netbox-docker's docker-compose.override.yml).
+# The ICMP poller as a service next to NetBox (in netbox-docker: docker-compose.override.yml, under "services:").
 #
-# 1. Create the user, token and env file:   manage.py dependencies_setup_poller --write dependencies-poller.env
-#    (in netbox-docker: docker compose exec netbox python /opt/netbox/netbox/manage.py dependencies_setup_poller ...
-#     and copy the printed env file; the command prints this service for the installed plugin version too)
-# 2. Add the service below and start it:    docker compose up -d dependencies-poller
+# Step 1 - create the user, token and environment file (run in the netbox-docker folder):
+#
+#   docker compose exec netbox /opt/netbox/venv/bin/python /opt/netbox/netbox/manage.py dependencies_setup_poller \
+#       --name netbox-poller --netbox-url http://netbox:8080 --write /tmp/dependencies-poller.env
+#   docker compose cp netbox:/tmp/dependencies-poller.env ./dependencies-poller.env
+#   docker compose exec netbox rm /tmp/dependencies-poller.env
+#
+#   --netbox-url is the address of NetBox as seen from the poller container. The file holds the API token:
+#   keep it private and out of git.
+#
+# Step 2 - add the service below to your compose file (use the same version as the plugin).
+# Step 3 - start it and check:
+#
+#   docker compose up -d dependencies-poller
+#   docker compose logs -f dependencies-poller        # after a round: "polled N devices"
+#
+# Then open Dependencies -> Configuration -> ICMP poller in NetBox: the poller shows as "reporting".
+# Everything else (interval, packets, timeout, scope, ...) is managed there, no restart needed.
 services:
   dependencies-poller:
-    image: ghcr.io/adrian-13/netbox-dependencies-poller:1.10.0
+    image: ghcr.io/adrian-13/netbox-dependencies-poller:1.10.1
     restart: unless-stopped
-    env_file: dependencies-poller.env   # NETBOX_URL, NETBOX_TOKEN, POLLER_NAME - keep it out of git
+    env_file: dependencies-poller.env   # NETBOX_URL, NETBOX_TOKEN, POLLER_NAME
     cap_drop: [ALL]
     cap_add: [NET_RAW]                  # raw ICMP sockets, nothing else
     read_only: true
     security_opt: ["no-new-privileges:true"]
-    # Everything else (interval, packets, timeout, scope, ...) is managed in NetBox:
-    # Dependencies -> Configuration -> ICMP poller.

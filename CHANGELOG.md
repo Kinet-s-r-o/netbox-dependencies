@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.10.1 — 2026-10-15
+- `dependencies_setup_poller` prints a complete walk-through (step 1 environment file — with the `docker compose cp` command when run inside
+  a container, step 2 the compose service, step 3 start and check) instead of just the files.
+- The ICMP poller page explains how to add the first poller when none has reported yet; the example compose file lists all steps.
+- README: installation for netbox-docker and for a classic setup, poller setup, the Zabbix plugin link and a troubleshooting table.
+
 ## 1.10.0 — 2026-10-14
 - ICMP poller page: worst-case round time per poller against its interval, with a warning and a suggested "devices at once"
   when the round may not finish in time (and when the last real round did not).

@@ -85,7 +85,23 @@
                 </td>
               </tr>
             {% empty %}
-              <tr><td colspan="6" class="text-center text-muted">No poller has reported yet. Start the poller container — see the README.</td></tr>
+              <tr>
+                <td colspan="6">
+                  <div class="p-2">
+                    <strong>No poller has reported yet.</strong>
+                    <span class="text-muted">The poller is a small container that pings your devices; NetBox does not start it. To add one:</span>
+                    <ol class="mt-2 mb-2">
+                      <li>On the NetBox server run <code>manage.py dependencies_setup_poller --name netbox-poller --netbox-url &lt;address of NetBox&gt; --write dependencies-poller.env</code>
+                        — it creates a restricted user, a token and the environment file.</li>
+                      <li>Add the service the command prints to your <code>docker-compose.yml</code> (image
+                        <code>ghcr.io/adrian-13/netbox-dependencies-poller:&lt;plugin version&gt;</code>).</li>
+                      <li>Start it: <code>docker compose up -d dependencies-poller</code>. It shows up here after its first round.</li>
+                    </ol>
+                    <a href="https://github.com/adrian-13/netbox-dependencies#icmp-poller" target="_blank" rel="noopener">Full instructions with netbox-docker and without Docker</a>
+                    <span class="text-muted small ms-2">Devices monitored in Zabbix (plugin netbox-zabbix-status) do not need a poller.</span>
+                  </div>
+                </td>
+              </tr>
             {% endfor %}
           </tbody>
         </table>

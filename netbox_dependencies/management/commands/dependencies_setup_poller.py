@@ -72,10 +72,11 @@ def env_file(token, name, netbox_url):
 
 
 COMPOSE = '''\
+services:
   dependencies-poller:
     image: {image}:{version}
     restart: unless-stopped
-    env_file: dependencies-poller.env     # the file written above (keep it out of git)
+    env_file: dependencies-poller.env     # the file from step 1
     cap_drop: [ALL]
     cap_add: [NET_RAW]                    # raw ICMP sockets, nothing else
     read_only: true
@@ -109,6 +110,10 @@ class Command(BaseCommand):
         token = make_token(user, options['allowed_ip'])
         content = env_file(token, options['name'], options['netbox_url'].rstrip('/'))
 
+        out = self.stdout.write
+        out(self.style.SUCCESS(f'The user "{USERNAME}" and its API token are ready. Three steps are left:\n'))
+
+        out(self.style.MIGRATE_HEADING('Step 1 - the environment file (it holds the token, keep it private and out of git)'))
         if options['write']:
             path = options['write']
             if os.path.exists(path):
@@ -116,12 +121,23 @@ class Command(BaseCommand):
             fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
             with os.fdopen(fd, 'w') as handle:
                 handle.write(content)
-            self.stdout.write(self.style.SUCCESS(f'Environment file written to {path} (mode 600).'))
+            out(f'  Written to {path} (mode 600); the token is not printed.')
+            if os.path.exists('/.dockerenv'):       # run inside the NetBox container: the file has to be taken out
+                out('  You ran this inside a container. In the folder with your docker-compose.yml run:')
+                out(f'      docker compose cp netbox:{path} ./dependencies-poller.env')
+                out(f'      docker compose exec netbox rm {path}')
+            else:
+                out('  Put the file next to your docker-compose.yml as dependencies-poller.env.')
         else:
-            self.stdout.write('Save this as dependencies-poller.env — the token is shown only now:\n')
-            self.stdout.write(content)
+            out('  Save this as dependencies-poller.env next to your docker-compose.yml - the token is shown only now:\n')
+            out(content)
 
-        self.stdout.write('Add this service to your docker-compose (next to NetBox):\n')
-        self.stdout.write(COMPOSE.format(image=IMAGE, version=__version__))
-        self.stdout.write(f'Then: docker compose up -d dependencies-poller   — it appears under Dependencies → ICMP poller '
-                          f'as "{options["name"]}" after its first round.')
+        out(self.style.MIGRATE_HEADING('\nStep 2 - add this service to your docker-compose.yml (merge it into the existing "services:" section)'))
+        out(COMPOSE.format(image=IMAGE, version=__version__))
+        out(f'  NetBox address the poller will use: {options["netbox_url"].rstrip("/")}'
+            f'  (it must be reachable from the poller container)')
+
+        out(self.style.MIGRATE_HEADING('\nStep 3 - start it and check'))
+        out('      docker compose up -d dependencies-poller')
+        out('      docker compose logs -f dependencies-poller      # after a round: "polled N devices"')
+        out(f'  Then open Dependencies -> Configuration -> ICMP poller: "{options["name"]}" should show as reporting.')

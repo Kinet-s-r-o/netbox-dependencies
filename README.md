@@ -89,7 +89,7 @@ Afterwards continue with [First steps](#first-steps).
    [latest release](https://github.com/adrian-13/netbox-dependencies/releases/latest) — replace `1.10.0` (twice) with the version shown there:
 
    ```bash
-   /opt/netbox/venv/bin/pip install https://github.com/adrian-13/netbox-dependencies/releases/download/v1.10.0/netbox_dependencies-1.10.0-py3-none-any.whl
+   /opt/netbox/venv/bin/pip install https://github.com/adrian-13/netbox-dependencies/releases/download/v1.10.1/netbox_dependencies-1.10.1-py3-none-any.whl
    ```
 
    To keep it across NetBox upgrades add the same URL as a line to `local_requirements.txt` in the NetBox directory.
@@ -179,7 +179,7 @@ Setting it up takes three steps and no Docker build. The poller needs its own Ne
    ```yaml
    services:
      dependencies-poller:
-       image: ghcr.io/adrian-13/netbox-dependencies-poller:1.10.0   # the version of the plugin
+       image: ghcr.io/adrian-13/netbox-dependencies-poller:1.10.1   # the version of the plugin
        restart: unless-stopped
        env_file: dependencies-poller.env
        cap_drop: [ALL]
