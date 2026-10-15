@@ -43,57 +43,69 @@ Other NetBox versions are not tested.
 
 ## Installation
 
-The plugin has no Python dependencies besides NetBox itself. You need NetBox **4.6** (PostgreSQL and Redis as usual) and a running
-NetBox worker (`rqworker`) — the worker runs the job that refreshes the device status every minute.
+You need NetBox **4.6** (with PostgreSQL and Redis, as always) and a running NetBox **worker** (`rqworker`) — the worker runs the job
+that refreshes the device status every minute. The plugin has no Python dependencies besides NetBox itself.
 
-**1. Install the package** into the NetBox virtualenv (`/opt/netbox/venv`). Use the wheel from the
-[latest release](https://github.com/adrian-13/netbox-dependencies/releases/latest) — it needs no `git` (the NetBox images do not ship it):
+Pick the way you run NetBox: [with netbox-docker](#with-netbox-docker) or [a classic installation](#classic-installation-systemd-virtualenv).
+Afterwards continue with [First steps](#first-steps).
 
-```bash
-/opt/netbox/venv/bin/pip install https://github.com/adrian-13/netbox-dependencies/releases/download/v1.10.0/netbox_dependencies-1.10.0-py3-none-any.whl
-```
+### With netbox-docker
 
-To make it survive upgrades, add the same URL (or `netbox-dependencies @ <url>`) to `local_requirements.txt` in the NetBox directory.
+1. **Put the Dockerfile next to your `docker-compose.yml`.** Copy [examples/Dockerfile-Plugins](examples/Dockerfile-Plugins) into the
+   netbox-docker folder. It installs the plugin from the release wheel (the NetBox image has no `git`). Open the file and replace `1.10.0`
+   in both places of the URL with the version shown on the [Releases](https://github.com/adrian-13/netbox-dependencies/releases/latest) page.
+2. **Use that image** for the three NetBox services — add this to `docker-compose.override.yml`:
 
-**2. Enable it** in `configuration.py` (in netbox-docker: `configuration/plugins.py`):
+   ```yaml
+   services:
+     netbox:
+       image: netbox-with-dependencies:latest
+       build: {context: ., dockerfile: Dockerfile-Plugins}
+       pull_policy: never
+     netbox-worker:
+       image: netbox-with-dependencies:latest
+       pull_policy: never
+     netbox-housekeeping:
+       image: netbox-with-dependencies:latest
+       pull_policy: never
+   ```
+3. **Enable the plugin** in `configuration/plugins.py` (keep the plugins you already have in the list):
 
-```python
-PLUGINS = ['netbox_dependencies']        # add it to the plugins you already have
+   ```python
+   PLUGINS = ['netbox_dependencies']
 
-PLUGINS_CONFIG = {
-    'netbox_dependencies': {
-        # everything here is optional — see "Configuration" below
-        'public_url': 'https://netbox.example.com',     # used for the buttons in Teams / Slack messages
-    },
-}
-```
+   PLUGINS_CONFIG = {
+       'netbox_dependencies': {
+           # everything here is optional — see "Configuration" below
+           'public_url': 'https://netbox.example.com',     # the address of your NetBox, used for buttons in Teams / Slack messages
+       },
+   }
+   ```
+4. **Build and start:** `docker compose build && docker compose up -d`. The migrations run automatically when the container starts.
 
-**3. Migrate and restart** NetBox *and* its worker:
+### Classic installation (systemd, virtualenv)
 
-```bash
-/opt/netbox/venv/bin/python /opt/netbox/netbox/manage.py migrate
-# then restart netbox and netbox-rqworker (systemd) or the netbox and netbox-worker containers
-```
+1. **Install the package** into the NetBox virtualenv. Use the wheel from the
+   [latest release](https://github.com/adrian-13/netbox-dependencies/releases/latest) — replace `1.10.0` (twice) with the version shown there:
 
-The menu **Dependencies** appears in the sidebar. Superusers see everything; for other users grant object permissions on
+   ```bash
+   /opt/netbox/venv/bin/pip install https://github.com/adrian-13/netbox-dependencies/releases/download/v1.10.0/netbox_dependencies-1.10.0-py3-none-any.whl
+   ```
+
+   To keep it across NetBox upgrades add the same URL as a line to `local_requirements.txt` in the NetBox directory.
+2. **Enable it** in `configuration.py` — the same `PLUGINS` / `PLUGINS_CONFIG` as in step 3 above.
+3. **Migrate and restart** NetBox *and* the worker:
+
+   ```bash
+   /opt/netbox/venv/bin/python /opt/netbox/netbox/manage.py migrate
+   sudo systemctl restart netbox netbox-rq
+   ```
+
+### Check that it works
+
+Log in: the menu **Dependencies** is in the sidebar. Superusers see everything; for other users grant object permissions on
 *Dependencies → dependency / custom map / notification settings / poller settings* (view, and add / change / delete for editors).
-
-### netbox-docker
-
-Build a custom image that contains the plugin — [examples/Dockerfile-Plugins](examples/Dockerfile-Plugins) is ready to use — and tell
-`docker-compose.override.yml` to use it for the `netbox`, `netbox-worker` and `netbox-housekeeping` services:
-
-```yaml
-services:
-  netbox: &dependencies
-    image: netbox-with-dependencies:latest
-    build: {context: ., dockerfile: Dockerfile-Plugins}
-  netbox-worker: *dependencies
-  netbox-housekeeping: *dependencies
-```
-
-Add the two settings from step 2 to `configuration/plugins.py`, then `docker compose build && docker compose up -d`.
-The migrations run automatically when the container starts.
+If the menu is missing, see [Troubleshooting](#troubleshooting).
 
 ### First steps
 
@@ -101,19 +113,19 @@ The migrations run automatically when the container starts.
    (*All dependencies → Import*; columns `upstream,downstream,dependency_type,medium,redundancy_group,description,tags`).
 2. **Open the graph** (*Dependencies → Dependency graph*): maps per site and region; right-click a device to simulate its outage.
 3. **Get a live status** — at least one of:
-   - the [ICMP poller](#icmp-poller): run `manage.py dependencies_setup_poller`, add the printed service to your compose file and start it;
-   - the [Zabbix](#zabbix-optional) integration, if the `netbox_zabbix_status` plugin is installed (nothing to configure).
+   - the [ICMP poller](#icmp-poller) (a small container that pings the devices) — works for any device with a primary IP;
+   - the [Zabbix](#zabbix-optional) integration, if you use Zabbix and the `netbox_zabbix_status` plugin (nothing to configure).
 4. **Notifications (optional):** *Dependencies → Configuration → Notifications* → add a Teams / Slack / webhook destination and press *Test*.
 
 ### Upgrading
 
-Install the newer wheel, run `migrate`, restart NetBox and the worker, and — if you run the poller — change the poller image to the same
-version (`ghcr.io/adrian-13/netbox-dependencies-poller:<version>`). Read the [changelog](CHANGELOG.md) first.
+Install the newer wheel (new version in the URL), run `migrate`, restart NetBox and the worker, and — if you run the poller — change the poller
+image to the same version (`ghcr.io/adrian-13/netbox-dependencies-poller:<version>`). Read the [changelog](CHANGELOG.md) first.
 
 ### Uninstalling
 
-Remove `netbox_dependencies` from `PLUGINS`, restart, and `pip uninstall netbox-dependencies`. The data stays in the database
-(tables `netbox_dependencies_*`); to remove it run `manage.py migrate netbox_dependencies zero` **before** taking the plugin out.
+To remove the data too, run `manage.py migrate netbox_dependencies zero` **first**; then remove `netbox_dependencies` from `PLUGINS`, restart,
+and `pip uninstall netbox-dependencies`. Without the first step the tables (`netbox_dependencies_*`) simply stay in the database.
 
 ## Configuration
 
@@ -136,23 +148,47 @@ Devices that are not monitored in Zabbix can be pinged by a small separate conta
 list of targets **and its settings** from NetBox, pings the targets in parallel and reports raw results plus a heartbeat; the decision "DOWN"
 (failure threshold) is made by the plugin.
 
-Setting it up takes three steps and no Docker build:
+Setting it up takes three steps and no Docker build. The poller needs its own NetBox user and API token — the plugin creates both for you:
 
-1. **Create the user and token** — run this once where NetBox runs (in netbox-docker: `docker compose exec netbox /opt/netbox/venv/bin/python
-   /opt/netbox/netbox/manage.py dependencies_setup_poller --write /tmp/dependencies-poller.env`, then copy the file out):
+1. **Create the user, the token and the environment file.** Run the command where NetBox runs. `--netbox-url` is the address of NetBox *as the
+   poller container will see it* (with netbox-docker `http://netbox:8080`; otherwise your NetBox URL, for example `https://netbox.example.com`).
+
+   With netbox-docker (run in the netbox-docker folder):
 
    ```bash
-   python manage.py dependencies_setup_poller --name netbox-poller --netbox-url http://netbox:8080 --write dependencies-poller.env
+   docker compose exec netbox /opt/netbox/venv/bin/python /opt/netbox/netbox/manage.py dependencies_setup_poller \
+       --name netbox-poller --netbox-url http://netbox:8080 --write /tmp/dependencies-poller.env
+   docker compose cp netbox:/tmp/dependencies-poller.env ./dependencies-poller.env
+   docker compose exec netbox rm /tmp/dependencies-poller.env
    ```
 
-   It creates a dedicated user `dependencies-poller` (no password, not a superuser) that may only read devices and report device status,
-   makes an API token for it and writes the environment file (mode 600, never overwritten). The token is shown only once; without `--write`
-   it is printed instead. Add `--allowed-ip 10.0.0.5/32` to accept the token only from the poller's address, or run with `--rotate` later to
-   replace it.
-2. **Add the service** printed by the command to your compose file (see [examples/docker-compose.poller.yml](examples/docker-compose.poller.yml)).
-   The image is published on every release as `ghcr.io/adrian-13/netbox-dependencies-poller:<version>`; use the same version as the plugin.
-   It drops all Linux capabilities except `NET_RAW` (raw ICMP sockets) and has a read-only filesystem.
-3. **Start it:** `docker compose up -d dependencies-poller`. After its first round it appears under *Dependencies → Configuration → ICMP poller*.
+   Without Docker:
+
+   ```bash
+   /opt/netbox/venv/bin/python /opt/netbox/netbox/manage.py dependencies_setup_poller \
+       --name netbox-poller --netbox-url https://netbox.example.com --write dependencies-poller.env
+   ```
+
+   The command creates a dedicated user `dependencies-poller` (no password, not a superuser) that may only read devices and report device
+   status, makes an API token for it and writes `dependencies-poller.env` (file mode 600, never overwritten). The token is shown only once; keep
+   the file private and out of git. Add `--allowed-ip 10.0.0.5/32` to accept the token only from the poller's address, or run the command with
+   `--rotate` later to replace the token.
+2. **Add the service** to your compose file (next to the file from step 1; for netbox-docker `docker-compose.override.yml`). Use the same version
+   as the plugin:
+
+   ```yaml
+   services:
+     dependencies-poller:
+       image: ghcr.io/adrian-13/netbox-dependencies-poller:1.10.0   # the version of the plugin
+       restart: unless-stopped
+       env_file: dependencies-poller.env
+       cap_drop: [ALL]
+       cap_add: [NET_RAW]            # raw ICMP sockets, nothing else
+       read_only: true
+       security_opt: ["no-new-privileges:true"]
+   ```
+3. **Start it:** `docker compose up -d dependencies-poller` and look at `docker compose logs -f dependencies-poller` — after a round it prints
+   `polled N devices`. The poller then appears under *Dependencies → Configuration → ICMP poller*.
 
 Container environment variables: `NETBOX_URL`, `NETBOX_TOKEN`, `POLLER_NAME` (shown in NetBox; default the container's host name) and
 `VERIFY_SSL` (1). `POLL_INTERVAL` (60), `PING_COUNT` (3), `PING_TIMEOUT` (1) and `PING_CONCURRENCY` (500) are only fallbacks until NetBox answers.
@@ -195,10 +231,16 @@ or split the network: register several pollers and give each its own sites.
 
 ## Zabbix (optional)
 
-If the plugin `netbox_zabbix_status` is installed, a system job reads its host snapshot every minute: a device is DOWN when its
-enabled Zabbix host has an unsuppressed problem matching `zabbix_down_patterns`. Devices with an enabled Zabbix host are skipped by
-the ICMP poller. Without that plugin the Zabbix part is simply inactive and only the poller provides status.
-The job also repairs a stuck NetBox *Zabbix sync* job (left in `running` after a worker restart).
+Zabbix is optional. If you already monitor devices in Zabbix, the separate NetBox plugin
+[netbox-zabbix-status](https://github.com/adrian-13/netbox-zabbix-status) (by the same author, read-only) brings the Zabbix hosts and their
+problems into NetBox and links them to devices. When it is installed, this plugin uses it — there is nothing to configure here:
+
+- a system job reads its host snapshot every minute: a device is DOWN when its enabled Zabbix host has an unsuppressed problem matching
+  `zabbix_down_patterns` (for example "Unavailable by ICMP ping");
+- devices with an enabled Zabbix host are skipped by the ICMP poller, so nothing is monitored twice;
+- the job also repairs a stuck NetBox *Zabbix sync* job (left in `running` after a worker restart).
+
+Without that plugin the Zabbix part is simply inactive and the ICMP poller provides the status of every device.
 
 ## Notifications
 
@@ -235,6 +277,22 @@ Poller health messages use the same destinations: for the generic webhook `event
 `poller: {name, last_seen, silent_seconds, url}`.
 
 The command `manage.py dependencies_test_notifications [--destination NAME]` sends the sample messages from the command line.
+
+## Troubleshooting
+
+| Symptom | Likely cause | What to do |
+|---|---|---|
+| No **Dependencies** menu after installation | NetBox was not restarted, or the plugin is not in `PLUGINS` | Check `PLUGINS`, run `migrate`, restart **NetBox and the worker**; look for the plugin on the *Plugins* page of the NetBox menu |
+| `ModuleNotFoundError: netbox_dependencies` on start | installed into the wrong Python environment | Install with `/opt/netbox/venv/bin/pip` (in Docker: into the image, see the Dockerfile example) |
+| Page changed after an upgrade but still looks old | NetBox keeps templates in memory until a restart | Restart NetBox |
+| The graph is empty | there are no dependencies yet | *Dependencies → Add dependencies*, or import a CSV |
+| All devices are grey / "unknown" | nothing reports a status | Start the ICMP poller, or install `netbox-zabbix-status`; the device also needs a primary IP for the poller |
+| A device is grey although the poller runs | no primary IP, it carries the `no-ping` tag, it is in a site claimed by another poller, or it has a Zabbix host | See *What is pinged* on the ICMP poller page |
+| The poller log shows `HTTP Error 403` | wrong or expired token, or the token is restricted by `--allowed-ip` | Run `dependencies_setup_poller --rotate` and update the env file |
+| The poller log shows `Connection refused` / `Name or service not known` | `NETBOX_URL` is wrong for the container | Use the address the *poller container* can reach NetBox on |
+| The poller is "silent" on its page | it stopped or cannot reach NetBox | `docker compose logs dependencies-poller` |
+| No Teams / Slack messages | notifications are off, no destination, or the outage is shorter than the delay | *Configuration → Notifications*: switch them on, press *Test*; default delay is 2 minutes. Only devices that have a dependency are announced |
+| "Failed" next to a destination | the webhook rejected the message | The error is shown next to it; Teams needs the card from `triggerBody()?['card']` (see Notifications) |
 
 ## REST API
 
