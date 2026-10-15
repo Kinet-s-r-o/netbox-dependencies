@@ -43,38 +43,77 @@ Other NetBox versions are not tested.
 
 ## Installation
 
-The plugin has no dependencies besides NetBox itself.
+The plugin has no Python dependencies besides NetBox itself. You need NetBox **4.6** (PostgreSQL and Redis as usual) and a running
+NetBox worker (`rqworker`) — the worker runs the job that refreshes the device status every minute.
+
+**1. Install the package** into the NetBox virtualenv (`/opt/netbox/venv`). Use the wheel from the
+[latest release](https://github.com/adrian-13/netbox-dependencies/releases/latest) — it needs no `git` (the NetBox images do not ship it):
 
 ```bash
-# inside the NetBox virtualenv
-pip install git+https://github.com/adrian-13/netbox-dependencies.git@v1.10.0
+/opt/netbox/venv/bin/pip install https://github.com/adrian-13/netbox-dependencies/releases/download/v1.10.0/netbox_dependencies-1.10.0-py3-none-any.whl
 ```
 
-`configuration.py` (or `configuration/plugins.py` in netbox-docker):
+To make it survive upgrades, add the same URL (or `netbox-dependencies @ <url>`) to `local_requirements.txt` in the NetBox directory.
+
+**2. Enable it** in `configuration.py` (in netbox-docker: `configuration/plugins.py`):
 
 ```python
-PLUGINS = ['netbox_dependencies']
+PLUGINS = ['netbox_dependencies']        # add it to the plugins you already have
 
 PLUGINS_CONFIG = {
     'netbox_dependencies': {
-        # all optional — see "Configuration" below
-        'public_url': 'https://netbox.example.com',
+        # everything here is optional — see "Configuration" below
+        'public_url': 'https://netbox.example.com',     # used for the buttons in Teams / Slack messages
     },
 }
 ```
 
-Then apply the migrations and restart NetBox and its worker (the worker runs the status job):
+**3. Migrate and restart** NetBox *and* its worker:
 
 ```bash
-python manage.py migrate
+/opt/netbox/venv/bin/python /opt/netbox/netbox/manage.py migrate
+# then restart netbox and netbox-rqworker (systemd) or the netbox and netbox-worker containers
 ```
+
+The menu **Dependencies** appears in the sidebar. Superusers see everything; for other users grant object permissions on
+*Dependencies → dependency / custom map / notification settings / poller settings* (view, and add / change / delete for editors).
 
 ### netbox-docker
 
-Build a custom image with the plugin — see [examples/Dockerfile-Plugins](examples/Dockerfile-Plugins) and the
-[netbox-docker wiki](https://github.com/netbox-community/netbox-docker/wiki/Using-Netbox-Plugins), add the two
-`PLUGINS` / `PLUGINS_CONFIG` lines to `configuration/plugins.py`, then `docker compose build && docker compose up -d`.
-Migrations run automatically on container start.
+Build a custom image that contains the plugin — [examples/Dockerfile-Plugins](examples/Dockerfile-Plugins) is ready to use — and tell
+`docker-compose.override.yml` to use it for the `netbox`, `netbox-worker` and `netbox-housekeeping` services:
+
+```yaml
+services:
+  netbox: &dependencies
+    image: netbox-with-dependencies:latest
+    build: {context: ., dockerfile: Dockerfile-Plugins}
+  netbox-worker: *dependencies
+  netbox-housekeeping: *dependencies
+```
+
+Add the two settings from step 2 to `configuration/plugins.py`, then `docker compose build && docker compose up -d`.
+The migrations run automatically when the container starts.
+
+### First steps
+
+1. **Add dependencies:** *Dependencies → Add dependencies* (pick the parent and several children at once), or import a CSV
+   (*All dependencies → Import*; columns `upstream,downstream,dependency_type,medium,redundancy_group,description,tags`).
+2. **Open the graph** (*Dependencies → Dependency graph*): maps per site and region; right-click a device to simulate its outage.
+3. **Get a live status** — at least one of:
+   - the [ICMP poller](#icmp-poller): run `manage.py dependencies_setup_poller`, add the printed service to your compose file and start it;
+   - the [Zabbix](#zabbix-optional) integration, if the `netbox_zabbix_status` plugin is installed (nothing to configure).
+4. **Notifications (optional):** *Dependencies → Configuration → Notifications* → add a Teams / Slack / webhook destination and press *Test*.
+
+### Upgrading
+
+Install the newer wheel, run `migrate`, restart NetBox and the worker, and — if you run the poller — change the poller image to the same
+version (`ghcr.io/adrian-13/netbox-dependencies-poller:<version>`). Read the [changelog](CHANGELOG.md) first.
+
+### Uninstalling
+
+Remove `netbox_dependencies` from `PLUGINS`, restart, and `pip uninstall netbox-dependencies`. The data stays in the database
+(tables `netbox_dependencies_*`); to remove it run `manage.py migrate netbox_dependencies zero` **before** taking the plugin out.
 
 ## Configuration
 
