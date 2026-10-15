@@ -52,8 +52,8 @@ Afterwards continue with [First steps](#first-steps).
 ### With netbox-docker
 
 1. **Put the Dockerfile next to your `docker-compose.yml`.** Copy [examples/Dockerfile-Plugins](examples/Dockerfile-Plugins) into the
-   netbox-docker folder. It installs the plugin from the release wheel (the NetBox image has no `git`). Open the file and replace `1.10.0`
-   in both places of the URL with the version shown on the [Releases](https://github.com/adrian-13/netbox-dependencies/releases/latest) page.
+   netbox-docker folder. It installs the plugin from the release wheel (the NetBox image has no `git`). Open the file and set the version in
+   both places of the URL to the one shown on the [Releases](https://github.com/adrian-13/netbox-dependencies/releases/latest) page.
 2. **Use that image** for the three NetBox services — add this to `docker-compose.override.yml`:
 
    ```yaml
@@ -86,7 +86,7 @@ Afterwards continue with [First steps](#first-steps).
 ### Classic installation (systemd, virtualenv)
 
 1. **Install the package** into the NetBox virtualenv. Use the wheel from the
-   [latest release](https://github.com/adrian-13/netbox-dependencies/releases/latest) — replace `1.10.0` (twice) with the version shown there:
+   [latest release](https://github.com/adrian-13/netbox-dependencies/releases/latest) — the version appears twice in the URL, use the one shown there:
 
    ```bash
    /opt/netbox/venv/bin/pip install https://github.com/adrian-13/netbox-dependencies/releases/download/v1.10.1/netbox_dependencies-1.10.1-py3-none-any.whl
