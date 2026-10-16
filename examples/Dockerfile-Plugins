@@ -5,4 +5,4 @@ ARG NETBOX_VERSION=v4.6
 FROM netboxcommunity/netbox:${NETBOX_VERSION}
 
 RUN /usr/local/bin/uv pip install --python /opt/netbox/venv/bin/python \
-    "https://github.com/Kinet-s-r-o/netbox-dependencies/releases/download/v1.12.0/netbox_dependencies-1.12.0-py3-none-any.whl"
+    "https://github.com/Kinet-s-r-o/netbox-dependencies/releases/download/v1.13.0/netbox_dependencies-1.13.0-py3-none-any.whl"

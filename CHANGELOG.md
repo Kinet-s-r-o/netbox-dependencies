@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.13.0 — 2026-10-16
+- Graph: **Filters → Link style** chooses between curved (S-shaped) and straight arrows; the choice is remembered in the browser.
+- Graph: hovering a device shows, below the headline, its description and notes (shortened) in the tooltip.
+
 ## 1.12.0 — 2026-10-16
 - Graph: the device type (model; the role when there is none) is shown under the device name in a pale grey. Works in the light and the dark theme.
 

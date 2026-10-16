@@ -183,6 +183,13 @@
               <h6 class="dropdown-header px-0">Link medium</h6>
               <div id="dep-f-media"></div>
               <div class="dropdown-divider"></div>
+              <h6 class="dropdown-header px-0">Link style</h6>
+              <div class="btn-group w-100 mb-2" role="group" aria-label="Link style">
+                <input type="radio" class="btn-check" name="dep-link-style" id="dep-ls-curved" value="curved" autocomplete="off">
+                <label class="btn btn-sm btn-outline-secondary" for="dep-ls-curved"><i class="mdi mdi-chart-bell-curve"></i> Curved</label>
+                <input type="radio" class="btn-check" name="dep-link-style" id="dep-ls-straight" value="straight" autocomplete="off">
+                <label class="btn btn-sm btn-outline-secondary" for="dep-ls-straight"><i class="mdi mdi-vector-line"></i> Straight</label>
+              </div>
               <label class="form-check mb-2">
                 <input type="checkbox" class="form-check-input" id="dep-f-labels" checked>
                 <span class="form-check-label">Show link labels</span>
@@ -477,6 +484,8 @@
       return {w: [w, 1 - w], d: [d, -d]};
     }
     var CURVE_SIGN = 1;
+    // the look of the links is a personal preference of the viewer: smooth S-curves or straight arrows
+    var LINK_STYLE = lsGet('depLinkStyle', 'curved') === 'straight' ? 'straight' : 'curved';
     var cy = cytoscape({
       container: document.getElementById('dep-graph'),
       elements: data.nodes.concat(data.edges),
@@ -533,7 +542,7 @@
         {selector: 'node.dim', style: {'opacity': 0.25}},
         {selector: 'node.nomatch', style: {'opacity': 0.18}},
         {selector: 'edge', style: {
-          'curve-style': 'unbundled-bezier',
+          'curve-style': function () { return LINK_STYLE === 'straight' ? 'bezier' : 'unbundled-bezier'; },   // bezier = a straight line (parallel links fan out)
           'control-point-weights': function (e) { return curveOf(e).w; },
           'control-point-distances': function (e) { return curveOf(e).d; },
           'target-arrow-shape': 'triangle', 'arrow-scale': 0.9, 'width': 2, 'opacity': 0.9,
@@ -841,6 +850,17 @@
     buildCheckboxes('dep-f-roles', roles, filters.roles, function (k) { return k; });
     buildCheckboxes('dep-f-types', ['network', 'power', 'other'], filters.types, function (k) { return k.charAt(0).toUpperCase() + k.slice(1); });
     buildCheckboxes('dep-f-media', MEDIA, filters.media, function (k) { return MEDIUM_LABEL[k]; });
+    // link style: curved S-curves or straight arrows (remembered in this browser)
+    document.getElementById('dep-ls-' + LINK_STYLE).checked = true;
+    document.querySelectorAll('input[name="dep-link-style"]').forEach(function (radio) {
+      radio.addEventListener('change', function () {
+        if (!this.checked) { return; }
+        LINK_STYLE = this.value;
+        lsSet('depLinkStyle', LINK_STYLE);
+        cy.batch(function () { cy.edges().forEach(function (e) { e.addClass('flip'); e.removeClass('flip'); }); });   // re-evaluate the style
+        scheduleMini();
+      });
+    });
     document.getElementById('dep-f-problems').addEventListener('change', function () { filters.problems = this.checked; applyFilters(); });
     document.getElementById('dep-f-labels').addEventListener('change', function () { filters.labels = this.checked; applyFilters(); });
     document.getElementById('dep-f-clear').addEventListener('click', function () {
@@ -1080,9 +1100,14 @@
     });
     cy.on('mouseover', 'node', function (evt) {
       var d = evt.target.data();
-      cy.container().title = d.cloud
-        ? 'Location ' + d.label + ' · ' + d.info + ' — click to open its map'
-        : d.label + (d.site ? ' · ' + d.site : '') + (d.role ? ' · ' + d.role : '') + ' · ' + d.state;
+      if (d.cloud) { cy.container().title = 'Location ' + d.label + ' · ' + d.info + ' — click to open its map'; return; }
+      var lines = [d.label + (d.site ? ' · ' + d.site : '') + (d.role ? ' · ' + d.role : '') + ' · ' + d.state];
+      if (d.description) { lines.push('', d.description); }
+      if (d.comments) {                       // the notes of the device, shortened for a tooltip
+        var notes = d.comments.replace(/\s+\n/g, '\n').trim();
+        lines.push('', notes.length > 400 ? notes.slice(0, 400) + ' …' : notes);
+      }
+      cy.container().title = lines.join('\n');
     });
 
     // ---- live status and notifications
