@@ -952,6 +952,16 @@
         el('a', {class: 'btn btn-sm btn-outline-secondary', href: d.url + 'dependencies/', text: 'Dependencies'}),
         el('a', {class: 'btn btn-sm btn-outline-secondary', href: '?branch=' + d.devid, text: 'Branch'})
       ]));
+      if (data.add_url) {
+        // shortcuts to the "add dependencies" page with this device filled in; the page returns here afterwards
+        var back = encodeURIComponent(window.location.pathname + window.location.search);
+        kids.push(el('div', {class: 'd-flex flex-wrap gap-2 mt-2'}, [
+          el('a', {class: 'btn btn-sm btn-outline-primary', title: 'This device is the upstream one: pick the devices that depend on it',
+                   href: data.add_url + '?upstream=' + d.devid + '&return_url=' + back}, [el('i', {class: 'mdi mdi-plus-thick'}), ' Add dependents']),
+          el('a', {class: 'btn btn-sm btn-outline-primary', title: 'This device depends on others: pick its parents',
+                   href: data.add_url + '?direction=parents&downstream=' + d.devid + '&return_url=' + back}, [el('i', {class: 'mdi mdi-plus-thick'}), ' Add parent'])
+        ]));
+      }
 
       pop.innerHTML = '';
       kids.forEach(function (k) { pop.appendChild(k); });

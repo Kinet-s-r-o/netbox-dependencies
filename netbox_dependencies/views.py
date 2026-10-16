@@ -12,6 +12,7 @@ from django.http import FileResponse, HttpResponse, JsonResponse
 from django.utils import timezone
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.generic import View
 
 from dcim.models import Device
@@ -29,6 +30,7 @@ from .forms import (
     CustomMapForm,
     DependencyFilterForm,
     DependencyForm,
+    DependencyAddParentsForm,
     DependencyImportForm,
     DependencyMultiAddForm,
     DestinationForm,
@@ -229,31 +231,58 @@ class DependencyTreeView(PermissionRequiredMixin, View):
 
 
 class DependencyMultiAddView(PermissionRequiredMixin, View):
-    """Creates one dependency for each selected downstream device."""
+    """Creates dependencies in bulk: one upstream with several downstream devices (default), or - with
+    `direction=parents` - one downstream device with several upstream devices. `return_url` (a path on this
+    site) says where to go afterwards; the graph uses it for its "add" shortcuts."""
 
     permission_required = 'netbox_dependencies.add_dependency'
     template_name = 'netbox_dependencies/add_multiple.html'
 
+    @staticmethod
+    def _direction(request):
+        return 'parents' if (request.POST.get('direction') or request.GET.get('direction')) == 'parents' else 'children'
+
+    @staticmethod
+    def _return_url(request):
+        url = request.POST.get('return_url') or request.GET.get('return_url') or ''
+        ok = url and url_has_allowed_host_and_scheme(url, allowed_hosts={request.get_host()}, require_https=request.is_secure())
+        return url if ok else ''
+
+    def _context(self, request, form):
+        direction = self._direction(request)
+        return {'form': form, 'direction': direction, 'return_url': self._return_url(request),
+                'cancel_url': self._return_url(request) or reverse('plugins:netbox_dependencies:tree')}
+
     def get(self, request):
-        initial = {}
-        if request.GET.get('upstream'):
-            initial['upstream'] = request.GET['upstream']
-        return render(request, self.template_name, {'form': DependencyMultiAddForm(initial=initial)})
+        if self._direction(request) == 'parents':
+            initial = {'downstream': request.GET['downstream']} if request.GET.get('downstream') else {}
+            form = DependencyAddParentsForm(initial=initial)
+        else:
+            initial = {'upstream': request.GET['upstream']} if request.GET.get('upstream') else {}
+            form = DependencyMultiAddForm(initial=initial)
+        return render(request, self.template_name, self._context(request, form))
 
     def post(self, request):
-        form = DependencyMultiAddForm(request.POST)
+        parents = self._direction(request) == 'parents'
+        form = (DependencyAddParentsForm if parents else DependencyMultiAddForm)(request.POST)
         if form.is_valid():
-            upstream = form.cleaned_data['upstream']
+            if parents:
+                pairs = [(device, form.cleaned_data['downstream']) for device in form.cleaned_data['upstreams']]
+                anchor = form.cleaned_data['downstream']
+            else:
+                pairs = [(form.cleaned_data['upstream'], device) for device in form.cleaned_data['downstreams']]
+                anchor = form.cleaned_data['upstream']
             created, skipped, errors = 0, [], []
             try:
                 with transaction.atomic():
-                    for device in form.cleaned_data['downstreams']:
-                        if Dependency.objects.filter(upstream=upstream, downstream=device).exists():
-                            skipped.append(device.name)
+                    for upstream, downstream in pairs:
+                        other = upstream if parents else downstream
+                        if Dependency.objects.filter(upstream=upstream, downstream=downstream).exists():
+                            skipped.append(other.name)
                             continue
                         dep = Dependency(
                             upstream=upstream,
-                            downstream=device,
+                            downstream=downstream,
                             dependency_type=form.cleaned_data['dependency_type'],
                             medium=form.cleaned_data['medium'] or 'unspecified',
                             redundancy_group=form.cleaned_data['redundancy_group'],
@@ -262,7 +291,7 @@ class DependencyMultiAddView(PermissionRequiredMixin, View):
                         try:
                             dep.full_clean()
                         except ValidationError as e:
-                            errors.append(f'{device}: {"; ".join(e.messages)}')
+                            errors.append(f'{other}: {"; ".join(e.messages)}')
                             continue
                         dep.save()
                         created += 1
@@ -273,11 +302,12 @@ class DependencyMultiAddView(PermissionRequiredMixin, View):
                     form.add_error(None, msg)
             else:
                 if created:
-                    messages.success(request, f'Created {created} dependencies on {upstream}.')
+                    side = 'upstream links of' if parents else 'dependencies on'
+                    messages.success(request, f'Created {created} {side} {anchor}.')
                 if skipped:
                     messages.warning(request, 'Already existed, skipped: ' + ', '.join(skipped))
-                return redirect('plugins:netbox_dependencies:tree')
-        return render(request, self.template_name, {'form': form})
+                return redirect(self._return_url(request) or 'plugins:netbox_dependencies:tree')
+        return render(request, self.template_name, self._context(request, form))
 
 
 class DependencyGraphView(PermissionRequiredMixin, View):
@@ -303,6 +333,8 @@ class DependencyGraphView(PermissionRequiredMixin, View):
         )
         limit = int(get_plugin_config('netbox_dependencies', 'graph_max_nodes'))
         graph['too_large'] = None
+        graph['add_url'] = reverse('plugins:netbox_dependencies:add_multiple') if request.user.has_perm(
+            'netbox_dependencies.add_dependency') else ''
         if limit and len(graph['nodes']) > limit and request.GET.get('force') != '1':
             separator = '&' if request.GET else '?'
             graph['too_large'] = {'nodes': len(graph['nodes']), 'limit': limit,

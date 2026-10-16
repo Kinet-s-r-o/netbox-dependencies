@@ -25,6 +25,8 @@ live, with optional notifications to Microsoft Teams, Slack or any webhook.
 - **Interactive graph** (Cytoscape.js) per site, region or custom map; other locations appear as clouds that open
   their own map. Search, filters, role icons, PNG export, minimap. Click a link for its details (medium, type, redundancy group, description). Layouts are saved automatically.
 - **Outage simulation**: right-click a device in the graph (or use the simulation page) to see everything it would take down.
+- **Add dependencies from the graph:** click a device and use *Add dependents* (this device is the upstream one) or *Add parent* (this device depends on others);
+  the add page opens with the device filled in and returns to the graph afterwards.
 - **Live status** from two sources: the [Zabbix](#zabbix-optional) sync and a built-in **ICMP poller** for devices
   that are not monitored elsewhere.
 - **Root-cause analysis**: a live outage is split into *root causes* and devices that are merely *explained* by an upstream failure.
@@ -89,7 +91,7 @@ Afterwards continue with [First steps](#first-steps).
    [latest release](https://github.com/Kinet-s-r-o/netbox-dependencies/releases/latest) — the version appears twice in the URL, use the one shown there:
 
    ```bash
-   /opt/netbox/venv/bin/pip install https://github.com/Kinet-s-r-o/netbox-dependencies/releases/download/v1.10.3/netbox_dependencies-1.10.3-py3-none-any.whl
+   /opt/netbox/venv/bin/pip install https://github.com/Kinet-s-r-o/netbox-dependencies/releases/download/v1.11.0/netbox_dependencies-1.11.0-py3-none-any.whl
    ```
 
    To keep it across NetBox upgrades add the same URL as a line to `local_requirements.txt` in the NetBox directory.
@@ -179,7 +181,7 @@ Setting it up takes three steps and no Docker build. The poller needs its own Ne
    ```yaml
    services:
      dependencies-poller:
-       image: ghcr.io/kinet-s-r-o/netbox-dependencies-poller:1.10.3   # the version of the plugin
+       image: ghcr.io/kinet-s-r-o/netbox-dependencies-poller:1.11.0   # the version of the plugin
        restart: unless-stopped
        env_file: dependencies-poller.env
        cap_drop: [ALL]

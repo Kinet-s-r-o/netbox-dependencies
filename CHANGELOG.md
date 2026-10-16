@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.11.0 — 2026-10-16
+- Graph: the device popup has **Add dependents** and **Add parent** shortcuts (shown to users who may add dependencies). The add page opens with
+  that device filled in - as the upstream device, or as the downstream one with several parents to pick - and returns to the graph afterwards.
+- The add page can create the links in both directions (one upstream with several dependents, or one device with several parents); cycles and
+  duplicates are still rejected, and a `return_url` pointing to another site is ignored.
+
 ## 1.10.3 — 2026-10-16
 - The project lives in the GitHub organisation `Kinet-s-r-o` now: all links point to https://github.com/Kinet-s-r-o/netbox-dependencies and the
   poller image is published as `ghcr.io/kinet-s-r-o/netbox-dependencies-poller:<version>` (the workflow uses the owner of the repository, so

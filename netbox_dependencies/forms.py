@@ -97,6 +97,27 @@ class DependencyMultiAddForm(forms.Form):
 
 
 
+class DependencyAddParentsForm(DependencyMultiAddForm):
+    """One downstream device + several upstream devices (the reverse of the form above)."""
+
+    upstream = None
+    downstream = DynamicModelChoiceField(queryset=Device.objects.all(), label='Downstream device')
+    upstreams = DynamicModelMultipleChoiceField(
+        queryset=Device.objects.all(), label='Upstream devices',
+        help_text='The downstream device depends on every selected device.',
+    )
+    downstreams = None
+
+    field_order = ('downstream', 'upstreams', 'dependency_type', 'medium', 'redundancy_group', 'description')
+
+    def clean(self):
+        cleaned = forms.Form.clean(self)
+        downstream, upstreams = cleaned.get('downstream'), cleaned.get('upstreams')
+        if downstream and upstreams and downstream in upstreams:
+            raise forms.ValidationError('The downstream device cannot also be one of the upstream devices.')
+        return cleaned
+
+
 class CustomMapForm(NetBoxModelForm):
     devices = DynamicModelMultipleChoiceField(
         queryset=Device.objects.all(), required=False, label='Devices',

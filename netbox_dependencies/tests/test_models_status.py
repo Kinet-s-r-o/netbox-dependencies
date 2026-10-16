@@ -775,3 +775,73 @@ class CustomMapDeleteAndApiTests(Base):
         body = client.get('/api/plugins/dependencies/maps/').json()
         self.assertEqual((body['count'], body['results'][0]['name']), (1, 'api map'))
         self.assertEqual([d['name'] for d in body['results'][0]['devices']], ['core'])
+
+
+class AddShortcutTests(Base):
+    """"Add dependents" / "Add parent" in the graph: the add page gets the device filled in and returns to the graph."""
+
+    ADD = '/plugins/dependencies/add/'
+
+    def _client(self):
+        from django.contrib.auth import get_user_model
+        from django.test import Client
+        client = Client()
+        client.force_login(get_user_model().objects.create_superuser('sc', 'sc@example.com', 'x'))
+        return client
+
+    def test_graph_page_offers_the_add_url_only_to_those_who_may_add(self):
+        from django.contrib.auth import get_user_model
+        from django.test import Client
+        self.dep('core', 'sw1')
+        self.assertIn('"add_url": "/plugins/dependencies/add/"', self._client().get('/plugins/dependencies/graph/').content.decode())
+        viewer = Client()
+        user = get_user_model().objects.create_user('viewer', 'v@example.com', 'x')
+        from django.contrib.auth.models import Permission
+        from users.models import ObjectPermission
+        permission = ObjectPermission.objects.create(name='view deps', actions=['view'])
+        from django.contrib.contenttypes.models import ContentType
+        permission.object_types.set([ContentType.objects.get_for_model(Dependency)])
+        permission.users.add(user)
+        viewer.force_login(user)
+        page = viewer.get('/plugins/dependencies/graph/').content.decode()
+        self.assertIn('"add_url": ""', page)
+
+    def test_dependents_prefilled_and_redirect_back(self):
+        client = self._client()
+        page = client.get(f'{self.ADD}?upstream={self.devs["core"].pk}&return_url=/plugins/dependencies/graph/%3Fsite%3D1').content.decode()
+        import re
+        self.assertTrue(re.search(rf'<option value="{self.devs["core"].pk}"\s+selected', page), 'the upstream device is pre-selected')
+        self.assertIn('name="return_url"', page)
+        r = client.post(self.ADD, {'upstream': self.devs['core'].pk, 'downstreams': [self.devs['sw1'].pk, self.devs['sw2'].pk],
+                                   'dependency_type': 'network', 'medium': 'ethernet', 'direction': 'children',
+                                   'return_url': '/plugins/dependencies/graph/?site=1'})
+        self.assertEqual((r.status_code, r['Location']), (302, '/plugins/dependencies/graph/?site=1'))
+        self.assertEqual(Dependency.objects.filter(upstream=self.devs['core']).count(), 2)
+
+    def test_parents_direction(self):
+        client = self._client()
+        page = client.get(f'{self.ADD}?direction=parents&downstream={self.devs["ap"].pk}').content.decode()
+        self.assertIn('name="upstreams"', page)
+        self.assertNotIn('name="downstreams"', page)
+        r = client.post(self.ADD, {'downstream': self.devs['ap'].pk, 'upstreams': [self.devs['sw1'].pk, self.devs['sw2'].pk],
+                                   'dependency_type': 'network', 'medium': 'radio', 'redundancy_group': 'g', 'direction': 'parents'})
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(sorted(Dependency.objects.filter(downstream=self.devs['ap']).values_list('upstream__name', 'medium')),
+                         [('sw1', 'radio'), ('sw2', 'radio')])
+
+    def test_cycles_duplicates_and_foreign_return_urls_are_handled(self):
+        client = self._client()
+        self.dep('core', 'sw1')
+        base = {'dependency_type': 'network', 'medium': 'ethernet', 'direction': 'parents'}
+        # sw1 already depends on core: skipped, not an error
+        r = client.post(self.ADD, {**base, 'downstream': self.devs['sw1'].pk, 'upstreams': [self.devs['core'].pk]})
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(Dependency.objects.count(), 1)
+        # core would depend on sw1, which depends on core: a cycle is rejected and nothing is created
+        r = client.post(self.ADD, {**base, 'downstream': self.devs['core'].pk, 'upstreams': [self.devs['sw1'].pk]})
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(Dependency.objects.count(), 1)
+        # a return_url pointing to another site is ignored
+        r = client.post(self.ADD, {**base, 'downstream': self.devs['ap'].pk, 'upstreams': [self.devs['sw2'].pk],
+                                   'return_url': 'https://evil.example/phish'})
+        self.assertEqual((r.status_code, r['Location']), (302, '/plugins/dependencies/tree/'))
