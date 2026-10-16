@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.12.0 — 2026-10-16
+- Graph: the device type (model; the role when there is none) is shown under the device name in a pale grey. Works in the light and the dark theme.
+
 ## 1.11.1 — 2026-10-16
 - The poller no longer depends on a registry: the documented and printed compose service builds the image straight from this repository
   (`build: https://github.com/Kinet-s-r-o/netbox-dependencies.git#v<version>:poller`), which works for everyone. The prebuilt image on

@@ -385,14 +385,15 @@
     data.nodes.forEach(function (n) {
       n.data.plabel = n.data.cloud ? n.data.label + '\n' + n.data.info : n.data.label;
       n.data.icon = n.data.cloud ? '' : iconFor(n.data.role, n.data.dtype, n.data.label);
+      n.data.sub = n.data.cloud ? '' : (n.data.dtype || n.data.role || '');
     });
 
     // ---- theme: light / dark follow NetBox (data-bs-theme); the palette is read whenever a style is evaluated
     function isDark() { return document.documentElement.getAttribute('data-bs-theme') === 'dark'; }
     var PAL = {
-      light: {card: '#ffffff', cardBorder: '#c9d1dc', text: '#1d273b', muted: '#667085', shadow: 0.07,
+      light: {card: '#ffffff', cardBorder: '#c9d1dc', text: '#1d273b', muted: '#667085', sub: '#8b95a7', shadow: 0.07,
               tint: {down: '#fdeaea', degraded: '#fff1e3', failed: '#f6e8fb'}},
-      dark: {card: '#243142', cardBorder: '#3d4d63', text: '#e8edf5', muted: '#9fb0c6', shadow: 0.25,
+      dark: {card: '#243142', cardBorder: '#3d4d63', text: '#e8edf5', muted: '#9fb0c6', sub: '#8fa1b9', shadow: 0.25,
              tint: {down: '#43232b', degraded: '#43301f', failed: '#392447'}}
     };
     function pal() { return isDark() ? PAL.dark : PAL.light; }
@@ -440,6 +441,33 @@
       Object.keys(COLORS).forEach(function (st) { new Image().src = badgeUri(ic, st); });
     });
 
+    // ---- device card size and the subtitle (device type) under the name
+    var SUB_MAX = 30;                                 // characters of the subtitle that are shown
+    function subText(n) {
+      var t = n.data('sub') || '';
+      return t.length > SUB_MAX ? t.slice(0, SUB_MAX - 1) + '…' : t;
+    }
+    function cardWidth(n) {
+      var lines = n.data('plabel').split('\n');
+      var w = Math.max.apply(null, lines.map(function (l) { return l.length; })) * 7.3 + 22;
+      w = Math.max(w, subText(n).length * 5.9 + 22);
+      return Math.max(96, w + 38);
+    }
+    function cardHeight(n) { return subText(n) ? 48 : 38; }
+    // the subtitle is drawn into a transparent picture the size of the card (a label cannot have two colours);
+    // images cannot use the page's web fonts, so it uses the system font stack
+    var SUB_CACHE = {};
+    var SUB_FONT = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
+    function subUri(text, w, h, color) {
+      var key = [text, w, h, color].join('|');
+      if (!SUB_CACHE[key]) {
+        var esc = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        SUB_CACHE[key] = svgUri('<svg xmlns="http://www.w3.org/2000/svg" width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '">' +
+          '<text x="' + (w / 2 + 17) + '" y="' + (h - 11) + '" font-family=\'' + SUB_FONT + '\' font-size="10.5" text-anchor="middle" fill="' + color + '">' + esc + '</text></svg>');
+      }
+      return SUB_CACHE[key];
+    }
+
     // ---- edges: smooth S-curves that leave the parent and enter the child vertically (like an org chart)
     function curveOf(e) {
       var a = e.source().position(), b = e.target().position();
@@ -462,22 +490,27 @@
           'font-family': getComputedStyle(document.body).fontFamily || 'sans-serif',
           'font-size': 12, 'font-weight': 600,
           'text-valign': 'center', 'text-halign': 'center', 'text-wrap': 'wrap',
-          'width': function (n) {
-            var lines = n.data('plabel').split('\n');
-            var w = Math.max.apply(null, lines.map(function (l) { return l.length; })) * 7.3 + 22;
-            return Math.max(96, w + 38);
-          },
-          'height': 38,
+          'width': function (n) { return cardWidth(n); },
+          'height': function (n) { return cardHeight(n); },
           'text-margin-x': 17,
+          'text-margin-y': function (n) { return subText(n) ? -7 : 0; },
           'background-color': function (n) { var t = pal().tint[effState(n)]; return t || pal().card; },
           'border-width': function (n) { return {down: 2.5, degraded: 2.5, failed: 3}[effState(n)] || 1.5; },
           'border-color': function (n) {
             var st = effState(n);
             return (st === 'down' || st === 'degraded' || st === 'failed') ? COLORS[st] : pal().cardBorder;
           },
-          'background-image': function (n) { return badgeUri(n.data('icon'), effState(n)); },
-          'background-width': 26, 'background-height': 26, 'background-fit': 'none',
-          'background-position-x': '6px', 'background-position-y': '50%', 'background-repeat': 'no-repeat',
+          'background-image': function (n) {
+            var images = [badgeUri(n.data('icon'), effState(n))];
+            if (subText(n)) { images.push(subUri(subText(n), Math.round(cardWidth(n)), cardHeight(n), pal().sub)); }
+            return images;
+          },
+          'background-width': function (n) { return subText(n) ? [26, Math.round(cardWidth(n))] : [26]; },
+          'background-height': function (n) { return subText(n) ? [26, cardHeight(n)] : [26]; },
+          'background-fit': 'none',
+          'background-position-x': function (n) { return subText(n) ? ['6px', '0px'] : ['6px']; },
+          'background-position-y': function (n) { return subText(n) ? ['50%', '0px'] : ['50%']; },
+          'background-repeat': 'no-repeat',
           'background-clip': 'none', 'bounds-expansion': 8,
           'underlay-color': '#000', 'underlay-opacity': function () { return pal().shadow; },
           'underlay-padding': 4, 'underlay-shape': 'round-rectangle'
