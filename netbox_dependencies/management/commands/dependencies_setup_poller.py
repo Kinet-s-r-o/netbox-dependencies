@@ -18,7 +18,7 @@ from django.db import transaction
 from users.models import ObjectPermission, Token, User
 
 USERNAME = 'dependencies-poller'
-IMAGE = 'ghcr.io/adrian-13/netbox-dependencies-poller'
+IMAGE = 'ghcr.io/kinet-s-r-o/netbox-dependencies-poller'
 
 # what the poller does, and nothing else
 PERMISSIONS = (

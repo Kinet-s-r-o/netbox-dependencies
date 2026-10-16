@@ -43,7 +43,7 @@ class SetupPollerTests(Base):
         self.assertEqual((values['NETBOX_URL'], values['POLLER_NAME']), ('http://nb:8080', 'p1'))
         self.assertGreater(len(values['NETBOX_TOKEN']), 30)
         self.assertIn('cap_drop: [ALL]', output)
-        self.assertIn('ghcr.io/adrian-13/netbox-dependencies-poller:', output)
+        self.assertIn('ghcr.io/kinet-s-r-o/netbox-dependencies-poller:', output)
         c = self.client_for(values['NETBOX_TOKEN'])
         # what the poller does
         r = c.get('/api/plugins/dependencies/status/targets/?poller=p1')

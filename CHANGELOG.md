@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.10.3 — 2026-10-16
+- The project lives in the GitHub organisation `Kinet-s-r-o` now: all links point to https://github.com/Kinet-s-r-o/netbox-dependencies and the
+  poller image is published as `ghcr.io/kinet-s-r-o/netbox-dependencies-poller:<version>` (the workflow uses the owner of the repository, so
+  it follows a future move). Older images stay under `ghcr.io/adrian-13/…`.
+
 ## 1.10.2 — 2026-10-16
 - Fix: deleting a custom map ended with a server error (`SerializerNotFound`). Custom maps now have a REST API serializer and endpoint
   (`/api/plugins/dependencies/maps/`), which NetBox needs when it processes a change of the object.

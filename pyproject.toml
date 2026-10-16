@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "netbox-dependencies"
-version = "1.10.2"
+version = "1.10.3"
 authors = [
     { name = "Adrián Javorček", email = "adrian.javorcek@gmail.com" },
 ]
@@ -25,9 +25,9 @@ classifiers = [
 dependencies = []
 
 [project.urls]
-Homepage = "https://github.com/adrian-13/netbox-dependencies"
-Issues = "https://github.com/adrian-13/netbox-dependencies/issues"
-Changelog = "https://github.com/adrian-13/netbox-dependencies/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/Kinet-s-r-o/netbox-dependencies"
+Issues = "https://github.com/Kinet-s-r-o/netbox-dependencies/issues"
+Changelog = "https://github.com/Kinet-s-r-o/netbox-dependencies/blob/main/CHANGELOG.md"
 
 [tool.setuptools.packages.find]
 include = ["netbox_dependencies*"]

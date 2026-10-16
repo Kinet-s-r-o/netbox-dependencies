@@ -20,7 +20,7 @@
 # Everything else (interval, packets, timeout, scope, ...) is managed there, no restart needed.
 services:
   dependencies-poller:
-    image: ghcr.io/adrian-13/netbox-dependencies-poller:1.10.2
+    image: ghcr.io/kinet-s-r-o/netbox-dependencies-poller:1.10.3
     restart: unless-stopped
     env_file: dependencies-poller.env   # NETBOX_URL, NETBOX_TOKEN, POLLER_NAME
     cap_drop: [ALL]

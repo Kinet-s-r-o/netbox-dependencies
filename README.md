@@ -53,7 +53,7 @@ Afterwards continue with [First steps](#first-steps).
 
 1. **Put the Dockerfile next to your `docker-compose.yml`.** Copy [examples/Dockerfile-Plugins](examples/Dockerfile-Plugins) into the
    netbox-docker folder. It installs the plugin from the release wheel (the NetBox image has no `git`). Open the file and set the version in
-   both places of the URL to the one shown on the [Releases](https://github.com/adrian-13/netbox-dependencies/releases/latest) page.
+   both places of the URL to the one shown on the [Releases](https://github.com/Kinet-s-r-o/netbox-dependencies/releases/latest) page.
 2. **Use that image** for the three NetBox services — add this to `docker-compose.override.yml`:
 
    ```yaml
@@ -86,10 +86,10 @@ Afterwards continue with [First steps](#first-steps).
 ### Classic installation (systemd, virtualenv)
 
 1. **Install the package** into the NetBox virtualenv. Use the wheel from the
-   [latest release](https://github.com/adrian-13/netbox-dependencies/releases/latest) — the version appears twice in the URL, use the one shown there:
+   [latest release](https://github.com/Kinet-s-r-o/netbox-dependencies/releases/latest) — the version appears twice in the URL, use the one shown there:
 
    ```bash
-   /opt/netbox/venv/bin/pip install https://github.com/adrian-13/netbox-dependencies/releases/download/v1.10.2/netbox_dependencies-1.10.2-py3-none-any.whl
+   /opt/netbox/venv/bin/pip install https://github.com/Kinet-s-r-o/netbox-dependencies/releases/download/v1.10.3/netbox_dependencies-1.10.3-py3-none-any.whl
    ```
 
    To keep it across NetBox upgrades add the same URL as a line to `local_requirements.txt` in the NetBox directory.
@@ -120,7 +120,7 @@ If the menu is missing, see [Troubleshooting](#troubleshooting).
 ### Upgrading
 
 Install the newer wheel (new version in the URL), run `migrate`, restart NetBox and the worker, and — if you run the poller — change the poller
-image to the same version (`ghcr.io/adrian-13/netbox-dependencies-poller:<version>`). Read the [changelog](CHANGELOG.md) first.
+image to the same version (`ghcr.io/kinet-s-r-o/netbox-dependencies-poller:<version>`). Read the [changelog](CHANGELOG.md) first.
 
 ### Uninstalling
 
@@ -179,7 +179,7 @@ Setting it up takes three steps and no Docker build. The poller needs its own Ne
    ```yaml
    services:
      dependencies-poller:
-       image: ghcr.io/adrian-13/netbox-dependencies-poller:1.10.2   # the version of the plugin
+       image: ghcr.io/kinet-s-r-o/netbox-dependencies-poller:1.10.3   # the version of the plugin
        restart: unless-stopped
        env_file: dependencies-poller.env
        cap_drop: [ALL]
@@ -232,7 +232,7 @@ or split the network: register several pollers and give each its own sites.
 ## Zabbix (optional)
 
 Zabbix is optional. If you already monitor devices in Zabbix, the separate NetBox plugin
-[netbox-zabbix-status](https://github.com/adrian-13/netbox-zabbix-status) (by the same author, read-only) brings the Zabbix hosts and their
+[netbox-zabbix-status](https://github.com/Kinet-s-r-o/netbox-zabbix-status) (by the same author, read-only) brings the Zabbix hosts and their
 problems into NetBox and links them to devices. When it is installed, this plugin uses it — there is nothing to configure here:
 
 - a system job reads its host snapshot every minute: a device is DOWN when its enabled Zabbix host has an unsuppressed problem matching
