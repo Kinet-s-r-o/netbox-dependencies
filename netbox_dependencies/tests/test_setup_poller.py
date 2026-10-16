@@ -43,7 +43,8 @@ class SetupPollerTests(Base):
         self.assertEqual((values['NETBOX_URL'], values['POLLER_NAME']), ('http://nb:8080', 'p1'))
         self.assertGreater(len(values['NETBOX_TOKEN']), 30)
         self.assertIn('cap_drop: [ALL]', output)
-        self.assertIn('ghcr.io/kinet-s-r-o/netbox-dependencies-poller:', output)
+        self.assertIn('build: https://github.com/Kinet-s-r-o/netbox-dependencies.git#v', output)     # no registry needed
+        self.assertIn('ghcr.io/kinet-s-r-o/netbox-dependencies-poller:', output)                    # the optional prebuilt image
         c = self.client_for(values['NETBOX_TOKEN'])
         # what the poller does
         r = c.get('/api/plugins/dependencies/status/targets/?poller=p1')
@@ -96,7 +97,7 @@ class SetupPollerTests(Base):
 
     def test_output_walks_through_the_three_steps(self):
         output = run('--name', 'p1', '--netbox-url', 'http://nb:8080')
-        for text in ('Step 1', 'Step 2', 'Step 3', 'services:', 'docker compose up -d dependencies-poller',
+        for text in ('Step 1', 'Step 2', 'Step 3', 'services:', 'docker compose up -d --build dependencies-poller',
                      'docker compose logs -f dependencies-poller', 'http://nb:8080', '"p1"'):
             self.assertIn(text, output)
         with tempfile.TemporaryDirectory() as folder:
@@ -114,4 +115,4 @@ class SetupPollerTests(Base):
         page = client.get('/plugins/dependencies/poller/').content.decode()
         self.assertIn('No poller has reported yet', page)
         self.assertIn('dependencies_setup_poller', page)
-        self.assertIn('docker compose up -d dependencies-poller', page)
+        self.assertIn('docker compose up -d --build dependencies-poller', page)

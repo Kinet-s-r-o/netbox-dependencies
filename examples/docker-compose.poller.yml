@@ -13,14 +13,17 @@
 # Step 2 - add the service below to your compose file (use the same version as the plugin).
 # Step 3 - start it and check:
 #
-#   docker compose up -d dependencies-poller
+#   docker compose up -d --build dependencies-poller      # the first start builds the image (about a minute)
 #   docker compose logs -f dependencies-poller        # after a round: "polled N devices"
 #
 # Then open Dependencies -> Configuration -> ICMP poller in NetBox: the poller shows as "reporting".
 # Everything else (interval, packets, timeout, scope, ...) is managed there, no restart needed.
 services:
   dependencies-poller:
-    image: ghcr.io/kinet-s-r-o/netbox-dependencies-poller:1.11.0
+    # built from the source of the release - no registry needed (if "failed to execute bake": COMPOSE_BAKE=false)
+    build: https://github.com/Kinet-s-r-o/netbox-dependencies.git#v1.11.1:poller
+    image: netbox-dependencies-poller:1.11.1
+    # or the prebuilt image, once the package is public:  image: ghcr.io/kinet-s-r-o/netbox-dependencies-poller:1.11.1
     restart: unless-stopped
     env_file: dependencies-poller.env   # NETBOX_URL, NETBOX_TOKEN, POLLER_NAME
     cap_drop: [ALL]

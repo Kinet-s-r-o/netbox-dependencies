@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.11.1 — 2026-10-16
+- The poller no longer depends on a registry: the documented and printed compose service builds the image straight from this repository
+  (`build: https://github.com/Kinet-s-r-o/netbox-dependencies.git#v<version>:poller`), which works for everyone. The prebuilt image on
+  `ghcr.io/kinet-s-r-o/netbox-dependencies-poller` stays as an option once its package is public.
+
 ## 1.11.0 — 2026-10-16
 - Graph: the device popup has **Add dependents** and **Add parent** shortcuts (shown to users who may add dependencies). The add page opens with
   that device filled in - as the upstream device, or as the downstream one with several parents to pick - and returns to the graph afterwards.

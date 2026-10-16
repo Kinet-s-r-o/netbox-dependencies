@@ -18,7 +18,8 @@ from django.db import transaction
 from users.models import ObjectPermission, Token, User
 
 USERNAME = 'dependencies-poller'
-IMAGE = 'ghcr.io/kinet-s-r-o/netbox-dependencies-poller'
+REPOSITORY = 'https://github.com/Kinet-s-r-o/netbox-dependencies.git'
+IMAGE = 'ghcr.io/kinet-s-r-o/netbox-dependencies-poller'     # optional prebuilt image
 
 # what the poller does, and nothing else
 PERMISSIONS = (
@@ -74,7 +75,8 @@ def env_file(token, name, netbox_url):
 COMPOSE = '''\
 services:
   dependencies-poller:
-    image: {image}:{version}
+    build: {repository}#v{version}:poller          # built from the source of this release; needs no registry
+    image: netbox-dependencies-poller:{version}
     restart: unless-stopped
     env_file: dependencies-poller.env     # the file from step 1
     cap_drop: [ALL]
@@ -133,11 +135,14 @@ class Command(BaseCommand):
             out(content)
 
         out(self.style.MIGRATE_HEADING('\nStep 2 - add this service to your docker-compose.yml (merge it into the existing "services:" section)'))
-        out(COMPOSE.format(image=IMAGE, version=__version__))
+        out(COMPOSE.format(repository=REPOSITORY, version=__version__))
+        out('  The first start builds the image (about a minute). If you prefer a prebuilt image, replace the build: and image: lines by\n'
+            f'      image: {IMAGE}:{__version__}\n'
+            '  (the package must be public).')
         out(f'  NetBox address the poller will use: {options["netbox_url"].rstrip("/")}'
             f'  (it must be reachable from the poller container)')
 
         out(self.style.MIGRATE_HEADING('\nStep 3 - start it and check'))
-        out('      docker compose up -d dependencies-poller')
+        out('      docker compose up -d --build dependencies-poller')
         out('      docker compose logs -f dependencies-poller      # after a round: "polled N devices"')
         out(f'  Then open Dependencies -> Configuration -> ICMP poller: "{options["name"]}" should show as reporting.')

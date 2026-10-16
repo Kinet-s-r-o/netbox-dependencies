@@ -93,9 +93,8 @@
                     <ol class="mt-2 mb-2">
                       <li>On the NetBox server run <code>manage.py dependencies_setup_poller --name netbox-poller --netbox-url &lt;address of NetBox&gt; --write dependencies-poller.env</code>
                         — it creates a restricted user, a token and the environment file.</li>
-                      <li>Add the service the command prints to your <code>docker-compose.yml</code> (image
-                        <code>ghcr.io/kinet-s-r-o/netbox-dependencies-poller:&lt;plugin version&gt;</code>).</li>
-                      <li>Start it: <code>docker compose up -d dependencies-poller</code>. It shows up here after its first round.</li>
+                      <li>Add the service the command prints to your <code>docker-compose.yml</code> (it builds the small image from the GitHub source of the release, no registry needed).</li>
+                      <li>Start it: <code>docker compose up -d --build dependencies-poller</code>. It shows up here after its first round.</li>
                     </ol>
                     <a href="https://github.com/Kinet-s-r-o/netbox-dependencies#icmp-poller" target="_blank" rel="noopener">Full instructions with netbox-docker and without Docker</a>
                     <span class="text-muted small ms-2">Devices monitored in Zabbix (plugin netbox-zabbix-status) do not need a poller.</span>

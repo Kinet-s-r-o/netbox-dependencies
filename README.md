@@ -91,7 +91,7 @@ Afterwards continue with [First steps](#first-steps).
    [latest release](https://github.com/Kinet-s-r-o/netbox-dependencies/releases/latest) — the version appears twice in the URL, use the one shown there:
 
    ```bash
-   /opt/netbox/venv/bin/pip install https://github.com/Kinet-s-r-o/netbox-dependencies/releases/download/v1.11.0/netbox_dependencies-1.11.0-py3-none-any.whl
+   /opt/netbox/venv/bin/pip install https://github.com/Kinet-s-r-o/netbox-dependencies/releases/download/v1.11.1/netbox_dependencies-1.11.1-py3-none-any.whl
    ```
 
    To keep it across NetBox upgrades add the same URL as a line to `local_requirements.txt` in the NetBox directory.
@@ -122,7 +122,7 @@ If the menu is missing, see [Troubleshooting](#troubleshooting).
 ### Upgrading
 
 Install the newer wheel (new version in the URL), run `migrate`, restart NetBox and the worker, and — if you run the poller — change the poller
-image to the same version (`ghcr.io/kinet-s-r-o/netbox-dependencies-poller:<version>`). Read the [changelog](CHANGELOG.md) first.
+poller to the same version (change the `#v…` and the tag in its `build:` / `image:` lines and run `docker compose up -d --build dependencies-poller`). Read the [changelog](CHANGELOG.md) first.
 
 ### Uninstalling
 
@@ -176,12 +176,13 @@ Setting it up takes three steps and no Docker build. The poller needs its own Ne
    the file private and out of git. Add `--allowed-ip 10.0.0.5/32` to accept the token only from the poller's address, or run the command with
    `--rotate` later to replace the token.
 2. **Add the service** to your compose file (next to the file from step 1; for netbox-docker `docker-compose.override.yml`). Use the same version
-   as the plugin:
+   as the plugin (`#v1.11.1` below). Docker builds the small image straight from this repository, so no registry or account is needed:
 
    ```yaml
    services:
      dependencies-poller:
-       image: ghcr.io/kinet-s-r-o/netbox-dependencies-poller:1.11.0   # the version of the plugin
+       build: https://github.com/Kinet-s-r-o/netbox-dependencies.git#v1.11.1:poller
+       image: netbox-dependencies-poller:1.11.1
        restart: unless-stopped
        env_file: dependencies-poller.env
        cap_drop: [ALL]
@@ -189,7 +190,11 @@ Setting it up takes three steps and no Docker build. The poller needs its own Ne
        read_only: true
        security_opt: ["no-new-privileges:true"]
    ```
-3. **Start it:** `docker compose up -d dependencies-poller` and look at `docker compose logs -f dependencies-poller` — after a round it prints
+
+   A prebuilt image is published with every release as `ghcr.io/kinet-s-r-o/netbox-dependencies-poller:<version>` — you can use
+   `image: ghcr.io/kinet-s-r-o/netbox-dependencies-poller:1.11.1` instead of the two lines `build:` and `image:` (it works once the package is public).
+   If `docker compose build` stops with `failed to execute bake`, run it with `COMPOSE_BAKE=false`.
+3. **Start it:** `docker compose up -d --build dependencies-poller` (the first start builds the image, about a minute) and look at `docker compose logs -f dependencies-poller` — after a round it prints
    `polled N devices`. The poller then appears under *Dependencies → Configuration → ICMP poller*.
 
 Container environment variables: `NETBOX_URL`, `NETBOX_TOKEN`, `POLLER_NAME` (shown in NetBox; default the container's host name) and
