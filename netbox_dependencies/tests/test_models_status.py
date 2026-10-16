@@ -743,3 +743,35 @@ class ExportForImportTests(Base):
         nobody = Client()
         nobody.force_login(get_user_model().objects.create_user('nobody', 'n@example.com', 'x'))
         self.assertEqual(nobody.get('/plugins/dependencies/dependencies/export-for-import/').status_code, 403)
+
+
+class CustomMapDeleteAndApiTests(Base):
+    """Regression: deleting a custom map failed with SerializerNotFound because the model had no API serializer."""
+
+    def _client(self):
+        from django.contrib.auth import get_user_model
+        from django.test import Client
+        client = Client()
+        client.force_login(get_user_model().objects.create_superuser('cm', 'cm@example.com', 'x'))
+        return client
+
+    def test_bulk_and_single_delete_of_custom_maps(self):
+        from netbox_dependencies.models import CustomMap
+        client = self._client()
+        first, second, third = (CustomMap.objects.create(name=n) for n in ('one', 'two', 'three'))
+        # the list page posts the selected maps with "confirm" (first the confirmation page, then the deletion)
+        r = client.post('/plugins/dependencies/maps/delete/', {'pk': [first.pk, second.pk], 'confirm': True, '_confirm': True})
+        self.assertIn(r.status_code, (200, 302), r.content[:300])
+        self.assertEqual(list(CustomMap.objects.values_list('name', flat=True)), ['three'])
+        r = client.post(f'/plugins/dependencies/maps/{third.pk}/delete/', {'confirm': True})
+        self.assertIn(r.status_code, (200, 302))
+        self.assertFalse(CustomMap.objects.exists())
+
+    def test_custom_maps_have_an_api(self):
+        from netbox_dependencies.models import CustomMap
+        client = self._client()
+        m = CustomMap.objects.create(name='api map')
+        m.devices.set([self.devs['core']])
+        body = client.get('/api/plugins/dependencies/maps/').json()
+        self.assertEqual((body['count'], body['results'][0]['name']), (1, 'api map'))
+        self.assertEqual([d['name'] for d in body['results'][0]['devices']], ['core'])

@@ -6,6 +6,7 @@ from . import views
 
 router = NetBoxRouter()
 router.register('dependencies', views.DependencyViewSet)
+router.register('maps', views.CustomMapViewSet)
 
 urlpatterns = [
     path('impact/', views.ImpactAPIView.as_view(), name='impact'),

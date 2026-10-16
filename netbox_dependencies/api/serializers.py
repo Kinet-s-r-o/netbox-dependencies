@@ -1,7 +1,9 @@
 from dcim.api.serializers import DeviceSerializer
 from netbox.api.serializers import NetBoxModelSerializer
 
-from ..models import Dependency
+from users.api.serializers import UserSerializer
+
+from ..models import CustomMap, Dependency
 
 
 class DependencySerializer(NetBoxModelSerializer):
@@ -16,3 +18,16 @@ class DependencySerializer(NetBoxModelSerializer):
             'created', 'last_updated',
         )
         brief_fields = ('id', 'url', 'display', 'upstream', 'downstream')
+
+
+class CustomMapSerializer(NetBoxModelSerializer):
+    owner = UserSerializer(nested=True, read_only=True, allow_null=True)
+    devices = DeviceSerializer(nested=True, many=True, required=False)
+
+    class Meta:
+        model = CustomMap
+        fields = (
+            'id', 'url', 'display', 'name', 'description', 'owner', 'devices', 'tags', 'custom_fields',
+            'created', 'last_updated',
+        )
+        brief_fields = ('id', 'url', 'display', 'name')

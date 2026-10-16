@@ -6,9 +6,9 @@ from rest_framework.views import APIView
 from dcim.models import Device
 from netbox.api.viewsets import NetBoxModelViewSet
 
-from ..filtersets import DependencyFilterSet
+from ..filtersets import CustomMapFilterSet, DependencyFilterSet
 from ..impact import get_impact
-from ..models import Dependency, DeviceStatus, PollerHeartbeat
+from ..models import CustomMap, Dependency, DeviceStatus, PollerHeartbeat
 from ..status import (
     analyze_outages,
     apply_icmp_report,
@@ -18,7 +18,7 @@ from ..status import (
     status_snapshot,
     zabbix_covered_device_ids,
 )
-from .serializers import DependencySerializer
+from .serializers import CustomMapSerializer, DependencySerializer
 
 
 MAX_ROOT_CAUSES = 200
@@ -37,6 +37,12 @@ class DependencyViewSet(NetBoxModelViewSet):
     queryset = Dependency.objects.select_related('upstream', 'downstream').prefetch_related('tags')
     serializer_class = DependencySerializer
     filterset_class = DependencyFilterSet
+
+
+class CustomMapViewSet(NetBoxModelViewSet):
+    queryset = CustomMap.objects.select_related('owner').prefetch_related('devices', 'tags')
+    serializer_class = CustomMapSerializer
+    filterset_class = CustomMapFilterSet
 
 
 class ImpactAPIView(APIView):

@@ -89,7 +89,7 @@ Afterwards continue with [First steps](#first-steps).
    [latest release](https://github.com/adrian-13/netbox-dependencies/releases/latest) — the version appears twice in the URL, use the one shown there:
 
    ```bash
-   /opt/netbox/venv/bin/pip install https://github.com/adrian-13/netbox-dependencies/releases/download/v1.10.1/netbox_dependencies-1.10.1-py3-none-any.whl
+   /opt/netbox/venv/bin/pip install https://github.com/adrian-13/netbox-dependencies/releases/download/v1.10.2/netbox_dependencies-1.10.2-py3-none-any.whl
    ```
 
    To keep it across NetBox upgrades add the same URL as a line to `local_requirements.txt` in the NetBox directory.
@@ -179,7 +179,7 @@ Setting it up takes three steps and no Docker build. The poller needs its own Ne
    ```yaml
    services:
      dependencies-poller:
-       image: ghcr.io/adrian-13/netbox-dependencies-poller:1.10.1   # the version of the plugin
+       image: ghcr.io/adrian-13/netbox-dependencies-poller:1.10.2   # the version of the plugin
        restart: unless-stopped
        env_file: dependencies-poller.env
        cap_drop: [ALL]
@@ -299,6 +299,7 @@ The command `manage.py dependencies_test_notifications [--destination NAME]` sen
 | Endpoint | |
 |---|---|
 | `/api/plugins/dependencies/dependencies/` | CRUD for dependencies |
+| `/api/plugins/dependencies/maps/` | CRUD for custom maps |
 | `/api/plugins/dependencies/impact/?device=<id>&device=<id>&limit=` | impact of failing devices |
 | `/api/plugins/dependencies/outages/` | current root causes and explained outages |
 | `/api/plugins/dependencies/status/targets/`, `.../status/report/`, `.../status/states/` | used by the poller and the graph |

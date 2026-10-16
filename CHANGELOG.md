@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.10.2 — 2026-10-16
+- Fix: deleting a custom map ended with a server error (`SerializerNotFound`). Custom maps now have a REST API serializer and endpoint
+  (`/api/plugins/dependencies/maps/`), which NetBox needs when it processes a change of the object.
+
 ## 1.10.1 — 2026-10-15
 - `dependencies_setup_poller` prints a complete walk-through (step 1 environment file — with the `docker compose cp` command when run inside
   a container, step 2 the compose service, step 3 start and check) instead of just the files.
