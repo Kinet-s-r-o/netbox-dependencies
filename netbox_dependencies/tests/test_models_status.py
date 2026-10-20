@@ -845,3 +845,65 @@ class AddShortcutTests(Base):
         r = client.post(self.ADD, {**base, 'downstream': self.devs['ap'].pk, 'upstreams': [self.devs['sw2'].pk],
                                    'return_url': 'https://evil.example/phish'})
         self.assertEqual((r.status_code, r['Location']), (302, '/plugins/dependencies/tree/'))
+
+
+class ParentLayoutTests(Base):
+    """A region map without a layout of its own is composed from the layouts of its sub-maps."""
+
+    def setUp(self):
+        from dcim.models import Region, Site
+        self.region = Region.objects.create(name='Novaky', slug='novaky')
+        self.site_a = Site.objects.create(name='Novaky (A)', slug='na', region=self.region)
+        self.site_b = Site.objects.create(name='Novaky (B)', slug='nb', region=self.region)
+        for name, site in (('core', self.site_a), ('sw1', self.site_a), ('sw2', self.site_b), ('ap', self.site_b)):
+            self.devs[name].site = site
+            self.devs[name].save()
+        self.dep('core', 'sw1')
+        self.dep('sw2', 'ap')
+        self.dep('sw1', 'sw2')                     # a link between the two sites
+
+    def _save(self, scope, **positions):
+        from netbox_dependencies.models import NodePosition
+        for name, (x, y) in positions.items():
+            NodePosition.objects.create(scope=scope, node=f'd{self.devs[name].pk}', x=x, y=y)
+
+    def test_region_takes_over_the_layouts_of_its_sites(self):
+        from netbox_dependencies.graph_data import build_graph
+        self._save(f'site:{self.site_a.pk}', core=(100, 100), sw1=(300, 100))
+        self._save(f'site:{self.site_b.pk}', sw2=(100, 100), ap=(100, 300))      # the same origin as the other site
+        graph = build_graph(region_id=self.region.pk)
+        pos = graph['positions']
+        key = lambda n: f'd{self.devs[n].pk}'
+        self.assertEqual((graph['inherited'], graph['inherited_from']), (True, 'children'))
+        self.assertEqual(pos[key('sw1')][0] - pos[key('core')][0], 200)         # site A keeps its arrangement
+        self.assertEqual(pos[key('ap')][1] - pos[key('sw2')][1], 200)           # site B keeps its arrangement
+        self.assertGreater(min(pos[key('sw2')][0], pos[key('ap')][0]), max(pos[key('core')][0], pos[key('sw1')][0]))   # side by side
+
+    def test_own_layout_wins_and_devices_without_a_layout_go_below(self):
+        from netbox_dependencies.graph_data import build_graph
+        self._save(f'site:{self.site_a.pk}', core=(0, 0), sw1=(200, 0))          # site B has no layout at all
+        graph = build_graph(region_id=self.region.pk)
+        pos = graph['positions']
+        self.assertEqual(len([k for k in pos if k.startswith('d')]), 4)          # every device has a position
+        self.assertGreater(pos[f'd{self.devs["sw2"].pk}'][1], pos[f'd{self.devs["core"].pk}'][1])
+        self._save(f'region:{self.region.pk}', core=(5, 5))
+        own = build_graph(region_id=self.region.pk)
+        self.assertEqual((own['inherited'], list(own['positions'].values())), (False, [[5, 5]]))
+
+    def test_nested_regions_and_the_all_map(self):
+        from dcim.models import Region
+        from netbox_dependencies.graph_data import build_graph
+        inner = Region.objects.create(name='Inner', slug='inner', parent=self.region)
+        self.site_b.region = inner
+        self.site_b.save()
+        self._save(f'site:{self.site_a.pk}', core=(0, 0), sw1=(150, 0))
+        self._save(f'site:{self.site_b.pk}', sw2=(0, 0), ap=(0, 120))
+        for graph in (build_graph(region_id=self.region.pk), build_graph()):
+            self.assertEqual(graph['inherited_from'], 'children')
+            self.assertEqual(len([k for k in graph['positions'] if k.startswith('d')]), 4)
+
+    def test_without_any_sub_layout_the_all_map_is_still_the_fallback(self):
+        from netbox_dependencies.graph_data import build_graph
+        self._save('all', core=(1, 1), sw1=(2, 2), sw2=(3, 3), ap=(4, 4))
+        graph = build_graph(region_id=self.region.pk)
+        self.assertEqual((graph['inherited'], graph['inherited_from']), (True, 'all'))

@@ -14,6 +14,7 @@ from django.urls import reverse
 from dcim.models import Device, Region, Site
 
 from .icons import graph_icons
+from .layout import compose
 from .models import CustomMap, Dependency, DeviceStatus, NodePosition
 from .status import down_device_ids
 
@@ -62,6 +63,36 @@ def _region_chain(region_id, regions):
         chain.append(r)
         region_id = r['parent_id']
     return list(reversed(chain))
+
+
+def _layout_from_children(key, node_ids, regions, region_children):
+    """The layout of a map without a layout of its own, taken over from its sub-maps: a region from its sub-regions and the
+    sites directly in it, the "All" map from the top-level regions and the sites without a region. A sub-region that has no
+    layout either is composed from its own sub-maps. Returns {} when nothing below has a layout."""
+    saved = defaultdict(dict)
+    for scope, node, x, y in NodePosition.objects.filter(node__startswith='d').values_list('scope', 'node', 'x', 'y'):
+        saved[scope][node] = (x, y)
+    sites = list(Site.objects.values('id', 'name', 'region_id'))
+    wanted = set(node_ids)
+
+    def children(scope):
+        if scope == 'all':
+            regs = [r for r in regions.values() if r['parent_id'] is None]
+            leaf = [s for s in sites if s['region_id'] is None]
+        else:
+            rid = int(scope.split(':')[1])
+            regs = [regions[c] for c in region_children.get(rid, ())]
+            leaf = [s for s in sites if s['region_id'] == rid]
+        named = [(r['name'].lower(), f"region:{r['id']}") for r in regs] + [(s['name'].lower(), f"site:{s['id']}") for s in leaf]
+        return [scope_ for _name, scope_ in sorted(named)]
+
+    def layout_of(scope):
+        own = {n: p for n, p in saved.get(scope, {}).items() if n in wanted}
+        if own or scope.startswith('site:'):
+            return own
+        return compose([layout_of(c) for c in children(scope)], node_ids, leftovers=False)
+
+    return compose([layout_of(c) for c in children(key)], node_ids)
 
 
 def graph_url(**params):
@@ -235,11 +266,15 @@ def build_graph(site_id=None, region_id=None, device_id=None, focus_id=None, map
     )
 
     positions = {p.node: [p.x, p.y] for p in NodePosition.objects.filter(scope=key)}
-    inherited = False
+    inherited, inherited_from = False, ''
+    if not positions and not custom and (key == 'all' or key.startswith('region:')):
+        # a parent map without a layout of its own takes over the layouts of its sub-maps, side by side
+        positions = _layout_from_children(key, [n['data']['id'] for n in nodes], regions, region_children)
+        inherited, inherited_from = bool(positions), 'children'
     if not positions and key != 'all':
         # the map has no layout of its own -> start from the layout of the "All" map
         positions = {p.node: [p.x, p.y] for p in NodePosition.objects.filter(scope='all', node__startswith='d')}
-        inherited = bool(positions)
+        inherited, inherited_from = bool(positions), 'all'
     return {
         'nodes': nodes,
         'edges': graph_edges,
@@ -249,6 +284,7 @@ def build_graph(site_id=None, region_id=None, device_id=None, focus_id=None, map
         'neighbours': neighbour_list,
         'positions': positions,
         'inherited': inherited,
+        'inherited_from': inherited_from,
         'custom_map': {
             'id': custom.pk, 'name': custom.name,
             'edit_url': reverse('plugins:netbox_dependencies:custommap_edit', args=[custom.pk]),

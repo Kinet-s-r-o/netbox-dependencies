@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.14.0 — 2026-10-20
+- A region map (and the *All* map) without a layout of its own is now **composed from the layouts of its sub-maps**: each sub-location keeps
+  the arrangement you made and the blocks are placed side by side (wrapping into rows); devices that are on none of them go into a grid below.
+  Sub-regions without a layout are composed from their own sub-maps. Moving any device saves the layout of the parent map; only a map that
+  has neither its own layout nor anything to take over still starts from the *All* map.
+
 ## 1.13.0 — 2026-10-16
 - Graph: **Filters → Link style** chooses between curved (S-shaped) and straight arrows; the choice is remembered in the browser.
 - Graph: hovering a device shows, below the headline, its description and notes (shortened) in the tooltip.

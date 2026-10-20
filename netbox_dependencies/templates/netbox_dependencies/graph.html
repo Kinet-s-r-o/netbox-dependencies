@@ -138,7 +138,12 @@
       {% endif %}
       {% if graph.inherited %}
         <div class="alert alert-info py-2 small mb-2" id="dep-inherited">
-          This map has no layout of its own yet — devices are placed as on the <strong>All</strong> map.
+          {% if graph.inherited_from == 'children' %}
+            This map has no layout of its own yet — it is composed from the layouts of its <strong>sub-locations</strong>, side by side
+            (devices that are not on any of them are in a grid below).
+          {% else %}
+            This map has no layout of its own yet — devices are placed as on the <strong>All</strong> map.
+          {% endif %}
           Move any device and the layout of this map is saved automatically.
         </div>
       {% endif %}
