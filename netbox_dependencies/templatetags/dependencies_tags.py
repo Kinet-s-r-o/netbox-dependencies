@@ -7,7 +7,7 @@ from ..icons import PATHS, icon_for
 
 register = template.Library()
 
-STATE_CLASS = {'up': 'up', 'down': 'down', 'unknown': 'unknown'}
+STATE_CLASS = {'up': 'up', 'down': 'down', 'unknown': 'unknown', 'suppressed': 'suppressed'}
 
 # colour and dash pattern of every link medium - the same values the graph uses
 MEDIUM_STYLE = {
@@ -31,7 +31,7 @@ def dep_disc(device, state):
         glyph = format_html('<svg viewBox="0 0 24 24" aria-hidden="true"><path d="{}"/></svg>', PATHS[key])
     else:
         glyph = mark_safe('<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.5"/></svg>')
-    title = {'up': 'Up', 'down': 'Down', 'unknown': 'Unknown'}.get(state, 'No status')
+    title = {'up': 'Up', 'down': 'Down', 'unknown': 'Unknown', 'suppressed': 'Suppressed'}.get(state, 'No status')
     return format_html('<span class="dep-disc dep-disc-{}" title="{}">{}</span>', css, title, glyph)
 
 

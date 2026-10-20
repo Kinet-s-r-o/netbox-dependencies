@@ -34,6 +34,7 @@ from .forms import (
     DependencyImportForm,
     DependencyMultiAddForm,
     DestinationForm,
+    DeviceSuppressionForm,
     ImpactForm,
     NotificationSettingsForm,
     PollerForm,
@@ -44,6 +45,8 @@ from .impact import get_impact
 from .models import (
     CustomMap,
     Dependency,
+    DeviceStatus,
+    DeviceSuppression,
     NodePosition,
     NotificationDelivery,
     NotificationDestination,
@@ -209,10 +212,101 @@ class LiveOutagesView(PermissionRequiredMixin, View):
     def get(self, request):
         outages, explained = analyze_outages()
         paginator, page = paginate(request, explained)
+        now = timezone.now()
+        suppressions = [x for x in DeviceSuppression.objects.select_related('device__site') if x.until is None or x.until > now]
+        states = dict(DeviceStatus.objects.filter(device_id__in=[x.device_id for x in suppressions]).values_list('device_id', 'state'))
+        for x in suppressions:
+            x.state = states.get(x.device_id, 'none')
         return render(request, self.template_name, {
+            'suppressions': suppressions,
             'outages': outages[:MAX_ROOTS_SHOWN], 'outages_total': len(outages), 'max_roots': MAX_ROOTS_SHOWN,
             'explained': page.object_list, 'explained_total': len(explained), 'page': page, 'paginator': paginator,
         })
+
+
+class SuppressionListView(PermissionRequiredMixin, View):
+    """Devices that are out of the outage analysis (suppressed), active and expired."""
+
+    permission_required = 'netbox_dependencies.view_devicesuppression'
+    template_name = 'netbox_dependencies/suppressions.html'
+
+    def get(self, request):
+        now = timezone.now()
+        rows = list(DeviceSuppression.objects.select_related('device__site', 'created_by'))
+        states = dict(DeviceStatus.objects.filter(device_id__in=[r.device_id for r in rows]).values_list('device_id', 'state'))
+        for row in rows:
+            row.active = row.until is None or row.until > now
+            row.state = states.get(row.device_id, 'none')
+        rows.sort(key=lambda r: (not r.active, (r.device.name or '').lower()))
+        paginator, page = paginate(request, rows)
+        return render(request, self.template_name, {
+            'rows': page.object_list, 'page': page, 'paginator': paginator,
+            'can_add': request.user.has_perm('netbox_dependencies.add_devicesuppression'),
+            'can_change': request.user.has_perm('netbox_dependencies.change_devicesuppression'),
+            'can_delete': request.user.has_perm('netbox_dependencies.delete_devicesuppression'),
+        })
+
+
+class SuppressionEditView(PermissionRequiredMixin, View):
+    """Suppress a device (add) or change a suppression (edit). `return_url` (a path on this site) says where to go afterwards."""
+
+    template_name = 'netbox_dependencies/suppression_form.html'
+
+    def get_permission_required(self):
+        return ('netbox_dependencies.change_devicesuppression',) if self.kwargs.get('pk') else ('netbox_dependencies.add_devicesuppression',)
+
+    @staticmethod
+    def _return_url(request):
+        url = request.POST.get('return_url') or request.GET.get('return_url') or ''
+        ok = url and url_has_allowed_host_and_scheme(url, allowed_hosts={request.get_host()}, require_https=request.is_secure())
+        return url if ok else ''
+
+    def _context(self, request, form, instance):
+        back = self._return_url(request)
+        return {'form': form, 'instance': instance, 'return_url': back,
+                'cancel_url': back or reverse('plugins:netbox_dependencies:suppression_list')}
+
+    def get(self, request, pk=None):
+        instance = get_object_or_404(DeviceSuppression, pk=pk) if pk else None
+        if instance:
+            initial = {'device': instance.device_id, 'reason': instance.reason, 'until': instance.until,
+                       'include_dependents': instance.include_dependents}
+        else:
+            initial = {'device': request.GET['device']} if request.GET.get('device') else {}
+        return render(request, self.template_name, self._context(request, DeviceSuppressionForm(initial=initial), instance))
+
+    def post(self, request, pk=None):
+        instance = get_object_or_404(DeviceSuppression, pk=pk) if pk else None
+        form = DeviceSuppressionForm(request.POST)
+        if not form.is_valid():
+            return render(request, self.template_name, self._context(request, form, instance))
+        device = form.cleaned_data['device']
+        defaults = {'reason': form.cleaned_data['reason'], 'until': form.cleaned_data['until'],
+                    'include_dependents': form.cleaned_data['include_dependents']}
+        if instance and instance.device_id != device.pk:      # the device of an existing suppression is not changed here
+            form.add_error('device', 'To suppress another device add a new suppression.')
+            return render(request, self.template_name, self._context(request, form, instance))
+        _suppression, created = DeviceSuppression.objects.update_or_create(
+            device=device, defaults={**defaults, **({'created_by': request.user} if not instance else {})})
+        messages.success(request, f'{device} is suppressed: it is ignored by the outage analysis and raises no notifications.')
+        return redirect(self._return_url(request) or 'plugins:netbox_dependencies:suppression_list')
+
+
+class SuppressionResumeView(PermissionRequiredMixin, View):
+    """Ends a suppression (the device counts again). POST; answers JSON to the graph and redirects otherwise."""
+
+    permission_required = 'netbox_dependencies.delete_devicesuppression'
+
+    def post(self, request, pk):
+        suppression = get_object_or_404(DeviceSuppression, pk=pk)
+        name = suppression.device.name
+        suppression.delete()
+        if 'application/json' in request.headers.get('Accept', ''):
+            return JsonResponse({'resumed': name})
+        messages.success(request, f'{name} is monitored again.')
+        url = request.POST.get('return_url') or ''
+        ok = url and url_has_allowed_host_and_scheme(url, allowed_hosts={request.get_host()}, require_https=request.is_secure())
+        return redirect(url if ok else 'plugins:netbox_dependencies:suppression_list')
 
 
 class DependencyTreeView(PermissionRequiredMixin, View):
@@ -333,6 +427,10 @@ class DependencyGraphView(PermissionRequiredMixin, View):
         )
         limit = int(get_plugin_config('netbox_dependencies', 'graph_max_nodes'))
         graph['too_large'] = None
+        graph['suppress_url'] = reverse('plugins:netbox_dependencies:suppression_add') if request.user.has_perm(
+            'netbox_dependencies.add_devicesuppression') else ''
+        graph['resume_url'] = reverse('plugins:netbox_dependencies:suppression_resume', args=[0]) if request.user.has_perm(
+            'netbox_dependencies.delete_devicesuppression') else ''
         graph['add_url'] = reverse('plugins:netbox_dependencies:add_multiple') if request.user.has_perm(
             'netbox_dependencies.add_dependency') else ''
         if limit and len(graph['nodes']) > limit and request.GET.get('force') != '1':

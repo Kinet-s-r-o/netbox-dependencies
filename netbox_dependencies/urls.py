@@ -24,5 +24,9 @@ urlpatterns = [
     path('settings/destinations/<int:pk>/delete/', views.DestinationDeleteView.as_view(), name='destination_delete'),
     path('settings/destinations/<int:pk>/test/', views.DestinationTestView.as_view(), name='destination_test'),
     path('live/', views.LiveOutagesView.as_view(), name='live'),
+    path('suppressions/', views.SuppressionListView.as_view(), name='suppression_list'),
+    path('suppressions/add/', views.SuppressionEditView.as_view(), name='suppression_add'),
+    path('suppressions/<int:pk>/edit/', views.SuppressionEditView.as_view(), name='suppression_edit'),
+    path('suppressions/<int:pk>/resume/', views.SuppressionResumeView.as_view(), name='suppression_resume'),
     path('impact/', views.ImpactView.as_view(), name='impact'),
 ]

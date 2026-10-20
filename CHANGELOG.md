@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.15.0 — 2026-10-20
+- **Suppressed devices**: a device can be taken out of the outage analysis for a while (a backup unit that is switched off, planned maintenance).
+  It is treated as up: not a root cause, no notification (an outage that was already announced is closed quietly, without an "ended" message),
+  nothing is degraded or taken down below it. A suppression has an optional reason, an optional end time and an option to ignore everything
+  below the device as well. It ends by itself or with *Resume*.
+- New page *Dependencies → Suppressed devices*, a *Suppress… / Resume* button in the graph's device popup, dimmed devices in the graph and
+  the tree, a *Suppressed devices* card on the Live outages page and a `suppressed` list in the REST API (`status/states/`, `outages/`).
+- Migration 0012 (permissions `…devicesuppression` control who may suppress and resume).
+
 ## 1.14.0 — 2026-10-20
 - A region map (and the *All* map) without a layout of its own is now **composed from the layouts of its sub-maps**: each sub-location keeps
   the arrangement you made and the blocks are placed side by side (wrapping into rows); devices that are on none of them go into a grid below.

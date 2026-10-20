@@ -1,4 +1,5 @@
 from django import forms
+from django.utils import timezone
 
 from dcim.models import Device, Site
 from netbox.forms import NetBoxModelFilterSetForm, NetBoxModelForm, NetBoxModelImportForm
@@ -8,6 +9,7 @@ from utilities.forms.fields import (
     DynamicModelChoiceField,
     DynamicModelMultipleChoiceField,
 )
+from utilities.forms.widgets import DateTimePicker
 
 from .choices import DependencyTypeChoices, DestinationKindChoices, MediumChoices
 from .models import CustomMap, Dependency, NotificationDestination, Poller
@@ -116,6 +118,26 @@ class DependencyAddParentsForm(DependencyMultiAddForm):
         if downstream and upstreams and downstream in upstreams:
             raise forms.ValidationError('The downstream device cannot also be one of the upstream devices.')
         return cleaned
+
+
+class DeviceSuppressionForm(forms.Form):
+    """Take a device out of the outage analysis for a while."""
+
+    device = DynamicModelChoiceField(queryset=Device.objects.all(), label='Device')
+    reason = forms.CharField(max_length=200, required=False, label='Reason',
+                             help_text='For example "backup unit, switched off until the new line is installed".')
+    until = forms.DateTimeField(
+        required=False, label='Until', widget=DateTimePicker(),
+        help_text='The suppression ends by itself at this time. Empty = until somebody resumes the device.')
+    include_dependents = forms.BooleanField(
+        required=False, label='Also everything below it',
+        help_text='Ignore the devices that depend on this one as well (they are expected to be off too).')
+
+    def clean_until(self):
+        until = self.cleaned_data['until']
+        if until and until <= timezone.now():
+            raise forms.ValidationError('The end must be in the future.')
+        return until
 
 
 class CustomMapForm(NetBoxModelForm):

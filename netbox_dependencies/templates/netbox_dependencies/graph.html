@@ -327,7 +327,7 @@
 
     var data = JSON.parse(document.getElementById('dep-graph-data').textContent);
     var textColor = getComputedStyle(document.body).color || '#fff';
-    var COLORS = {up: '#2fb344', down: '#d63939', unknown: '#9aa0a6', none: '#566a80', degraded: '#f76707', failed: '#ae3ec9'};
+    var COLORS = {up: '#2fb344', down: '#d63939', unknown: '#9aa0a6', none: '#566a80', degraded: '#f76707', failed: '#ae3ec9', suppressed: '#9aa0a6'};
     var MEDIA = ['ethernet', 'optical', 'radio', 'vpn', 'lte', 'satellite', 'unspecified'];
     var MEDIUM_COLOR = {ethernet: '#4299e1', optical: '#f59f00', radio: '#22b8cf', vpn: '#e64980', lte: '#12b886',
                         satellite: '#845ef7', unspecified: '#868e96'};
@@ -337,8 +337,8 @@
     var MEDIUM_DASH = {radio: [7, 5], vpn: [2, 5], lte: [10, 4, 2, 4], satellite: [16, 6]};
     var MEDIUM_WIDTH = {optical: 3, unspecified: 2};
     var TYPE_LABEL = {network: 'Network', power: 'Power', other: 'Other'};
-    var STATE_LABEL = {up: 'Up', down: 'Down', unknown: 'Unknown', none: 'No status'};
-    var BADGE = {up: 'green', down: 'red', unknown: 'gray', none: 'secondary'};
+    var STATE_LABEL = {up: 'Up', down: 'Down', unknown: 'Unknown', none: 'No status', suppressed: 'Suppressed'};
+    var BADGE = {up: 'green', down: 'red', unknown: 'gray', none: 'secondary', suppressed: 'gray'};
     var originalTitle = document.title;
 
     function el(tag, attrs, children) {
@@ -414,6 +414,7 @@
       if (n.hasClass('failed')) { return 'failed'; }
       if (n.hasClass('down')) { return 'down'; }
       if (n.hasClass('degraded')) { return 'degraded'; }
+      if (n.data('suppressed')) { return 'suppressed'; }
       return n.data('state') || 'none';
     }
 
@@ -538,6 +539,7 @@
           'underlay-opacity': 0
         }},
         {selector: 'node[?focus]', style: {'border-width': 3, 'border-color': '#4299e1'}},
+        {selector: 'node[?suppressed]', style: {'border-style': 'dashed', 'opacity': 0.6}},
         {selector: 'node.root', style: {
           'border-width': 3, 'border-color': '#ff3b30',
           'underlay-color': '#ff3b30', 'underlay-opacity': 0.28, 'underlay-padding': 8
@@ -887,7 +889,7 @@
       cy.batch(function () {
         var keep = null;
         if (filters.problems) {
-          var down = cy.nodes().filter(function (n) { return !n.data('cloud') && n.data('state') === 'down'; });
+          var down = cy.nodes().filter(function (n) { return !n.data('cloud') && n.data('state') === 'down' && !n.data('suppressed'); });
           keep = down.union(down.neighborhood('node'));
         }
         cy.nodes().forEach(function (n) {
@@ -974,6 +976,14 @@
       var txt = function (t) { return document.createTextNode(t); };
 
       var statusKids = [el('span', {class: 'badge text-bg-' + BADGE[state], text: STATE_LABEL[state] || state})];
+      if (d.suppressed) {
+        var sup = d.suppressed;
+        statusKids = [el('span', {class: 'badge text-bg-gray', text: 'Suppressed'})];
+        statusKids.push(el('div', {class: 'text-muted small', text: (sup.reason || 'No reason given') +
+          (sup.until ? ' · until ' + new Date(sup.until).toLocaleString() : ' · until resumed') +
+          (sup.via ? ' · because ' + sup.via + ' is suppressed with everything below it' : '')}));
+        statusKids.push(el('div', {class: 'text-muted small', text: 'Real state: ' + (STATE_LABEL[d.state] || d.state)}));
+      }
       if (d.source) { statusKids.push(el('div', {class: 'text-muted small', text: d.source + (d.since ? ', since ' + ago(d.since) : '')})); }
       if (d.detail) { statusKids.push(el('div', {class: 'text-muted small', text: d.detail})); }
 
@@ -1010,6 +1020,23 @@
         el('a', {class: 'btn btn-sm btn-outline-secondary', href: d.url + 'dependencies/', text: 'Dependencies'}),
         el('a', {class: 'btn btn-sm btn-outline-secondary', href: '?branch=' + d.devid, text: 'Branch'})
       ]));
+      if (d.suppressed && d.suppressed.direct && data.resume_url) {
+        var resume = el('button', {type: 'button', class: 'btn btn-sm btn-outline-success', title: 'Count this device in the outage analysis again'},
+                        [el('i', {class: 'mdi mdi-bell-ring-outline'}), ' Resume']);
+        resume.addEventListener('click', function () {
+          fetch(data.resume_url.replace('/0/', '/' + d.suppressed.id + '/'), {
+            method: 'POST', credentials: 'same-origin', headers: {'X-CSRFToken': csrf(), 'Accept': 'application/json'}
+          }).then(function (r) { if (!r.ok) { throw new Error('HTTP ' + r.status); } return refreshLive(); })
+            .catch(function (err) { toast('Could not resume the device (' + err.message + ').'); });
+        });
+        kids.push(el('div', {class: 'd-flex flex-wrap gap-2 mt-2'}, [resume]));
+      } else if (!d.suppressed && data.suppress_url) {
+        var backHere = encodeURIComponent(window.location.pathname + window.location.search);
+        kids.push(el('div', {class: 'd-flex flex-wrap gap-2 mt-2'}, [
+          el('a', {class: 'btn btn-sm btn-outline-secondary', title: 'Take this device out of the outage analysis for a while (for example a backup unit that is switched off)',
+                   href: data.suppress_url + '?device=' + d.devid + '&return_url=' + backHere}, [el('i', {class: 'mdi mdi-bell-off-outline'}), ' Suppress…'])
+        ]));
+      }
       if (data.add_url) {
         // shortcuts to the "add dependencies" page with this device filled in; the page returns here afterwards
         var back = encodeURIComponent(window.location.pathname + window.location.search);
@@ -1159,6 +1186,7 @@
       outagesBox.appendChild(el('div', {class: 'alert alert-danger mb-2'}, kids));
     }
     function applyLive(res) {
+      var suppressedNow = res.suppressed || {};        // devices that are out of the outage analysis right now
       var rootIds = {};
       res.roots.forEach(function (r) { rootIds[r.id] = r; });
       var wentDown = [];
@@ -1167,12 +1195,12 @@
           if (n.data('cloud')) { return; }
           var id = n.data('devid'), st = res.states[id];
           var state = st ? st[0] : 'none';
-          if (!firstLoad && state === 'down' && n.data('state') !== 'down') { wentDown.push(n.data('label')); }
-          n.data({state: state, source: st ? st[1] : '', detail: st ? st[2] : '', since: st ? st[3] : ''});
+          if (!firstLoad && state === 'down' && n.data('state') !== 'down' && !suppressedNow[id]) { wentDown.push(n.data('label')); }
+          n.data({state: state, source: st ? st[1] : '', detail: st ? st[2] : '', since: st ? st[3] : '', suppressed: suppressedNow[id] || null});
           n.toggleClass('root', !!rootIds[id]);
         });
         Object.keys(members).forEach(function (cid) {
-          var states = members[cid].map(function (dev) { var s = res.states[dev]; return s ? s[0] : 'none'; });
+          var states = members[cid].map(function (dev) { var s = res.states[dev]; return suppressedNow[dev] ? 'up' : (s ? s[0] : 'none'); });
           var downN = states.filter(function (x) { return x === 'down'; }).length;
           var cs = downN ? 'down' : states.every(function (x) { return x === 'up'; }) ? 'up'
             : states.some(function (x) { return x === 'unknown'; }) ? 'unknown' : 'none';

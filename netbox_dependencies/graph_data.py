@@ -16,7 +16,7 @@ from dcim.models import Device, Region, Site
 from .icons import graph_icons
 from .layout import compose
 from .models import CustomMap, Dependency, DeviceStatus, NodePosition
-from .status import down_device_ids
+from .status import down_device_ids, suppressed_info
 
 
 def scope_key(site_id=None, region_id=None):
@@ -150,11 +150,13 @@ def build_graph(site_id=None, region_id=None, device_id=None, focus_id=None, map
         downstream_count[e.upstream_id] += 1
         upstream_count[e.downstream_id] += 1
 
+    suppressed = suppressed_info()
     nodes = []
     for pk in sorted(ids - external, key=lambda i: (devices[i].name or '').lower()):
         d = devices[pk]
         nodes.append({'data': {
             'id': f'd{pk}',
+            'suppressed': suppressed.get(pk),
             'devid': pk,
             'label': d.name or f'#{pk}',
             'site': d.site.name,

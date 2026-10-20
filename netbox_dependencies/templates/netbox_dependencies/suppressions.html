@@ -1,0 +1,65 @@
+{% extends 'generic/_base.html' %}
+{% load helpers %}
+
+{% block title %}Suppressed devices{% endblock %}
+
+{% block controls %}
+  <div class="btn-list">
+    <a href="{% url 'plugins:netbox_dependencies:live' %}" class="btn btn-outline-secondary"><i class="mdi mdi-alert-outline"></i> Live outages</a>
+    {% if can_add %}
+      <a href="{% url 'plugins:netbox_dependencies:suppression_add' %}" class="btn btn-primary"><i class="mdi mdi-plus-thick"></i> Suppress a device</a>
+    {% endif %}
+  </div>
+{% endblock %}
+
+{% block content %}
+  <div class="card">
+    <h2 class="card-header">Suppressed devices</h2>
+    <div class="card-body text-muted small border-bottom">
+      A suppressed device is taken out of the outage analysis for a while — for example a backup unit that is switched off, or a device in
+      planned maintenance. It is treated as if it were up: it is not a root cause, raises no notification and does not degrade or take down
+      anything. The suppression ends by itself at the chosen time, or when you resume the device.
+    </div>
+    <table class="table table-hover">
+      <thead>
+        <tr><th>Device</th><th>Status now</th><th>Reason</th><th>Until</th><th>Below it</th><th>Added</th><th class="text-end"></th></tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+          <tr{% if not row.active %} class="text-muted"{% endif %}>
+            <td>
+              <a href="{{ row.device.get_absolute_url }}">{{ row.device }}</a>
+              <div class="small text-muted">{{ row.device.site|default:"" }}</div>
+            </td>
+            <td>
+              {% if not row.active %}<span class="badge text-bg-gray">expired</span>
+              {% elif row.state == 'down' %}<span class="badge text-bg-red" title="Down, but ignored while suppressed">down</span>
+              {% elif row.state == 'up' %}<span class="badge text-bg-green">up</span>
+              {% else %}<span class="badge text-bg-gray">{{ row.state }}</span>{% endif %}
+            </td>
+            <td>{{ row.reason|placeholder }}</td>
+            <td>{% if row.until %}{{ row.until|date:"Y-m-d H:i" }}{% else %}<span class="text-muted">until resumed</span>{% endif %}</td>
+            <td>{% if row.include_dependents %}<span class="badge text-bg-purple" title="Everything that depends on this device is ignored as well">included</span>{% else %}—{% endif %}</td>
+            <td class="small">{{ row.created_at|date:"Y-m-d H:i" }}{% if row.created_by %}<div class="text-muted">{{ row.created_by }}</div>{% endif %}</td>
+            <td class="text-end text-nowrap">
+              {% if can_change %}
+                <a href="{% url 'plugins:netbox_dependencies:suppression_edit' pk=row.pk %}" class="btn btn-sm btn-outline-secondary" title="Edit"><i class="mdi mdi-pencil"></i></a>
+              {% endif %}
+              {% if can_delete %}
+                <form method="post" action="{% url 'plugins:netbox_dependencies:suppression_resume' pk=row.pk %}" class="d-inline">
+                  {% csrf_token %}
+                  <button type="submit" class="btn btn-sm btn-outline-success" title="{% if row.active %}Resume: the device counts again{% else %}Remove this expired entry{% endif %}">
+                    <i class="mdi mdi-bell-ring-outline"></i> {% if row.active %}Resume{% else %}Remove{% endif %}
+                  </button>
+                </form>
+              {% endif %}
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="7" class="text-center text-muted">No device is suppressed.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% include 'inc/paginator.html' with paginator=paginator page=page %}
+  </div>
+{% endblock %}

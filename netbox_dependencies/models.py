@@ -181,6 +181,8 @@ class OutageNotification(models.Model):
     resolved_at = models.DateTimeField(null=True, blank=True)
     peak_down = models.PositiveIntegerField(default=0)
     peak_degraded = models.PositiveIntegerField(default=0)
+    quiet = models.BooleanField(
+        default=False, help_text='Closed because the device was suppressed: no "outage ended" message is sent.')
 
     class Meta:
         ordering = ('-started_at',)
@@ -331,3 +333,31 @@ class Poller(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class DeviceSuppression(models.Model):
+    """A device that is temporarily out of the outage analysis - for example a backup device that is switched off, or a device
+    in planned maintenance. While a suppression is active the device is treated as if it were up: it is not a root cause, raises
+    no notification and does not degrade or take down anything. It ends at `until` (when set) or when somebody resumes it.
+    Deliberately a plain model (a short-lived operational flag)."""
+
+    device = models.OneToOneField(to='dcim.Device', on_delete=models.CASCADE, related_name='dependency_suppression')
+    reason = models.CharField(max_length=200, blank=True)
+    until = models.DateTimeField(null=True, blank=True, help_text='Empty = until it is resumed by hand.')
+    include_dependents = models.BooleanField(
+        default=False, help_text='Also ignore every device below this one (everything that depends on it).')
+    created_by = models.ForeignKey(to='users.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ('device__name',)
+        verbose_name = 'device suppression'
+        verbose_name_plural = 'device suppressions'
+
+    def __str__(self):
+        return f'{self.device} (suppressed)'
+
+    @property
+    def is_active(self):
+        from django.utils import timezone
+        return self.until is None or self.until > timezone.now()

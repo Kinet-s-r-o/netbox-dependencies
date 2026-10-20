@@ -34,7 +34,7 @@ from .models import (
     NotificationSettings,
     OutageNotification,
 )
-from .status import analyze_outages, poller_config
+from .status import analyze_outages, poller_config, suppressed_device_ids
 
 logger = logging.getLogger('netbox_dependencies.notifications')
 
@@ -270,6 +270,14 @@ def run_notifications(now=None):
             episode.peak_degraded = max(episode.peak_degraded, outage['degraded_count'])
             episode.save(update_fields=['peak_down', 'peak_degraded'])
 
+    # --- a device that was suppressed while its outage was open: the episode is closed quietly (no "outage ended" message)
+    suppressed = suppressed_device_ids()
+    for pk, episode in list(open_episodes.items()):
+        if pk in suppressed and pk not in roots:
+            episode.resolved_at, episode.quiet = now, True
+            episode.save(update_fields=['resolved_at', 'quiet'])
+            del open_episodes[pk]
+
     # --- episodes: ended outages (the device is UP again; if it is merely "explained" by an upstream outage, the episode stays open)
     for pk, episode in list(open_episodes.items()):
         if pk in roots:
@@ -284,7 +292,7 @@ def run_notifications(now=None):
     result = {'sent': 0, 'resolved': 0, 'errors': 0}
     notify_recovery = _setting('notify_recovery')
     recent_resolved = list(OutageNotification.objects.filter(
-        resolved_at__isnull=False, resolved_at__gte=now - RECOVERY_WINDOW).select_related('device__site'))
+        resolved_at__isnull=False, resolved_at__gte=now - RECOVERY_WINDOW, quiet=False).select_related('device__site'))
     for destination in destinations:
         for episode in open_episodes.values():
             NotificationDelivery.objects.get_or_create(

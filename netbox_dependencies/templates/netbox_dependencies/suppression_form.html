@@ -1,0 +1,46 @@
+{% extends 'generic/_base.html' %}
+{% load helpers %}
+{% load form_helpers %}
+
+{% block title %}{% if instance %}Edit suppression{% else %}Suppress a device{% endif %}{% endblock %}
+
+{% block content %}
+  <div class="row">
+    <div class="col-12 col-xl-7 mb-3">
+      <div class="card">
+        <h2 class="card-header">{% if instance %}Edit the suppression of {{ instance.device }}{% else %}Suppress a device{% endif %}</h2>
+        <div class="card-body">
+          <form method="post">
+            {% csrf_token %}
+            {% if return_url %}<input type="hidden" name="return_url" value="{{ return_url }}">{% endif %}
+            {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+            {% render_field form.device %}
+            {% render_field form.reason %}
+            {% render_field form.until %}
+            {% render_field form.include_dependents %}
+            <div class="text-end">
+              <a href="{{ cancel_url }}" class="btn btn-outline-secondary">Cancel</a>
+              <button type="submit" class="btn btn-primary">{% if instance %}Save{% else %}Suppress{% endif %}</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-xl-5 mb-3">
+      <div class="card">
+        <h2 class="card-header">What suppressing does</h2>
+        <div class="card-body small">
+          <p>While the suppression is active the device is treated as <strong>up</strong> by the outage analysis:</p>
+          <ul>
+            <li>it is not a root cause and is not listed under Live outages,</li>
+            <li>no Teams / Slack / webhook message is sent for it (an outage that was already announced is closed quietly),</li>
+            <li>it does not degrade or take down the devices that depend on it,</li>
+            <li>in the graph and the tree it is shown dimmed with a “Suppressed” mark.</li>
+          </ul>
+          <p class="mb-0">The device keeps being monitored, so its real state is still visible; the suppression ends at the chosen time or when
+            somebody resumes it.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}

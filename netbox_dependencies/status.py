@@ -1,5 +1,6 @@
 """Sources of device status (Zabbix, ICMP poller) and analysis of live outages."""
 import re
+from collections import defaultdict
 from datetime import timedelta
 
 from django.apps import apps
@@ -12,7 +13,7 @@ from netbox.plugins import get_plugin_config
 from .choices import SourceChoices, StateChoices
 from .graph import compute_impact
 from .impact import load_edges
-from .models import DeviceStatus, Poller, PollerSettings
+from .models import DeviceStatus, DeviceSuppression, Poller, PollerSettings
 
 PLUGIN = 'netbox_dependencies'
 
@@ -224,13 +225,47 @@ def sync_from_zabbix():
     return {'devices': len(verdicts), 'changed': changed, 'removed': removed}
 
 
+def suppressed_info(now=None):
+    """The devices that are out of the outage analysis right now: {device_id: {id, reason, until, direct, via}}.
+    A suppression ends at its `until` (when set); one with `include_dependents` also covers everything below the device
+    (`direct` is False for those and `via` names the device that covers them)."""
+    now = now or timezone.now()
+    active = list(DeviceSuppression.objects.filter(Q(until__isnull=True) | Q(until__gt=now)).select_related('device'))
+    if not active:
+        return {}
+    info = {s.device_id: {'id': s.pk, 'reason': s.reason, 'until': s.until.isoformat() if s.until else None,
+                          'direct': True, 'via': ''} for s in active}
+    cascading = [s for s in active if s.include_dependents]
+    if cascading:
+        children = defaultdict(list)
+        for upstream_id, downstream_id, _group in load_edges():
+            children[upstream_id].append(downstream_id)
+        for suppression in cascading:
+            seen, stack = set(), [suppression.device_id]
+            while stack:
+                for child in children.get(stack.pop(), ()):
+                    if child not in seen:
+                        seen.add(child)
+                        stack.append(child)
+            for child in seen:
+                info.setdefault(child, {'id': None, 'reason': suppression.reason,
+                                        'until': suppression.until.isoformat() if suppression.until else None,
+                                        'direct': False, 'via': suppression.device.name})
+    return info
+
+
+def suppressed_device_ids(now=None):
+    return set(suppressed_info(now))
+
+
 def down_device_ids():
-    """IDs of devices in the DOWN state whose source is not stale."""
+    """IDs of devices in the DOWN state whose source is not stale and that are not suppressed."""
     cutoff = timezone.now() - timedelta(seconds=poller_config()['stale_after_seconds'])
-    return set(
+    down = set(
         DeviceStatus.objects.filter(state=StateChoices.DOWN, last_checked__gte=cutoff)
         .values_list('device_id', flat=True)
     )
+    return down - suppressed_device_ids() if down else down
 
 
 def analyze_outages():

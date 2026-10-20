@@ -4,6 +4,27 @@
 {% block title %}Live outages{% endblock %}
 
 {% block content %}
+  {% if suppressions %}
+    <div class="card mb-3 border-secondary">
+      <h2 class="card-header">
+        Suppressed devices
+        <span class="ms-3 badge text-bg-gray">{{ suppressions|length }}</span>
+        <a href="{% url 'plugins:netbox_dependencies:suppression_list' %}" class="ms-3 small fw-normal">Manage</a>
+      </h2>
+      <table class="table table-sm mb-0">
+        <tbody>
+          {% for x in suppressions %}
+            <tr>
+              <td><a href="{{ x.device.get_absolute_url }}">{{ x.device }}</a> <span class="text-muted small">{{ x.device.site|default:"" }}</span></td>
+              <td>{% if x.state == 'down' %}<span class="badge text-bg-red">down (ignored)</span>{% elif x.state == 'up' %}<span class="badge text-bg-green">up</span>{% else %}<span class="badge text-bg-gray">{{ x.state }}</span>{% endif %}</td>
+              <td>{{ x.reason|placeholder }}</td>
+              <td class="small text-muted">{% if x.until %}until {{ x.until|date:"Y-m-d H:i" }}{% else %}until resumed{% endif %}{% if x.include_dependents %} · incl. dependents{% endif %}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% endif %}
   <div class="card mb-3">
     <h2 class="card-header">
       Root causes

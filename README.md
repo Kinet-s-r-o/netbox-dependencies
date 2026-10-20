@@ -29,6 +29,9 @@ live, with optional notifications to Microsoft Teams, Slack or any webhook.
   the add page opens with the device filled in and returns to the graph afterwards.
 - **Live status** from two sources: the [Zabbix](#zabbix-optional) sync and a built-in **ICMP poller** for devices
   that are not monitored elsewhere.
+- **Suppressing devices:** take a device out of the outage analysis for a while — for example a backup unit that is switched off, or a device in
+  planned maintenance (*Dependencies → Suppressed devices*, or *Suppress…* in the device popup of the graph). While suppressed it is treated as up:
+  no root cause, no notification, nothing degraded below it (optionally the devices below it are ignored too). It ends at a chosen time or when you resume it.
 - **Root-cause analysis**: a live outage is split into *root causes* and devices that are merely *explained* by an upstream failure.
 - **Notifications** to any number of destinations (Teams, Slack, generic JSON webhook): one message per root-cause outage,
   one when it ends.
@@ -91,7 +94,7 @@ Afterwards continue with [First steps](#first-steps).
    [latest release](https://github.com/Kinet-s-r-o/netbox-dependencies/releases/latest) — the version appears twice in the URL, use the one shown there:
 
    ```bash
-   /opt/netbox/venv/bin/pip install https://github.com/Kinet-s-r-o/netbox-dependencies/releases/download/v1.14.0/netbox_dependencies-1.14.0-py3-none-any.whl
+   /opt/netbox/venv/bin/pip install https://github.com/Kinet-s-r-o/netbox-dependencies/releases/download/v1.15.0/netbox_dependencies-1.15.0-py3-none-any.whl
    ```
 
    To keep it across NetBox upgrades add the same URL as a line to `local_requirements.txt` in the NetBox directory.
@@ -176,13 +179,13 @@ Setting it up takes three steps and no Docker build. The poller needs its own Ne
    the file private and out of git. Add `--allowed-ip 10.0.0.5/32` to accept the token only from the poller's address, or run the command with
    `--rotate` later to replace the token.
 2. **Add the service** to your compose file (next to the file from step 1; for netbox-docker `docker-compose.override.yml`). Use the same version
-   as the plugin (`#v1.14.0` below). Docker builds the small image straight from this repository, so no registry or account is needed:
+   as the plugin (`#v1.15.0` below). Docker builds the small image straight from this repository, so no registry or account is needed:
 
    ```yaml
    services:
      dependencies-poller:
-       build: https://github.com/Kinet-s-r-o/netbox-dependencies.git#v1.14.0:poller
-       image: netbox-dependencies-poller:1.14.0
+       build: https://github.com/Kinet-s-r-o/netbox-dependencies.git#v1.15.0:poller
+       image: netbox-dependencies-poller:1.15.0
        restart: unless-stopped
        env_file: dependencies-poller.env
        cap_drop: [ALL]
@@ -192,7 +195,7 @@ Setting it up takes three steps and no Docker build. The poller needs its own Ne
    ```
 
    A prebuilt image is published with every release as `ghcr.io/kinet-s-r-o/netbox-dependencies-poller:<version>` — you can use
-   `image: ghcr.io/kinet-s-r-o/netbox-dependencies-poller:1.14.0` instead of the two lines `build:` and `image:` (it works once the package is public).
+   `image: ghcr.io/kinet-s-r-o/netbox-dependencies-poller:1.15.0` instead of the two lines `build:` and `image:` (it works once the package is public).
    If `docker compose build` stops with `failed to execute bake`, run it with `COMPOSE_BAKE=false`.
 3. **Start it:** `docker compose up -d --build dependencies-poller` (the first start builds the image, about a minute) and look at `docker compose logs -f dependencies-poller` — after a round it prints
    `polled N devices`. The poller then appears under *Dependencies → Configuration → ICMP poller*.

@@ -6,6 +6,7 @@ from dcim.models import Device
 from utilities.paginator import EnhancedPaginator
 
 from .models import Dependency, DeviceStatus
+from .status import suppressed_info
 
 
 def build_tree(site_id=None, page_number=None, per_page=None):
@@ -30,6 +31,7 @@ def build_tree(site_id=None, page_number=None, per_page=None):
         d.pk: d for d in Device.objects.filter(pk__in=device_ids).select_related('site', 'role', 'device_type')
     }
     states = dict(DeviceStatus.objects.filter(device_id__in=device_ids).values_list('device_id', 'state'))
+    suppressed = suppressed_info()
 
     def unique_descendants(device_id):
         seen, stack = set(), [device_id]
@@ -48,6 +50,7 @@ def build_tree(site_id=None, page_number=None, per_page=None):
         return {
             'device': devices[device_id],
             'state': states.get(device_id),
+            'suppressed': suppressed.get(device_id),
             'edge': edge,
             'multi_parent': parents_count[device_id] > 1,
             'children': [build(e.downstream_id, e) for e in kids],

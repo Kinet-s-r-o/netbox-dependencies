@@ -1,10 +1,11 @@
 {% load helpers dependencies_tags %}
-<div class="dep-row{% if node.state == 'down' %} is-down{% endif %}">
+<div class="dep-row{% if node.state == 'down' and not node.suppressed %} is-down{% endif %}{% if node.suppressed %} is-suppressed{% endif %}">
   <span class="dep-caret" aria-hidden="true"></span>
-  {% dep_disc node.device node.state %}
+  {% if node.suppressed %}{% dep_disc node.device 'suppressed' %}{% else %}{% dep_disc node.device node.state %}{% endif %}
   <a href="{{ node.device.get_absolute_url }}" class="dep-name">{{ node.device }}</a>
   {% if node.device.site %}<span class="dep-site">{{ node.device.site }}</span>{% endif %}
-  {% if node.state == 'down' %}<span class="dep-chip dep-chip-down">Down</span>{% endif %}
+  {% if node.suppressed %}<span class="dep-chip dep-chip-suppressed" title="{{ node.suppressed.reason|default:'Suppressed' }}{% if node.suppressed.via %} (below {{ node.suppressed.via }}){% endif %}"><i class="mdi mdi-bell-off-outline"></i>Suppressed</span>
+  {% elif node.state == 'down' %}<span class="dep-chip dep-chip-down">Down</span>{% endif %}
   <span class="dep-chips">
     {% if node.edge %}
       {% dep_medium node.edge.medium node.edge.get_medium_display %}

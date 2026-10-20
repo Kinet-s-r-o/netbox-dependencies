@@ -16,6 +16,7 @@ from ..status import (
     poller_config,
     poller_settings,
     status_snapshot,
+    suppressed_info,
     zabbix_covered_device_ids,
 )
 from .serializers import CustomMapSerializer, DependencySerializer
@@ -190,6 +191,8 @@ class OutagesAPIView(APIView):
                  'caused_by': [c.name for c in e['caused_by']]}
                 for e in explained[:MAX_EXPLAINED]
             ],
+            # devices that are out of the analysis right now (see Dependencies -> Suppressed devices)
+            'suppressed': [{'device': pk, **info} for pk, info in suppressed_info().items()],
         })
 
 
@@ -201,4 +204,4 @@ class StatesAPIView(APIView):
 
     def get(self, request):
         states, roots = status_snapshot()
-        return Response({'updated': timezone.now(), 'states': states, 'roots': roots})
+        return Response({'updated': timezone.now(), 'states': states, 'roots': roots, 'suppressed': suppressed_info()})

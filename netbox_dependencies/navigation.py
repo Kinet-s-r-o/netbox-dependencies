@@ -44,6 +44,19 @@ menu = PluginMenu(
                 link_text='Live outages',
                 permissions=['netbox_dependencies.view_dependency'],
             ),
+            PluginMenuItem(
+                link='plugins:netbox_dependencies:suppression_list',
+                link_text='Suppressed devices',
+                permissions=['netbox_dependencies.view_devicesuppression'],
+                buttons=(
+                    PluginMenuButton(
+                        link='plugins:netbox_dependencies:suppression_add',
+                        title='Suppress',
+                        icon_class='mdi mdi-plus-thick',
+                        permissions=['netbox_dependencies.add_devicesuppression'],
+                    ),
+                ),
+            ),
         )),
         ('Configuration', (
             PluginMenuItem(
