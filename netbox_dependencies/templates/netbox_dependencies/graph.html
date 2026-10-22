@@ -69,6 +69,17 @@
                   display: flex; align-items: center; justify-content: center; font-size: 14px; line-height: 1; cursor: crosshair;
                   box-shadow: 0 1px 4px rgba(0, 0, 0, .4); border: 2px solid #fff; }
     #dep-handle[hidden] { display: none; }
+    #dep-editbar { position: absolute; left: 10px; top: 10px; z-index: 9; display: flex; align-items: center; gap: .4rem; padding: .3rem .45rem;
+                   background: var(--tblr-bg-surface, #fff); border: 1px solid var(--tblr-primary, #4299e1); border-radius: 8px;
+                   box-shadow: 0 3px 12px rgba(0, 0, 0, .25); }
+    #dep-editbar[hidden] { display: none; }
+    #dep-editbar .dep-editbar-title { font-weight: 600; font-size: .85rem; color: var(--tblr-primary, #4299e1); padding: 0 .2rem; }
+    #dep-edit-helptext { position: absolute; left: 0; top: calc(100% + 6px); width: 330px; padding: .6rem .75rem; font-size: .82rem; line-height: 1.45;
+                         background: var(--tblr-bg-surface, #fff); border: 1px solid var(--tblr-border-color, #666); border-radius: 8px;
+                         box-shadow: 0 6px 22px rgba(0, 0, 0, .3); }
+    #dep-edit-helptext[hidden] { display: none; }
+    #dep-edit-toasts { position: absolute; left: 10px; bottom: 10px; z-index: 9; width: 380px; max-width: calc(100% - 20px); }
+    #dep-edit-toasts .alert { margin-bottom: .4rem; box-shadow: 0 3px 12px rgba(0, 0, 0, .25); }
     #dep-rubber { position: absolute; left: 0; top: 0; width: 100%; height: 100%; z-index: 8; pointer-events: none; }
     #dep-rubber[hidden] { display: none; }
     .dep-float { position: absolute; z-index: 9; width: 330px; max-width: calc(100% - 12px); padding: .75rem .9rem;
@@ -230,18 +241,25 @@
           <button type="button" class="btn btn-sm btn-outline-secondary ms-auto" id="dep-mini-toggle" title="Show / hide the overview map"><i class="mdi mdi-map-outline"></i> Overview</button>
         </div>
 
-        {% if graph.can_edit %}
-          <div id="dep-editbar" class="px-3 py-2 border-bottom small d-flex flex-wrap align-items-center gap-2" hidden>
-            <strong><i class="mdi mdi-pencil-outline"></i> Edit mode</strong>
-            <span class="text-muted">Drag from the dot under a device to the device that <strong>depends on it</strong> (hold <kbd>Shift</kbd> when you let go for a <strong>peer link</strong>, equal devices). Click a link, then <em>Delete link</em>, to remove it.</span>
-            <button type="button" class="btn btn-sm btn-outline-primary ms-lg-3" id="dep-add-device"><i class="mdi mdi-plus-thick"></i> Add device</button>
-            <button type="button" class="btn btn-sm btn-primary" id="dep-edit-done">Done</button>
-          </div>
-        {% endif %}
         <div id="dep-summary" class="px-3 pt-2"></div>
         <div class="dep-graph-box">
           <div id="dep-graph"></div>
           <div id="dep-pop" hidden role="dialog" aria-label="Device info"></div>
+          {% if graph.can_edit %}
+            <div id="dep-editbar" hidden>
+              <span class="dep-editbar-title"><i class="mdi mdi-pencil-outline"></i> Edit</span>
+              <button type="button" class="btn btn-sm btn-outline-primary" id="dep-add-device"><i class="mdi mdi-plus-thick"></i> Add device</button>
+              <button type="button" class="btn btn-sm btn-icon btn-outline-secondary" id="dep-edit-help" title="How to draw links" aria-label="How to draw links"><i class="mdi mdi-help-circle-outline"></i></button>
+              <button type="button" class="btn btn-sm btn-primary" id="dep-edit-done">Done</button>
+              <div id="dep-edit-helptext" hidden>
+                <div><strong>Dependency:</strong> drag from the dot under a device to the device that <strong>depends on it</strong>.</div>
+                <div><strong>Peer link</strong> (equal devices): hold <kbd>Shift</kbd> when you let go.</div>
+                <div><strong>Delete:</strong> click a link, then <em>Delete link</em> (or the Delete key).</div>
+                <div class="text-muted">Let go on empty space to cancel. Esc cancels too.</div>
+              </div>
+            </div>
+            <div id="dep-edit-toasts"></div>
+          {% endif %}
           <div id="dep-mini" hidden><img id="dep-mini-img" alt="" draggable="false"><div id="dep-mini-view"></div></div>
         </div>
       </div>
@@ -1310,7 +1328,7 @@
       rubber.innerHTML = '<defs><marker id="dep-rubber-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">' +
         '<path d="M0,0 L10,5 L0,10 z" fill="#4299e1"/></marker></defs>' +
         '<line x1="0" y1="0" x2="0" y2="0" stroke="#4299e1" stroke-width="3" stroke-dasharray="6 4" marker-end="url(#dep-rubber-arrow)"/>';
-      rubber.hidden = true;
+      rubber.style.display = 'none';
       box.appendChild(rubber);
       var rubberLine = rubber.querySelector('line');
       var handleNode = null, hideTimer = null, overHandle = false, dragging = null, linkPop = null, addPop = null;
@@ -1355,7 +1373,7 @@
       function endDrag(ev, cancel) {
         document.removeEventListener('mousemove', onMove);
         document.removeEventListener('mouseup', onUp);
-        rubber.hidden = true;
+        rubber.style.display = 'none';
         cy.nodes().removeClass('edit-target');
         var from = dragging && dragging.from, target = null;
         if (ev && !cancel) { target = nodeAt(pointer(ev), from); }
@@ -1371,20 +1389,21 @@
         dragging = {from: from};
         var sx = bb.x1 + (bb.x2 - bb.x1) / 2, sy = bb.y2;
         rubberLine.setAttribute('x1', sx); rubberLine.setAttribute('y1', sy); rubberLine.setAttribute('x2', sx); rubberLine.setAttribute('y2', sy);
-        rubber.hidden = false;
+        rubber.style.display = '';
         closeLinkPop();
         document.addEventListener('mousemove', onMove);
         document.addEventListener('mouseup', onUp);
       });
 
       // ---- small helpers
+      var floatToasts = document.getElementById('dep-edit-toasts') || toasts;
       function actionToast(text, label, action) {
         var undo = el('button', {type: 'button', class: 'btn btn-sm btn-outline-success ms-2', text: label});
         var alertBox = el('div', {class: 'alert alert-success alert-dismissible mb-2', role: 'alert'}, [
           el('i', {class: 'mdi mdi-check-circle-outline'}), ' ' + text, undo,
           el('button', {type: 'button', class: 'btn-close', 'data-bs-dismiss': 'alert', 'aria-label': 'Close'})]);
         undo.addEventListener('click', function () { if (alertBox.parentNode) { alertBox.parentNode.removeChild(alertBox); } action(); });
-        toasts.appendChild(alertBox);
+        floatToasts.appendChild(alertBox);
         setTimeout(function () { if (alertBox.parentNode) { alertBox.parentNode.removeChild(alertBox); } }, 15000);
       }
       function apiError(response, body) {
@@ -1613,6 +1632,8 @@
       function setEditing(on) {
         depEdit.on = on;
         editBar.hidden = !on;
+        if (on && lsGet('depEditHelpSeen', '') !== '1') { helpText.hidden = false; lsSet('depEditHelpSeen', '1'); }   // the first time the hint is open
+        if (!on) { helpText.hidden = true; }
         editToggle.classList.toggle('active', on);
         if (!on) { hideHandle(); closeLinkPop(); closeAddPop(); if (dragging) { endDrag(null, true); } }
         if (detailNode) { showDetail(detailNode); }
@@ -1620,6 +1641,8 @@
       editToggle.addEventListener('click', function () { setEditing(!depEdit.on); });
       document.getElementById('dep-edit-done').addEventListener('click', function () { setEditing(false); });
       document.getElementById('dep-add-device').addEventListener('click', openAddPop);
+      var helpText = document.getElementById('dep-edit-helptext');
+      document.getElementById('dep-edit-help').addEventListener('click', function () { helpText.hidden = !helpText.hidden; });
       document.addEventListener('keydown', function (ev) {
         if (ev.key !== 'Escape') { return; }
         if (dragging) { endDrag(null, true); } else if (linkPop || addPop) { closeLinkPop(); closeAddPop(); }

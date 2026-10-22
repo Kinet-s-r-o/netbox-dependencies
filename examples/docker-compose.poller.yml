@@ -21,9 +21,9 @@
 services:
   dependencies-poller:
     # built from the source of the release - no registry needed (if "failed to execute bake": COMPOSE_BAKE=false)
-    build: https://github.com/Kinet-s-r-o/netbox-dependencies.git#v1.16.0:poller
-    image: netbox-dependencies-poller:1.16.0
-    # or the prebuilt image, once the package is public:  image: ghcr.io/kinet-s-r-o/netbox-dependencies-poller:1.16.0
+    build: https://github.com/Kinet-s-r-o/netbox-dependencies.git#v1.16.1:poller
+    image: netbox-dependencies-poller:1.16.1
+    # or the prebuilt image, once the package is public:  image: ghcr.io/kinet-s-r-o/netbox-dependencies-poller:1.16.1
     restart: unless-stopped
     env_file: dependencies-poller.env   # NETBOX_URL, NETBOX_TOKEN, POLLER_NAME
     cap_drop: [ALL]

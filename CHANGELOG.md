@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.16.1 — 2026-10-22
+- Edit mode: the bar is a compact floating panel in the corner of the canvas (it no longer pushes the graph down), the hint is behind a help button
+  and the *Undo* messages float over the canvas too.
+- Fix: an arrow dragged from a device and released on empty space stayed on the canvas; it is dropped now and nothing is created.
+
 ## 1.16.0 — 2026-10-22
 - **Edit mode in the graph** (*Edit* button, for users who may add dependencies): *Add device* (search NetBox, put the device on the maps of its
   location), draw a dependency by dragging from the dot under the parent to the device that depends on it, *Delete link*, *Remove from map*;

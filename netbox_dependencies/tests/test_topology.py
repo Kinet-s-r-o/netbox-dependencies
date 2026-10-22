@@ -102,3 +102,6 @@ class TopologyTests(Base):
         page = self.client.get('/plugins/dependencies/graph/').content.decode()
         for needle in ('"can_edit": true', '"can_delete": true', '"topology_url":', '"search_url":'):
             self.assertIn(needle, page)
+        # the edit bar floats inside the canvas (it must not push the graph down) together with the undo messages
+        self.assertLess(page.index('id="dep-graph"'), page.index('id="dep-editbar"'))
+        self.assertIn('id="dep-edit-toasts"', page)
