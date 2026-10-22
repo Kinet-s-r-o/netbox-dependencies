@@ -9,13 +9,14 @@ Devices outside the map that are linked to it are shown as "clouds" (one per loc
 """
 from collections import Counter, defaultdict
 
+from django.db.models import Q
 from django.urls import reverse
 
 from dcim.models import Device, Region, Site
 
 from .icons import graph_icons
 from .layout import compose
-from .models import CustomMap, Dependency, DeviceStatus, NodePosition
+from .models import CustomMap, Dependency, DeviceStatus, NodePosition, PeerLink, TopologyDevice
 from .status import down_device_ids, suppressed_info
 
 
@@ -95,10 +96,72 @@ def _layout_from_children(key, node_ids, regions, region_children):
     return compose([layout_of(c) for c in children(key)], node_ids)
 
 
+def single_node(device):
+    """The node data of one device, as the graph would build it (used when a device is added from the graph)."""
+    device = Device.objects.select_related(
+        'site__region', 'role', 'device_type', 'primary_ip4', 'primary_ip6', 'location', 'tenant').get(pk=device.pk)
+    pk = device.pk
+    ups = Counter({pk: Dependency.objects.filter(downstream_id=pk).count()})
+    downs = Counter({pk: Dependency.objects.filter(upstream_id=pk).count()})
+    rows = {r[0]: r[1:] for r in DeviceStatus.objects.filter(device_id=pk).values_list(
+        'device_id', 'state', 'source', 'detail', 'last_changed')}
+    states = {k: row[0] for k, row in rows.items()}
+    topology = set(TopologyDevice.objects.filter(device_id=pk).values_list('device_id', flat=True))
+    peers = Counter({pk: PeerLink.objects.filter(Q(device_a_id=pk) | Q(device_b_id=pk)).count()})
+    return node_data(device, ups, downs, states, rows, suppressed_info(), topology, peer_count=peers)
+
+
+def device_in_scope(device, scope):
+    """Does the map `scope` ('all', 'site:<id>', 'region:<id>', 'map:<id>') show this device?"""
+    if scope.startswith('site:'):
+        return device.site_id == int(scope.split(':')[1])
+    if scope.startswith('region:'):
+        regions, children = _region_maps()
+        return device.site.region_id in _region_subtree(int(scope.split(':')[1]), children)
+    if scope.startswith('map:'):
+        return CustomMap.objects.filter(pk=int(scope.split(':')[1]), devices=device).exists()
+    return True
+
+
 def graph_url(**params):
     base = reverse('plugins:netbox_dependencies:graph')
     query = '&'.join(f'{k}={v}' for k, v in params.items() if v)
     return f'{base}?{query}' if query else base
+
+
+def node_data(d, upstream_count, downstream_count, states, status_rows, suppressed, topology_ids,
+              device_id=None, focus_id=None, peer_count=None):
+    """The data of one device node of the graph (also returned by the API when a device is added from the graph)."""
+    pk = d.pk
+    return {
+        'id': f'd{pk}',
+        'suppressed': suppressed.get(pk),
+        'devid': pk,
+        'label': d.name or f'#{pk}',
+        'site': d.site.name,
+        'site_id': d.site_id,
+        'role': d.role.name if d.role else '',
+        'dtype': d.device_type.model if d.device_type_id else '',
+        'ip': str((d.primary_ip4 or d.primary_ip6).address.ip) if (d.primary_ip4 or d.primary_ip6) else '',
+        'location': d.location.name if d.location_id else '',
+        'tenant': d.tenant.name if d.tenant_id else '',
+        'serial': d.serial or '',
+        'description': d.description or '',
+        'comments': (d.comments or '')[:1000],
+        'comments_more': len(d.comments or '') > 1000,
+        'ups': upstream_count[pk],
+        'downs': downstream_count[pk],
+        'peers': peer_count[pk] if peer_count else 0,
+        'state': states.get(pk, 'none'),
+        'source': status_rows[pk][1] if pk in status_rows else '',
+        'detail': status_rows[pk][2] if pk in status_rows else '',
+        'since': status_rows[pk][3].isoformat() if pk in status_rows else '',
+        'external': False,
+        'cloud': False,
+        'topo': pk in topology_ids,
+        'focus': pk in (device_id, focus_id),
+        'url': d.get_absolute_url(),
+    }
 
 
 def build_graph(site_id=None, region_id=None, device_id=None, focus_id=None, map_id=None):
@@ -117,7 +180,16 @@ def build_graph(site_id=None, region_id=None, device_id=None, focus_id=None, map
         keep = {device_id} | _closure(device_id, up) | _closure(device_id, down)
         edges = [e for e in all_edges if e.upstream_id in keep and e.downstream_id in keep]
 
+    # devices put into the topology from the graph are on the maps of their location even without a dependency
+    topology_ids = set() if device_id else set(TopologyDevice.objects.values_list('device_id', flat=True))
     ids = {e.upstream_id for e in edges} | {e.downstream_id for e in edges}
+    ids |= topology_ids
+    all_peers = list(PeerLink.objects.all())
+    if device_id:     # a branch shows the peer links between the devices of the branch only
+        peer_links = [p for p in all_peers if p.device_a_id in ids and p.device_b_id in ids]
+    else:
+        peer_links = all_peers
+        ids |= {p.device_a_id for p in peer_links} | {p.device_b_id for p in peer_links}
     members = set(custom.devices.values_list('pk', flat=True)) if custom else None
     if members:
         ids |= members          # members of a custom map are shown even without dependencies
@@ -139,6 +211,9 @@ def build_graph(site_id=None, region_id=None, device_id=None, focus_id=None, map
     ids = {e.upstream_id for e in edges} | {e.downstream_id for e in edges}
     if members:
         ids |= members
+    ids |= topology_ids & in_scope
+    peer_links = [p for p in peer_links if p.device_a_id in in_scope or p.device_b_id in in_scope]
+    ids |= {p.device_a_id for p in peer_links} | {p.device_b_id for p in peer_links}
     external = ids - in_scope
     status_rows = {
         r[0]: r[1:] for r in DeviceStatus.objects.filter(device_id__in=ids).values_list(
@@ -150,36 +225,16 @@ def build_graph(site_id=None, region_id=None, device_id=None, focus_id=None, map
         downstream_count[e.upstream_id] += 1
         upstream_count[e.downstream_id] += 1
 
+    peer_count = Counter()
+    for p in all_peers:
+        peer_count[p.device_a_id] += 1
+        peer_count[p.device_b_id] += 1
     suppressed = suppressed_info()
     nodes = []
     for pk in sorted(ids - external, key=lambda i: (devices[i].name or '').lower()):
         d = devices[pk]
-        nodes.append({'data': {
-            'id': f'd{pk}',
-            'suppressed': suppressed.get(pk),
-            'devid': pk,
-            'label': d.name or f'#{pk}',
-            'site': d.site.name,
-            'role': d.role.name if d.role else '',
-            'dtype': d.device_type.model if d.device_type_id else '',
-            'ip': str((d.primary_ip4 or d.primary_ip6).address.ip) if (d.primary_ip4 or d.primary_ip6) else '',
-            'location': d.location.name if d.location_id else '',
-            'tenant': d.tenant.name if d.tenant_id else '',
-            'serial': d.serial or '',
-            'description': d.description or '',
-            'comments': (d.comments or '')[:1000],
-            'comments_more': len(d.comments or '') > 1000,
-            'ups': upstream_count[pk],
-            'downs': downstream_count[pk],
-            'state': states.get(pk, 'none'),
-            'source': status_rows[pk][1] if pk in status_rows else '',
-            'detail': status_rows[pk][2] if pk in status_rows else '',
-            'since': status_rows[pk][3].isoformat() if pk in status_rows else '',
-            'external': False,
-            'cloud': False,
-            'focus': pk in (device_id, focus_id),
-            'url': d.get_absolute_url(),
-        }})
+        nodes.append({'data': node_data(d, upstream_count, downstream_count, states, status_rows, suppressed,
+                                         topology_ids, device_id, focus_id, peer_count)})
 
     # devices from other locations are merged into one cloud per location
     clouds = defaultdict(list)
@@ -225,6 +280,7 @@ def build_graph(site_id=None, region_id=None, device_id=None, focus_id=None, map
             label = f'{remote} ⇄ {label}' if label else remote
         graph_edges.append({'data': {
             'id': f'e{e.pk}',
+            'peer': False,
             'source': endpoint(e.upstream_id),
             'target': endpoint(e.downstream_id),
             'pk': e.pk,
@@ -235,6 +291,27 @@ def build_graph(site_id=None, region_id=None, device_id=None, focus_id=None, map
             'elabel': label,
             'url': e.get_absolute_url(),
             'edit_url': f'{e.get_absolute_url()}edit/',
+        }})
+
+    for p in peer_links:
+        remote = None
+        if p.device_a_id in external:
+            remote = devices[p.device_a_id].name
+        elif p.device_b_id in external:
+            remote = devices[p.device_b_id].name
+        graph_edges.append({'data': {
+            'id': f'p{p.pk}',
+            'peer': True,
+            'source': endpoint(p.device_a_id),
+            'target': endpoint(p.device_b_id),
+            'pk': p.pk,
+            'type': 'peer',
+            'medium': p.medium,
+            'group': '',
+            'description': p.description,
+            'elabel': remote or '',
+            'url': p.get_absolute_url(),
+            'edit_url': reverse('plugins:netbox_dependencies:peerlink_edit', args=[p.pk]),
         }})
 
     # navigation: parent locations + neighbouring maps
@@ -295,6 +372,9 @@ def build_graph(site_id=None, region_id=None, device_id=None, focus_id=None, map
         'impact_url': reverse('plugins-api:netbox_dependencies-api:impact'),
         'states_url': reverse('plugins-api:netbox_dependencies-api:status_states'),
         'dependency_api': reverse('plugins-api:netbox_dependencies-api:dependency-list'),
+        'peer_api': reverse('plugins-api:netbox_dependencies-api:peerlink-list'),
+        'topology_url': reverse('plugins-api:netbox_dependencies-api:topology'),
+        'search_url': reverse('plugins-api:netbox_dependencies-api:topology_search'),
         'icons': graph_icons(),
         'layout_url': reverse('plugins:netbox_dependencies:graph_layout'),
     }
@@ -304,7 +384,8 @@ def build_sidebar(site_id=None, region_id=None, map_id=None):
     """Tree Region -> Region -> Location with the number of devices in the graph and the number of outages.
     Empty branches are omitted."""
     edges = Dependency.objects.values_list('upstream_id', 'downstream_id')
-    device_ids = {i for pair in edges for i in pair}
+    device_ids = ({i for pair in edges for i in pair} | set(TopologyDevice.objects.values_list('device_id', flat=True))
+                  | {i for pair in PeerLink.objects.values_list('device_a_id', 'device_b_id') for i in pair})
     down = down_device_ids() & device_ids
     per_site = Counter()
     per_site_down = Counter()

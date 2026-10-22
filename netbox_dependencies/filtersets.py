@@ -5,7 +5,7 @@ from dcim.models import Device
 from netbox.filtersets import NetBoxModelFilterSet
 
 from .choices import DependencyTypeChoices, MediumChoices
-from .models import CustomMap, Dependency
+from .models import CustomMap, Dependency, PeerLink
 
 
 class DependencyFilterSet(NetBoxModelFilterSet):
@@ -50,3 +50,26 @@ class CustomMapFilterSet(NetBoxModelFilterSet):
         if not value.strip():
             return queryset
         return queryset.filter(Q(name__icontains=value) | Q(description__icontains=value))
+
+
+class PeerLinkFilterSet(NetBoxModelFilterSet):
+    medium = django_filters.MultipleChoiceFilter(choices=MediumChoices)
+    device_a_id = django_filters.ModelMultipleChoiceFilter(queryset=Device.objects.all(), label='Device A (ID)')
+    device_b_id = django_filters.ModelMultipleChoiceFilter(queryset=Device.objects.all(), label='Device B (ID)')
+    device_id = django_filters.ModelMultipleChoiceFilter(
+        queryset=Device.objects.all(), method='filter_device', label='Device on either side (ID)')
+
+    class Meta:
+        model = PeerLink
+        fields = ('id', 'medium', 'description')
+
+    def search(self, queryset, name, value):
+        if not value.strip():
+            return queryset
+        return queryset.filter(
+            Q(device_a__name__icontains=value) | Q(device_b__name__icontains=value) | Q(description__icontains=value))
+
+    def filter_device(self, queryset, name, value):
+        if not value:
+            return queryset
+        return queryset.filter(Q(device_a__in=value) | Q(device_b__in=value)).distinct()

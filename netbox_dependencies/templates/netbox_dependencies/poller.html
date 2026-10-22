@@ -154,7 +154,7 @@
         <h2 class="card-header">What is pinged</h2>
         <table class="table table-sm mb-0">
           <tr><th>Which devices</th><td>
-            <span class="text-muted small">Active, with a primary IP{% if cfg.only_in_graph %}, with a dependency{% endif %}, not monitored in Zabbix{% if cfg.exclude_tag %}, without the tag “{{ cfg.exclude_tag }}”{% endif %}. A poller with sites pings only those sites.</span></td></tr>
+            <span class="text-muted small">Active, with a primary IP{% if cfg.only_in_graph %}, on the maps (with a dependency or added from the graph){% endif %}, not monitored in Zabbix{% if cfg.exclude_tag %}, without the tag “{{ cfg.exclude_tag }}”{% endif %}. A poller with sites pings only those sites.</span></td></tr>
           <tr><th>Exclusion tag</th><td>
             {% if cfg.exclude_tag %}
               <code>{{ cfg.exclude_tag }}</code> — {{ tagged }} device{{ tagged|pluralize }} {% if tagged == 1 %}carries{% else %}carry{% endif %} it

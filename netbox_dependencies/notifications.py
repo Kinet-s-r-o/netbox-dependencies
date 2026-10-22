@@ -27,8 +27,10 @@ from .impact import get_impact
 from .models import (
     Dependency,
     DeviceStatus,
+    PeerLink,
     Poller,
     PollerHeartbeat,
+    TopologyDevice,
     NotificationDelivery,
     NotificationDestination,
     NotificationSettings,
@@ -247,7 +249,9 @@ def run_notifications(now=None):
     # Only devices that take part in a dependency are announced; a standalone device that is down
     # (monitored by Zabbix but not modelled here) is none of this plugin's business.
     in_graph = (set(Dependency.objects.values_list('upstream_id', flat=True))
-                | set(Dependency.objects.values_list('downstream_id', flat=True)))
+                | set(Dependency.objects.values_list('downstream_id', flat=True))
+                | set(TopologyDevice.objects.values_list('device_id', flat=True))
+                | {i for pair in PeerLink.objects.values_list('device_a_id', 'device_b_id') for i in pair})
     roots = {o['device'].pk: o for o in outages if o['device'].pk in in_graph}
     open_episodes = {
         e.device_id: e for e in OutageNotification.objects.filter(resolved_at__isnull=True, device_id__in=in_graph)

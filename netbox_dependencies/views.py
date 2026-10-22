@@ -24,7 +24,7 @@ from utilities.views import ViewTab, register_model_view
 
 from . import tables
 from .choices import DestinationKindChoices
-from .filtersets import CustomMapFilterSet, DependencyFilterSet
+from .filtersets import CustomMapFilterSet, DependencyFilterSet, PeerLinkFilterSet
 from .forms import (
     CustomMapFilterForm,
     CustomMapForm,
@@ -37,6 +37,9 @@ from .forms import (
     DeviceSuppressionForm,
     ImpactForm,
     NotificationSettingsForm,
+    PeerLinkFilterForm,
+    PeerLinkForm,
+    PeerLinkImportForm,
     PollerForm,
     PollerSettingsForm,
 )
@@ -52,6 +55,7 @@ from .models import (
     NotificationDestination,
     NotificationSettings,
     OutageNotification,
+    PeerLink,
     Poller,
     PollerHeartbeat,
     PollerSettings,
@@ -134,6 +138,44 @@ class DependencyBulkDeleteView(generic.BulkDeleteView):
     queryset = Dependency.objects.all()
     filterset = DependencyFilterSet
     table = tables.DependencyTable
+
+
+@register_model_view(PeerLink, 'list', path='', detail=False)
+class PeerLinkListView(generic.ObjectListView):
+    queryset = PeerLink.objects.select_related('device_a', 'device_b')
+    table = tables.PeerLinkTable
+    filterset = PeerLinkFilterSet
+    filterset_form = PeerLinkFilterForm
+
+
+@register_model_view(PeerLink)
+class PeerLinkView(generic.ObjectView):
+    queryset = PeerLink.objects.select_related('device_a', 'device_b')
+
+
+@register_model_view(PeerLink, 'add', detail=False)
+@register_model_view(PeerLink, 'edit')
+class PeerLinkEditView(generic.ObjectEditView):
+    queryset = PeerLink.objects.all()
+    form = PeerLinkForm
+
+
+@register_model_view(PeerLink, 'delete')
+class PeerLinkDeleteView(generic.ObjectDeleteView):
+    queryset = PeerLink.objects.all()
+
+
+@register_model_view(PeerLink, 'bulk_import', path='import', detail=False)
+class PeerLinkBulkImportView(generic.BulkImportView):
+    queryset = PeerLink.objects.all()
+    model_form = PeerLinkImportForm
+
+
+@register_model_view(PeerLink, 'bulk_delete', path='delete', detail=False)
+class PeerLinkBulkDeleteView(generic.BulkDeleteView):
+    queryset = PeerLink.objects.all()
+    filterset = PeerLinkFilterSet
+    table = tables.PeerLinkTable
 
 
 # the tree is expanded only for a small number of devices; the device tab shows only the first N direct dependencies
@@ -427,6 +469,8 @@ class DependencyGraphView(PermissionRequiredMixin, View):
         )
         limit = int(get_plugin_config('netbox_dependencies', 'graph_max_nodes'))
         graph['too_large'] = None
+        graph['can_edit'] = request.user.has_perm('netbox_dependencies.add_dependency')
+        graph['can_delete'] = request.user.has_perm('netbox_dependencies.delete_dependency')
         graph['suppress_url'] = reverse('plugins:netbox_dependencies:suppression_add') if request.user.has_perm(
             'netbox_dependencies.add_devicesuppression') else ''
         graph['resume_url'] = reverse('plugins:netbox_dependencies:suppression_resume', args=[0]) if request.user.has_perm(

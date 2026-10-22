@@ -103,7 +103,9 @@ def poll_targets(cfg=None, only_in_graph=None, poller=None):
         only_in_graph = cfg['only_in_graph']
     devices = Device.objects.filter(status='active').filter(Q(primary_ip4__isnull=False) | Q(primary_ip6__isnull=False))
     if only_in_graph:
-        devices = devices.filter(Q(upstream_dependencies__isnull=False) | Q(downstream_dependencies__isnull=False)).distinct()
+        devices = devices.filter(Q(upstream_dependencies__isnull=False) | Q(downstream_dependencies__isnull=False)
+                                | Q(dependency_topology__isnull=False) | Q(peer_links_a__isnull=False)
+                                | Q(peer_links_b__isnull=False)).distinct()
     if cfg['exclude_tag']:
         devices = devices.exclude(tags__slug=cfg['exclude_tag'])
     if poller is not None:

@@ -12,7 +12,7 @@ from utilities.forms.fields import (
 from utilities.forms.widgets import DateTimePicker
 
 from .choices import DependencyTypeChoices, DestinationKindChoices, MediumChoices
-from .models import CustomMap, Dependency, NotificationDestination, Poller
+from .models import CustomMap, Dependency, NotificationDestination, PeerLink, Poller
 
 
 class DependencyForm(NetBoxModelForm):
@@ -39,6 +39,32 @@ class DependencyImportForm(NetBoxModelImportForm):
             'upstream', 'downstream', 'dependency_type', 'medium', 'redundancy_group',
             'description', 'tags',
         )
+
+
+class PeerLinkForm(NetBoxModelForm):
+    device_a = DynamicModelChoiceField(queryset=Device.objects.all(), label='Device A')
+    device_b = DynamicModelChoiceField(queryset=Device.objects.all(), label='Device B')
+
+    class Meta:
+        model = PeerLink
+        fields = ('device_a', 'device_b', 'medium', 'description', 'tags')
+
+
+class PeerLinkImportForm(NetBoxModelImportForm):
+    device_a = CSVModelChoiceField(queryset=Device.objects.all(), to_field_name='name')
+    device_b = CSVModelChoiceField(queryset=Device.objects.all(), to_field_name='name')
+    medium = CSVChoiceField(choices=MediumChoices, required=False)
+
+    class Meta:
+        model = PeerLink
+        fields = ('device_a', 'device_b', 'medium', 'description', 'tags')
+
+
+class PeerLinkFilterForm(NetBoxModelFilterSetForm):
+    model = PeerLink
+    medium = forms.MultipleChoiceField(choices=MediumChoices, required=False, label='Medium')
+    device_a_id = DynamicModelMultipleChoiceField(queryset=Device.objects.all(), required=False, label='Device A')
+    device_b_id = DynamicModelMultipleChoiceField(queryset=Device.objects.all(), required=False, label='Device B')
 
 
 class DependencyFilterForm(NetBoxModelFilterSetForm):

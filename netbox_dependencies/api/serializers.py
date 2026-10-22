@@ -3,7 +3,7 @@ from netbox.api.serializers import NetBoxModelSerializer
 
 from users.api.serializers import UserSerializer
 
-from ..models import CustomMap, Dependency
+from ..models import CustomMap, Dependency, PeerLink
 
 
 class DependencySerializer(NetBoxModelSerializer):
@@ -31,3 +31,16 @@ class CustomMapSerializer(NetBoxModelSerializer):
             'created', 'last_updated',
         )
         brief_fields = ('id', 'url', 'display', 'name')
+
+
+class PeerLinkSerializer(NetBoxModelSerializer):
+    device_a = DeviceSerializer(nested=True)
+    device_b = DeviceSerializer(nested=True)
+
+    class Meta:
+        model = PeerLink
+        fields = (
+            'id', 'url', 'display', 'device_a', 'device_b', 'medium', 'description', 'tags', 'custom_fields',
+            'created', 'last_updated',
+        )
+        brief_fields = ('id', 'url', 'display', 'device_a', 'device_b')

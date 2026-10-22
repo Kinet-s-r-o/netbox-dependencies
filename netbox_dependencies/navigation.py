@@ -40,6 +40,25 @@ menu = PluginMenu(
                 ),
             ),
             PluginMenuItem(
+                link='plugins:netbox_dependencies:peerlink_list',
+                link_text='Peer links (equal devices)',
+                permissions=['netbox_dependencies.view_peerlink'],
+                buttons=(
+                    PluginMenuButton(
+                        link='plugins:netbox_dependencies:peerlink_add',
+                        title='Add',
+                        icon_class='mdi mdi-plus-thick',
+                        permissions=['netbox_dependencies.add_peerlink'],
+                    ),
+                    PluginMenuButton(
+                        link='plugins:netbox_dependencies:peerlink_bulk_import',
+                        title='Import',
+                        icon_class='mdi mdi-upload',
+                        permissions=['netbox_dependencies.add_peerlink'],
+                    ),
+                ),
+            ),
+            PluginMenuItem(
                 link='plugins:netbox_dependencies:live',
                 link_text='Live outages',
                 permissions=['netbox_dependencies.view_dependency'],

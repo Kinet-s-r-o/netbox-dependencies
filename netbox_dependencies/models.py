@@ -85,6 +85,10 @@ class Dependency(NetBoxModel):
             return
         if self.upstream_id == self.downstream_id:
             raise ValidationError('A device cannot depend on itself.')
+        if PeerLink.between(self.upstream_id, self.downstream_id).exists():
+            raise ValidationError(
+                f'{self.upstream} and {self.downstream} are linked as peers (equal devices) - delete the peer link first '
+                'if one of them really depends on the other.')
         edges = Dependency.objects.exclude(pk=self.pk).values_list(
             'upstream_id', 'downstream_id', 'redundancy_group'
         )
@@ -361,3 +365,80 @@ class DeviceSuppression(models.Model):
     def is_active(self):
         from django.utils import timezone
         return self.until is None or self.until > timezone.now()
+
+
+class TopologyDevice(models.Model):
+    """A device that was put into the topology explicitly (from the graph), so it is on the maps of its location even before it
+    has any dependency. Devices that have dependencies are in the topology anyway."""
+
+    device = models.OneToOneField(to='dcim.Device', on_delete=models.CASCADE, related_name='dependency_topology')
+    created_by = models.ForeignKey(to='users.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ('device__name',)
+        verbose_name = 'topology device'
+        verbose_name_plural = 'topology devices'
+
+    def __str__(self):
+        return f'{self.device} (in the topology)'
+
+
+class PeerLink(NetBoxModel):
+    """A link between two equal devices - neither depends on the other (for example two aggregation switches that are cabled together,
+    each with its own uplink). It is drawn without an arrow and has no effect on the outage analysis. The pair is stored in a fixed order
+    (the lower device id first), so a link exists only once whichever way it is entered."""
+
+    device_a = models.ForeignKey(to='dcim.Device', on_delete=models.CASCADE, related_name='peer_links_a', verbose_name='Device A')
+    device_b = models.ForeignKey(to='dcim.Device', on_delete=models.CASCADE, related_name='peer_links_b', verbose_name='Device B')
+    medium = models.CharField(
+        max_length=20, choices=MediumChoices, default=MediumChoices.UNSPECIFIED, verbose_name='Medium',
+        help_text='Physical medium of the link (drawn differently in the graph).')
+    description = models.CharField(max_length=200, blank=True)
+
+    class Meta:
+        ordering = ('device_a__name', 'device_b__name')
+        verbose_name = 'peer link'
+        verbose_name_plural = 'peer links'
+        constraints = (
+            models.UniqueConstraint(fields=('device_a', 'device_b'), name='%(app_label)s_%(class)s_unique_pair'),
+            models.CheckConstraint(condition=Q(device_a__lt=F('device_b')), name='%(app_label)s_%(class)s_ordered_pair'),
+        )
+
+    def __str__(self):
+        return f'{self.device_a} ↔ {self.device_b}'
+
+    def get_absolute_url(self):
+        return reverse('plugins:netbox_dependencies:peerlink', args=[self.pk])
+
+    def get_medium_color(self):
+        return MediumChoices.colors.get(self.medium)
+
+    @classmethod
+    def between(cls, first_id, second_id):
+        """The peer link between two devices (in whichever order they are given)."""
+        low, high = sorted((first_id, second_id))
+        return cls.objects.filter(device_a_id=low, device_b_id=high)
+
+    def _normalize(self):
+        if self.device_a_id and self.device_b_id and self.device_a_id > self.device_b_id:
+            self.device_a_id, self.device_b_id = self.device_b_id, self.device_a_id      # the cached device objects follow the ids
+
+    def clean(self):
+        super().clean()
+        if self.device_a_id is None or self.device_b_id is None:
+            return
+        if self.device_a_id == self.device_b_id:
+            raise ValidationError('A device cannot be its own peer.')
+        self._normalize()
+        if Dependency.objects.filter(
+                Q(upstream_id=self.device_a_id, downstream_id=self.device_b_id)
+                | Q(upstream_id=self.device_b_id, downstream_id=self.device_a_id)).exists():
+            raise ValidationError(
+                f'{self.device_a} and {self.device_b} already have a dependency - a pair is either a dependency or a peer link.')
+        if PeerLink.between(self.device_a_id, self.device_b_id).exclude(pk=self.pk).exists():
+            raise ValidationError('These devices are linked as peers already.')
+
+    def save(self, *args, **kwargs):
+        self._normalize()
+        super().save(*args, **kwargs)

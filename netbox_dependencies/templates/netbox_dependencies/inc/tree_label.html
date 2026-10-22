@@ -12,6 +12,8 @@
       {% if node.edge.dependency_type != 'network' %}{% badge node.edge.get_dependency_type_display bg_color=node.edge.get_dependency_type_color %}{% endif %}
       {% if node.edge.redundancy_group %}<span class="dep-chip dep-chip-group" title="Redundancy group: the device goes down only when all of its links in this group are down"><i class="mdi mdi-swap-horizontal"></i>{{ node.edge.redundancy_group }}</span>{% endif %}
     {% endif %}
+    {% for peer in node.peers|slice:":3" %}<span class="dep-chip dep-chip-peer" title="Peer link: {{ peer }} is an equal device (no dependency)"><i class="mdi mdi-swap-horizontal"></i>{{ peer }}</span>{% endfor %}
+    {% if node.peers|length > 3 %}<span class="dep-chip dep-chip-peer" title="{{ node.peers|slice:'3:'|join:', ' }}">+{{ node.peers|length|add:"-3" }} peers</span>{% endif %}
     {% if node.multi_parent %}<span class="dep-chip dep-chip-multi" title="This device depends on several upstream devices and appears under each of them"><i class="mdi mdi-source-fork"></i>multiple upstream</span>{% endif %}
   </span>
   {% if node.direct %}

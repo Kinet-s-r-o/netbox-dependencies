@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.16.0 — 2026-10-22
+- **Edit mode in the graph** (*Edit* button, for users who may add dependencies): *Add device* (search NetBox, put the device on the maps of its
+  location), draw a dependency by dragging from the dot under the parent to the device that depends on it, *Delete link*, *Remove from map*;
+  every step has an *Undo*. A device added this way is in the topology (on the maps, in the tree and the sidebar, pinged by the poller, announced
+  in notifications) even before it has a dependency.
+- **Peer links** between equal devices: no arrow, no effect on the outage analysis, own list / API / CSV import (*Dependencies → Peer links*),
+  drawn in the graph (hold *Shift* when you release the arrow, or choose *Peer (equal)*), chips in the tree, a *Show peer links* filter and a legend
+  entry. A pair of devices is either a dependency or a peer link.
+- New REST endpoints: `peers/`, `topology/`, `topology/search/`, `topology/<device id>/`. Migrations 0013 and 0014.
+
 ## 1.15.0 — 2026-10-20
 - **Suppressed devices**: a device can be taken out of the outage analysis for a while (a backup unit that is switched off, planned maintenance).
   It is treated as up: not a root cause, no notification (an outage that was already announced is closed quietly, without an "ended" message),

@@ -1,0 +1,37 @@
+{% extends 'generic/object.html' %}
+{% load helpers %}
+
+{% block content %}
+  <div class="row mb-3">
+    <div class="col col-12 col-md-6">
+      <div class="card">
+        <h2 class="card-header">Peer link</h2>
+        <table class="table table-hover attr-table">
+          <tr>
+            <th scope="row">Device A</th>
+            <td><a href="{{ object.device_a.get_absolute_url }}">{{ object.device_a }}</a></td>
+          </tr>
+          <tr>
+            <th scope="row">Device B</th>
+            <td><a href="{{ object.device_b.get_absolute_url }}">{{ object.device_b }}</a></td>
+          </tr>
+          <tr>
+            <th scope="row">Medium</th>
+            <td>{% badge object.get_medium_display bg_color=object.get_medium_color %}</td>
+          </tr>
+          <tr>
+            <th scope="row">Description</th>
+            <td>{{ object.description|placeholder }}</td>
+          </tr>
+        </table>
+        <div class="card-body small text-muted">
+          Equal devices: neither depends on the other, so the link has no effect on the outage analysis. It is drawn without an arrow.
+        </div>
+      </div>
+    </div>
+    <div class="col col-12 col-md-6">
+      {% include 'inc/panels/tags.html' %}
+      {% include 'inc/panels/custom_fields.html' %}
+    </div>
+  </div>
+{% endblock %}

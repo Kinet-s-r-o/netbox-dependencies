@@ -5,7 +5,7 @@ from dcim.models import Device
 
 from utilities.paginator import EnhancedPaginator
 
-from .models import Dependency, DeviceStatus
+from .models import Dependency, DeviceStatus, PeerLink, TopologyDevice
 from .status import suppressed_info
 
 
@@ -27,11 +27,18 @@ def build_tree(site_id=None, page_number=None, per_page=None):
         parents_count[e.downstream_id] += 1
         device_ids.update((e.upstream_id, e.downstream_id))
 
+    device_ids |= set(TopologyDevice.objects.values_list('device_id', flat=True))
+    peer_pairs = list(PeerLink.objects.values_list('device_a_id', 'device_b_id'))
+    device_ids |= {i for pair in peer_pairs for i in pair}
     devices = {
         d.pk: d for d in Device.objects.filter(pk__in=device_ids).select_related('site', 'role', 'device_type')
     }
     states = dict(DeviceStatus.objects.filter(device_id__in=device_ids).values_list('device_id', 'state'))
     suppressed = suppressed_info()
+    peers_of = defaultdict(list)
+    for a, b in peer_pairs:
+        peers_of[a].append(b)
+        peers_of[b].append(a)
 
     def unique_descendants(device_id):
         seen, stack = set(), [device_id]
@@ -51,6 +58,7 @@ def build_tree(site_id=None, page_number=None, per_page=None):
             'device': devices[device_id],
             'state': states.get(device_id),
             'suppressed': suppressed.get(device_id),
+            'peers': sorted((devices[i].name or '') for i in peers_of.get(device_id, ())),
             'edge': edge,
             'multi_parent': parents_count[device_id] > 1,
             'children': [build(e.downstream_id, e) for e in kids],

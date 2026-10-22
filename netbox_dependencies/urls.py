@@ -7,6 +7,8 @@ from . import views  # noqa: F401 — import registruje views (register_model_vi
 urlpatterns = [
     path('dependencies/', include(get_model_urls('netbox_dependencies', 'dependency', detail=False))),
     path('dependencies/<int:pk>/', include(get_model_urls('netbox_dependencies', 'dependency'))),
+    path('peers/', include(get_model_urls('netbox_dependencies', 'peerlink', detail=False))),
+    path('peers/<int:pk>/', include(get_model_urls('netbox_dependencies', 'peerlink'))),
     path('graph/', views.DependencyGraphView.as_view(), name='graph'),
     path('maps/', include(get_model_urls('netbox_dependencies', 'custommap', detail=False))),
     path('maps/<int:pk>/', include(get_model_urls('netbox_dependencies', 'custommap'))),

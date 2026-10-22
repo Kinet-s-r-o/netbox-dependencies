@@ -6,9 +6,10 @@ from rest_framework.views import APIView
 from dcim.models import Device
 from netbox.api.viewsets import NetBoxModelViewSet
 
-from ..filtersets import CustomMapFilterSet, DependencyFilterSet
+from ..filtersets import CustomMapFilterSet, DependencyFilterSet, PeerLinkFilterSet
 from ..impact import get_impact
-from ..models import CustomMap, Dependency, DeviceStatus, PollerHeartbeat
+from ..graph_data import device_in_scope, single_node
+from ..models import CustomMap, Dependency, DeviceStatus, PeerLink, PollerHeartbeat, TopologyDevice
 from ..status import (
     analyze_outages,
     apply_icmp_report,
@@ -19,7 +20,7 @@ from ..status import (
     suppressed_info,
     zabbix_covered_device_ids,
 )
-from .serializers import CustomMapSerializer, DependencySerializer
+from .serializers import CustomMapSerializer, DependencySerializer, PeerLinkSerializer
 
 
 MAX_ROOT_CAUSES = 200
@@ -38,6 +39,82 @@ class DependencyViewSet(NetBoxModelViewSet):
     queryset = Dependency.objects.select_related('upstream', 'downstream').prefetch_related('tags')
     serializer_class = DependencySerializer
     filterset_class = DependencyFilterSet
+
+
+class PeerLinkViewSet(NetBoxModelViewSet):
+    queryset = PeerLink.objects.select_related('device_a', 'device_b').prefetch_related('tags')
+    serializer_class = PeerLinkSerializer
+    filterset_class = PeerLinkFilterSet
+
+
+class TopologySearchAPIView(APIView):
+    """GET /api/plugins/dependencies/topology/search/?q=<text> - devices to add to the topology from the graph (name, IP or site)."""
+
+    queryset = Dependency.objects.none()
+
+    def get(self, request):
+        text = (request.query_params.get('q') or '').strip()
+        if len(text) < 2:
+            return Response({'results': []})
+        devices = Device.objects.restrict(request.user, 'view').filter(
+            Q(name__icontains=text) | Q(site__name__icontains=text) | Q(primary_ip4__address__startswith=text)
+            | Q(primary_ip6__address__startswith=text)
+        ).select_related('site', 'role', 'device_type')[:15]
+        on_map = set(Dependency.objects.filter(Q(upstream__in=devices) | Q(downstream__in=devices)).values_list('upstream_id', flat=True))
+        on_map |= set(Dependency.objects.filter(Q(upstream__in=devices) | Q(downstream__in=devices)).values_list('downstream_id', flat=True))
+        on_map |= set(TopologyDevice.objects.filter(device__in=devices).values_list('device_id', flat=True))
+        for first, second in PeerLink.objects.filter(Q(device_a__in=devices) | Q(device_b__in=devices)).values_list('device_a_id', 'device_b_id'):
+            on_map |= {first, second}
+        return Response({'results': [
+            {'id': d.pk, 'name': d.name, 'site': d.site.name, 'role': d.role.name if d.role else '',
+             'model': d.device_type.model if d.device_type_id else '', 'on_map': d.pk in on_map}
+            for d in devices
+        ]})
+
+
+class TopologyAPIView(APIView):
+    """POST /api/plugins/dependencies/topology/  {"device": <id>, "scope": "site:3"}
+
+    Puts a device into the topology (it is then on the maps of its location even without a dependency) and returns its graph node.
+    When `scope` is a custom map (`map:<id>`) and the user may change it, the device is added to the map as well.
+    Requires the add permission on dependencies."""
+
+    queryset = Dependency.objects.none()
+
+    def post(self, request):
+        body = request.data if isinstance(request.data, dict) else {}
+        device = Device.objects.restrict(request.user, 'view').filter(pk=body.get('device') if isinstance(body.get('device'), int) else 0).first()
+        if not device:
+            return Response({'detail': 'Unknown device.'}, status=400)
+        scope = str(body.get('scope') or 'all')
+        _row, created = TopologyDevice.objects.get_or_create(device=device, defaults={'created_by': request.user})
+        added_to_map = False
+        if scope.startswith('map:') and scope.split(':')[1].isdigit() and request.user.has_perm('netbox_dependencies.change_custommap'):
+            custom = CustomMap.objects.filter(pk=int(scope.split(':')[1])).first()
+            if custom:
+                custom.devices.add(device)
+                added_to_map = True
+        return Response({
+            'created': created, 'added_to_map': added_to_map, 'in_scope': device_in_scope(device, scope),
+            'site': {'id': device.site_id, 'name': device.site.name}, 'node': single_node(device),
+        }, status=201 if created else 200)
+
+
+class TopologyDeviceAPIView(APIView):
+    """DELETE /api/plugins/dependencies/topology/<device id>/ - takes a device out of the topology again (a device that still has
+    dependencies stays on the maps because of them). Requires the delete permission on dependencies."""
+
+    queryset = Dependency.objects.none()
+
+    def delete(self, request, device_id):
+        removed, _ = TopologyDevice.objects.filter(device_id=device_id).delete()
+        scope = request.query_params.get('scope') or ''
+        if scope.startswith('map:') and scope.split(':')[1].isdigit() and request.user.has_perm('netbox_dependencies.change_custommap'):
+            custom = CustomMap.objects.filter(pk=int(scope.split(':')[1])).first()
+            if custom:
+                custom.devices.remove(device_id)
+        still_linked = Dependency.objects.filter(Q(upstream_id=device_id) | Q(downstream_id=device_id)).exists()
+        return Response({'removed': bool(removed), 'still_linked': still_linked})
 
 
 class CustomMapViewSet(NetBoxModelViewSet):

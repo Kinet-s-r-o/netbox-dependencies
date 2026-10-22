@@ -65,6 +65,21 @@
     #dep-pop .dep-close { position: absolute; top: .3rem; right: .45rem; border: 0; background: none; color: inherit;
                           opacity: .6; font-size: 1.2rem; line-height: 1; cursor: pointer; }
     #dep-pop .dep-close:hover { opacity: 1; }
+    #dep-handle { position: absolute; z-index: 7; width: 18px; height: 18px; border-radius: 50%; background: #4299e1; color: #fff;
+                  display: flex; align-items: center; justify-content: center; font-size: 14px; line-height: 1; cursor: crosshair;
+                  box-shadow: 0 1px 4px rgba(0, 0, 0, .4); border: 2px solid #fff; }
+    #dep-handle[hidden] { display: none; }
+    #dep-rubber { position: absolute; left: 0; top: 0; width: 100%; height: 100%; z-index: 8; pointer-events: none; }
+    #dep-rubber[hidden] { display: none; }
+    .dep-float { position: absolute; z-index: 9; width: 330px; max-width: calc(100% - 12px); padding: .75rem .9rem;
+                 background: var(--tblr-bg-surface, #fff); color: var(--tblr-body-color, inherit);
+                 border: 1px solid var(--tblr-border-color, #666); border-radius: 8px; box-shadow: 0 6px 22px rgba(0, 0, 0, .35); }
+    .dep-float h6 { margin: 0 0 .5rem; }
+    .dep-float label { font-size: .72rem; text-transform: uppercase; opacity: .7; margin: .45rem 0 .1rem; }
+    .dep-results { max-height: 260px; overflow: auto; margin-top: .5rem; }
+    .dep-results .dep-result { display: flex; justify-content: space-between; gap: .5rem; padding: .35rem .5rem; border-radius: 6px; cursor: pointer; }
+    .dep-results .dep-result:hover { background: rgba(66, 153, 225, .15); }
+    #dep-edit-toggle.active { background: var(--tblr-primary, #4299e1); color: #fff; }
     @media print {
       .navbar, .page-header, #dep-side, #dep-split, .dep-toolbar, .dep-chips, nav.small, #dep-toasts, .card-header .btn, #dep-mini { display: none !important; }
       #dep-graph { height: 85vh; }
@@ -157,6 +172,7 @@
           </div>
           <div class="d-flex flex-wrap gap-2 align-items-center">
             <button type="button" class="btn btn-sm btn-outline-secondary" id="dep-legend-btn" data-bs-toggle="modal" data-bs-target="#dep-legend-modal" title="Legend and controls"><i class="mdi mdi-help-circle-outline"></i> Legend</button>
+            {% if graph.can_edit %}<button type="button" class="btn btn-sm btn-outline-primary" id="dep-edit-toggle" title="Add devices to the map and draw dependencies by dragging"><i class="mdi mdi-pencil-outline"></i> Edit</button>{% endif %}
             <button type="button" class="btn btn-sm btn-outline-secondary" id="dep-fit">Fit</button>
             <button type="button" class="btn btn-sm btn-outline-secondary" id="dep-png" title="Download the whole map as a PNG image"><i class="mdi mdi-image-outline"></i> PNG</button>
             <button type="button" class="btn btn-sm btn-outline-secondary" id="dep-print" title="Print the map"><i class="mdi mdi-printer"></i></button>
@@ -196,6 +212,10 @@
                 <label class="btn btn-sm btn-outline-secondary" for="dep-ls-straight"><i class="mdi mdi-vector-line"></i> Straight</label>
               </div>
               <label class="form-check mb-2">
+                <input type="checkbox" class="form-check-input" id="dep-f-peers" checked>
+                <span class="form-check-label">Show peer links</span>
+              </label>
+              <label class="form-check mb-2">
                 <input type="checkbox" class="form-check-input" id="dep-f-labels" checked>
                 <span class="form-check-label">Show link labels</span>
               </label>
@@ -210,6 +230,14 @@
           <button type="button" class="btn btn-sm btn-outline-secondary ms-auto" id="dep-mini-toggle" title="Show / hide the overview map"><i class="mdi mdi-map-outline"></i> Overview</button>
         </div>
 
+        {% if graph.can_edit %}
+          <div id="dep-editbar" class="px-3 py-2 border-bottom small d-flex flex-wrap align-items-center gap-2" hidden>
+            <strong><i class="mdi mdi-pencil-outline"></i> Edit mode</strong>
+            <span class="text-muted">Drag from the dot under a device to the device that <strong>depends on it</strong> (hold <kbd>Shift</kbd> when you let go for a <strong>peer link</strong>, equal devices). Click a link, then <em>Delete link</em>, to remove it.</span>
+            <button type="button" class="btn btn-sm btn-outline-primary ms-lg-3" id="dep-add-device"><i class="mdi mdi-plus-thick"></i> Add device</button>
+            <button type="button" class="btn btn-sm btn-primary" id="dep-edit-done">Done</button>
+          </div>
+        {% endif %}
         <div id="dep-summary" class="px-3 pt-2"></div>
         <div class="dep-graph-box">
           <div id="dep-graph"></div>
@@ -246,6 +274,7 @@
             <div class="col-12 col-md-6 mb-3">
               <h6 class="text-uppercase text-muted small">Links (click a link for details, right-click to change its medium)</h6>
               <div id="dep-leg-media"></div>
+              <div class="dep-leg-row"><span class="sw"><svg width="70" height="14"><line x1="2" y1="7" x2="68" y2="7" stroke="#868e96" stroke-width="2"/></svg></span>Peer link: equal devices, no arrow, no effect on outages</div>
               <div class="dep-leg-row"><span class="sw"><svg width="70" height="14"><line x1="2" y1="7" x2="68" y2="7" stroke="#ae3ec9" stroke-opacity=".4" stroke-width="10" stroke-linecap="round"/><line x1="2" y1="7" x2="68" y2="7" stroke="#4299e1" stroke-width="2.5"/></svg></span>Purple glow = redundancy group (backup path)</div>
               <h6 class="text-uppercase text-muted small mt-3">Device icons</h6>
               <div id="dep-leg-icons" class="row row-cols-2 g-1 small"></div>
@@ -394,11 +423,13 @@
       return '';
     }
     function svgUri(svg) { return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg); }
-    data.nodes.forEach(function (n) {
-      n.data.plabel = n.data.cloud ? n.data.label + '\n' + n.data.info : n.data.label;
-      n.data.icon = n.data.cloud ? '' : iconFor(n.data.role, n.data.dtype, n.data.label);
-      n.data.sub = n.data.cloud ? '' : (n.data.dtype || n.data.role || '');
-    });
+    function prepareNode(d) {
+      d.plabel = d.cloud ? d.label + '\n' + d.info : d.label;
+      d.icon = d.cloud ? '' : iconFor(d.role, d.dtype, d.label);
+      d.sub = d.cloud ? '' : (d.dtype || d.role || '');
+      return d;
+    }
+    data.nodes.forEach(function (n) { prepareNode(n.data); });
 
     // ---- theme: light / dark follow NetBox (data-bs-theme); the palette is read whenever a style is evaluated
     function isDark() { return document.documentElement.getAttribute('data-bs-theme') === 'dark'; }
@@ -546,10 +577,11 @@
         }},
         {selector: 'node.match', style: {'border-width': 3, 'border-color': '#ffd43b'}},
         {selector: 'node.picked', style: {'border-width': 3, 'border-color': '#4299e1'}},
+        {selector: 'node.edit-target', style: {'border-width': 4, 'border-color': '#4299e1', 'underlay-color': '#4299e1', 'underlay-opacity': 0.3, 'underlay-padding': 8}},
         {selector: 'node.dim', style: {'opacity': 0.25}},
         {selector: 'node.nomatch', style: {'opacity': 0.18}},
         {selector: 'edge', style: {
-          'curve-style': function () { return LINK_STYLE === 'straight' ? 'bezier' : 'unbundled-bezier'; },   // bezier = a straight line (parallel links fan out)
+          'curve-style': function (e) { return (e.data('peer') || LINK_STYLE === 'straight') ? 'bezier' : 'unbundled-bezier'; },   // bezier = a straight line (parallel links fan out)
           'control-point-weights': function (e) { return curveOf(e).w; },
           'control-point-distances': function (e) { return curveOf(e).d; },
           'target-arrow-shape': 'triangle', 'arrow-scale': 0.9, 'width': 2, 'opacity': 0.9,
@@ -586,6 +618,7 @@
         {selector: 'edge[group != ""]', style: {
           'underlay-color': '#ae3ec9', 'underlay-opacity': 0.35, 'underlay-padding': 4
         }},
+        {selector: 'edge[?peer]', style: {'target-arrow-shape': 'none', 'width': 2, 'opacity': 0.8}},     // equal devices: a plain line, no arrow
         {selector: 'edge.hl', style: {'width': 4, 'opacity': 1, 'z-index': 10}},
         {selector: 'edge.nolabel', style: {'label': ''}},
         {selector: 'edge.dim', style: {'opacity': 0.15}},
@@ -632,7 +665,8 @@
     // ---- layout: automatic + saved positions
     // Starting point for devices without a saved position; the map is then arranged by hand and saved.
     function autoLayout() {
-      cy.layout({name: 'breadthfirst', directed: true, spacingFactor: 1.25, padding: 20, animate: false}).run();
+      cy.layout({name: 'breadthfirst', directed: true, spacingFactor: 1.25, padding: 20, animate: false,
+                 eles: cy.nodes().union(cy.edges('[!peer]'))}).run();
     }
     function applySaved() {
       var any = false;
@@ -736,7 +770,7 @@
       var old = edge.data('medium');
       if (old === medium) { return; }
       edge.data('medium', medium);   // redraw immediately, revert on failure
-      fetch(data.dependency_api + edge.data('pk') + '/', {
+      fetch((edge.data('peer') ? data.peer_api : data.dependency_api) + edge.data('pk') + '/', {
         method: 'PATCH', credentials: 'same-origin',
         headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf(), 'Accept': 'application/json'},
         body: JSON.stringify({medium: medium})
@@ -836,7 +870,7 @@
     });
 
     // ---- filters
-    var filters = {states: {}, roles: {}, types: {}, media: {}, problems: false, labels: true};
+    var filters = {states: {}, roles: {}, types: {}, media: {}, problems: false, labels: true, peers: true};
     function roleKey(d) { return d.role || '(no role)'; }
     function buildCheckboxes(containerId, items, bucket, labelFn) {
       var box = document.getElementById(containerId);
@@ -869,13 +903,14 @@
       });
     });
     document.getElementById('dep-f-problems').addEventListener('change', function () { filters.problems = this.checked; applyFilters(); });
+    document.getElementById('dep-f-peers').addEventListener('change', function () { filters.peers = this.checked; applyFilters(); });
     document.getElementById('dep-f-labels').addEventListener('change', function () { filters.labels = this.checked; applyFilters(); });
     document.getElementById('dep-f-clear').addEventListener('click', function () {
       Object.keys(filters.states).forEach(function (k) { filters.states[k] = true; });
       Object.keys(filters.roles).forEach(function (k) { filters.roles[k] = true; });
       Object.keys(filters.types).forEach(function (k) { filters.types[k] = true; });
       Object.keys(filters.media).forEach(function (k) { filters.media[k] = true; });
-      filters.problems = false; filters.labels = true;
+      filters.problems = false; filters.labels = true; filters.peers = true;
       document.querySelectorAll('.dep-filter-menu input[type=checkbox]').forEach(function (i) { i.checked = true; });
       document.getElementById('dep-f-problems').checked = false;
       applyFilters();
@@ -883,7 +918,7 @@
 
     function filtersActive() {
       var off = function (o) { return Object.keys(o).some(function (k) { return o[k] === false; }); };
-      return filters.problems || off(filters.states) || off(filters.roles) || off(filters.types) || off(filters.media) || !filters.labels;
+      return filters.problems || off(filters.states) || off(filters.roles) || off(filters.types) || off(filters.media) || !filters.labels || !filters.peers;
     }
     function applyFilters() {
       cy.batch(function () {
@@ -899,7 +934,8 @@
           n.toggleClass('hidden', !ok);
         });
         cy.edges().forEach(function (e) {
-          e.toggleClass('hiddenType', filters.types[e.data('type')] === false || filters.media[e.data('medium')] === false);
+          e.toggleClass('hiddenType', filters.types[e.data('type')] === false || filters.media[e.data('medium')] === false ||
+            (!!e.data('peer') && !filters.peers));
         });
         cy.edges().toggleClass('nolabel', !filters.labels);
       });
@@ -919,6 +955,8 @@
 
     // ---- device info: a small popup next to the node
     var pop = document.getElementById('dep-pop');
+    // hooks of the edit mode (filled in further below): the popups ask it for extra buttons
+    var depEdit = {on: false, nodeButtons: function () { return []; }, edgeButtons: function () { return []; }};
     var detailNode = null;
     function positionPop() {
       if (!detailNode || pop.hidden) { return; }
@@ -941,15 +979,18 @@
       close.addEventListener('click', function () { showDetail(null); });
       var s = edge.source().data(), t = edge.target().data();
       var title = el('h5', {class: 'mb-2 pe-3'}, [
-        el('span', {text: s.label}), el('span', {class: 'text-muted mx-1', text: '→'}), el('span', {text: t.label})]);
+        el('span', {text: s.label}), el('span', {class: 'text-muted mx-1', text: d.peer ? '↔' : '→'}), el('span', {text: t.label})]);
       var kids = [
         close, title,
         row('Medium', [mediumSwatch(d.medium), el('span', {class: 'ms-1', text: MEDIUM_LABEL[d.medium] || d.medium})]),
-        row('Type', [document.createTextNode(TYPE_LABEL[d.type] || d.type)])
+        d.peer ? row('Kind', [el('span', {class: 'badge text-bg-blue', text: 'Peer link'})])
+               : row('Type', [document.createTextNode(TYPE_LABEL[d.type] || d.type)])
       ];
       if (d.group) { kids.push(row('Redundancy group', [el('span', {class: 'badge text-bg-purple', text: d.group})])); }
-      kids.push(el('div', {class: 'text-muted small mt-1', text: 'The downstream device depends on the upstream one' +
-        (d.group ? '; with others in the same group it only goes down when all of them are down.' : '.')}));
+      kids.push(el('div', {class: 'text-muted small mt-1', text: d.peer
+        ? 'Equal devices: neither depends on the other, so this link does not affect the outage analysis.'
+        : 'The downstream device depends on the upstream one' +
+          (d.group ? '; with others in the same group it only goes down when all of them are down.' : '.')}));
       if (d.description) {
         var notes = el('div', {class: 'border-top mt-2 pt-2'});
         notes.appendChild(el('div', {class: 'k', text: 'Description'}));
@@ -958,6 +999,7 @@
       }
       var actions = [el('a', {class: 'btn btn-sm btn-outline-secondary', href: d.url, text: 'Open'})];
       if (canSave) { actions.push(el('a', {class: 'btn btn-sm btn-outline-secondary', href: d.edit_url, text: 'Edit'})); }
+      depEdit.edgeButtons(edge).forEach(function (b) { actions.push(b); });
       kids.push(el('div', {class: 'd-flex flex-wrap gap-2 border-top mt-2 pt-2'}, actions));
       pop.innerHTML = '';
       kids.forEach(function (k) { pop.appendChild(k); });
@@ -1001,6 +1043,7 @@
       if (d.tenant) { kids.push(row('Tenant', [txt(d.tenant)])); }
       if (d.serial) { kids.push(row('Serial', [el('code', {text: d.serial})])); }
       kids.push(row('Dependencies', [txt((d.ups || 0) + ' up · ' + (d.downs || 0) + ' down')]));
+      if (d.peers) { kids.push(row('Peer links', [txt(String(d.peers))])); }
 
       if (d.description || d.comments) {
         var notes = el('div', {class: 'border-top mt-2 pt-2'});
@@ -1037,6 +1080,8 @@
                    href: data.suppress_url + '?device=' + d.devid + '&return_url=' + backHere}, [el('i', {class: 'mdi mdi-bell-off-outline'}), ' Suppress…'])
         ]));
       }
+      var extra = depEdit.nodeButtons(node);
+      if (extra.length) { kids.push(el('div', {class: 'd-flex flex-wrap gap-2 mt-2'}, extra)); }
       if (data.add_url) {
         // shortcuts to the "add dependencies" page with this device filled in; the page returns here afterwards
         var back = encodeURIComponent(window.location.pathname + window.location.search);
@@ -1252,6 +1297,362 @@
         box.appendChild(cell);
       });
     })();
+
+    // ---- edit mode: add devices to the map and draw dependencies by dragging (parent -> the device that depends on it)
+    if (data.can_edit && document.getElementById('dep-edit-toggle')) {
+      var box = pop.parentNode;                                  // the positioned container of the graph
+      var editToggle = document.getElementById('dep-edit-toggle'), editBar = document.getElementById('dep-editbar');
+      var handle = el('div', {id: 'dep-handle', title: 'Drag to the device that depends on this one'}, [el('i', {class: 'mdi mdi-plus'})]);
+      handle.hidden = true;
+      box.appendChild(handle);
+      var rubber = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      rubber.id = 'dep-rubber';
+      rubber.innerHTML = '<defs><marker id="dep-rubber-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">' +
+        '<path d="M0,0 L10,5 L0,10 z" fill="#4299e1"/></marker></defs>' +
+        '<line x1="0" y1="0" x2="0" y2="0" stroke="#4299e1" stroke-width="3" stroke-dasharray="6 4" marker-end="url(#dep-rubber-arrow)"/>';
+      rubber.hidden = true;
+      box.appendChild(rubber);
+      var rubberLine = rubber.querySelector('line');
+      var handleNode = null, hideTimer = null, overHandle = false, dragging = null, linkPop = null, addPop = null;
+
+      function hideHandle() { handle.hidden = true; handleNode = null; }
+      function showHandle(node) {
+        if (!depEdit.on || dragging || node.data('cloud')) { return; }
+        var bb = node.renderedBoundingBox({includeLabels: false, includeOverlays: false});
+        handle.style.left = (bb.x1 + (bb.x2 - bb.x1) / 2 - 9) + 'px';
+        handle.style.top = (bb.y2 - 9) + 'px';
+        handle.hidden = false;
+        handleNode = node;
+      }
+      function scheduleHide() {
+        clearTimeout(hideTimer);
+        hideTimer = setTimeout(function () { if (!overHandle && !dragging) { hideHandle(); } }, 250);
+      }
+      cy.on('mouseover', 'node', function (evt) { clearTimeout(hideTimer); showHandle(evt.target); });
+      cy.on('mouseout', 'node', scheduleHide);
+      cy.on('pan zoom grab', hideHandle);
+      handle.addEventListener('mouseenter', function () { overHandle = true; clearTimeout(hideTimer); });
+      handle.addEventListener('mouseleave', function () { overHandle = false; scheduleHide(); });
+
+      function pointer(ev) { var r = cy.container().getBoundingClientRect(); return {x: ev.clientX - r.left, y: ev.clientY - r.top}; }
+      function nodeAt(pt, except) {
+        var found = null;
+        cy.nodes().forEach(function (n) {
+          if (n.data('cloud') || n.hasClass('hidden') || (except && n.id() === except.id())) { return; }
+          var bb = n.renderedBoundingBox({includeLabels: false, includeOverlays: false});
+          if (pt.x >= bb.x1 && pt.x <= bb.x2 && pt.y >= bb.y1 && pt.y <= bb.y2) { found = n; }
+        });
+        return found;
+      }
+      function onMove(ev) {
+        if (!dragging) { return; }
+        var pt = pointer(ev);
+        rubberLine.setAttribute('x2', pt.x); rubberLine.setAttribute('y2', pt.y);
+        cy.nodes().removeClass('edit-target');
+        var t = nodeAt(pt, dragging.from);
+        if (t) { t.addClass('edit-target'); }
+      }
+      function endDrag(ev, cancel) {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        rubber.hidden = true;
+        cy.nodes().removeClass('edit-target');
+        var from = dragging && dragging.from, target = null;
+        if (ev && !cancel) { target = nodeAt(pointer(ev), from); }
+        dragging = null;
+        hideHandle();
+        if (from && target) { openLinkPop(from, target, pointer(ev), ev.shiftKey); }
+      }
+      function onUp(ev) { endDrag(ev, false); }
+      handle.addEventListener('mousedown', function (ev) {
+        if (ev.button !== 0 || !handleNode) { return; }
+        ev.preventDefault();
+        var from = handleNode, bb = from.renderedBoundingBox({includeLabels: false, includeOverlays: false});
+        dragging = {from: from};
+        var sx = bb.x1 + (bb.x2 - bb.x1) / 2, sy = bb.y2;
+        rubberLine.setAttribute('x1', sx); rubberLine.setAttribute('y1', sy); rubberLine.setAttribute('x2', sx); rubberLine.setAttribute('y2', sy);
+        rubber.hidden = false;
+        closeLinkPop();
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+      });
+
+      // ---- small helpers
+      function actionToast(text, label, action) {
+        var undo = el('button', {type: 'button', class: 'btn btn-sm btn-outline-success ms-2', text: label});
+        var alertBox = el('div', {class: 'alert alert-success alert-dismissible mb-2', role: 'alert'}, [
+          el('i', {class: 'mdi mdi-check-circle-outline'}), ' ' + text, undo,
+          el('button', {type: 'button', class: 'btn-close', 'data-bs-dismiss': 'alert', 'aria-label': 'Close'})]);
+        undo.addEventListener('click', function () { if (alertBox.parentNode) { alertBox.parentNode.removeChild(alertBox); } action(); });
+        toasts.appendChild(alertBox);
+        setTimeout(function () { if (alertBox.parentNode) { alertBox.parentNode.removeChild(alertBox); } }, 15000);
+      }
+      function apiError(response, body) {
+        var messages = [];
+        if (body && typeof body === 'object') {
+          Object.keys(body).forEach(function (k) {
+            var v = body[k];
+            (Array.isArray(v) ? v : [v]).forEach(function (m) { messages.push((k === 'non_field_errors' || k === '__all__' || k === 'detail' ? '' : k + ': ') + (typeof m === 'string' ? m : JSON.stringify(m))); });
+          });
+        }
+        return messages.length ? messages.join(' ') : 'HTTP ' + response.status;
+      }
+      function apiSend(method, url, payload) {
+        return fetch(url, {
+          method: method, credentials: 'same-origin',
+          headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf(), 'Accept': 'application/json'},
+          body: payload === undefined ? undefined : JSON.stringify(payload)
+        }).then(function (r) {
+          return (r.status === 204 ? Promise.resolve(null) : r.json().catch(function () { return null; })).then(function (body) {
+            if (!r.ok) { throw new Error(apiError(r, body)); }
+            return body;
+          });
+        });
+      }
+      function choice(v) { return v && typeof v === 'object' ? v.value : v; }
+      function bump(devId, key, delta) {
+        var n = cy.getElementById('d' + devId);
+        if (n.length) { n.data(key, Math.max(0, (n.data(key) || 0) + delta)); }
+      }
+
+      // ---- creating and deleting a link: a dependency (a parent and the device that depends on it) or a peer link (equal devices)
+      function apiFor(peer) { return peer ? data.peer_api : data.dependency_api; }
+      function addEdge(obj, peer) {
+        var url = (peer ? '/plugins/dependencies/peers/' : '/plugins/dependencies/dependencies/') + obj.id + '/';
+        var edgeData;
+        if (peer) {
+          edgeData = {id: 'p' + obj.id, peer: true, source: 'd' + obj.device_a.id, target: 'd' + obj.device_b.id, pk: obj.id, type: 'peer',
+                      medium: choice(obj.medium), group: '', elabel: '', description: obj.description || '', url: url, edit_url: url + 'edit/'};
+          bump(obj.device_a.id, 'peers', 1); bump(obj.device_b.id, 'peers', 1);
+        } else {
+          var group = obj.redundancy_group || '';
+          edgeData = {id: 'e' + obj.id, peer: false, source: 'd' + obj.upstream.id, target: 'd' + obj.downstream.id, pk: obj.id,
+                      type: choice(obj.dependency_type), medium: choice(obj.medium), group: group, elabel: group,
+                      description: obj.description || '', url: url, edit_url: url + 'edit/'};
+          bump(obj.upstream.id, 'downs', 1); bump(obj.downstream.id, 'ups', 1);
+        }
+        cy.add({group: 'edges', data: edgeData});
+        data.edges.push({data: edgeData});
+        updateCount(); scheduleMini(); refreshLive();
+        return edgeData;
+      }
+      function createLink(fields, peer) {
+        return apiSend('POST', apiFor(peer), fields).then(function (obj) { return addEdge(obj, peer); });
+      }
+      function removeEdge(edge) {
+        var d = edge.data();
+        cy.remove(edge);
+        data.edges = data.edges.filter(function (e) { return e.data.id !== d.id; });
+        var first = parseInt(d.source.slice(1), 10), second = parseInt(d.target.slice(1), 10);
+        if (d.peer) { bump(first, 'peers', -1); bump(second, 'peers', -1); } else { bump(first, 'downs', -1); bump(second, 'ups', -1); }
+        if (detailNode && detailNode.removed && detailNode.removed()) { showDetail(null); }
+        updateCount(); scheduleMini(); refreshLive();
+      }
+      function linkLabel(edge) { return edge.source().data('label') + (edge.data('peer') ? ' ↔ ' : ' → ') + edge.target().data('label'); }
+      function deleteLink(edge) {
+        var d = edge.data(), peer = !!d.peer, label = linkLabel(edge);
+        if (!window.confirm('Delete the ' + (peer ? 'peer link ' : 'dependency ') + label + '?')) { return; }
+        var restore = peer
+          ? {device_a: edge.source().data('devid'), device_b: edge.target().data('devid'), medium: d.medium, description: d.description || ''}
+          : {upstream: edge.source().data('devid'), downstream: edge.target().data('devid'), dependency_type: d.type,
+             medium: d.medium, redundancy_group: d.group || '', description: d.description || ''};
+        apiSend('DELETE', apiFor(peer) + d.pk + '/').then(function () {
+          removeEdge(edge);
+          actionToast('Deleted ' + label + '.', 'Undo', function () {
+            createLink(restore, peer).catch(function (err) { toast('Could not restore the link (' + err.message + ').'); });
+          });
+        }).catch(function (err) { toast('Could not delete the link (' + err.message + ').'); });
+      }
+      function undoCreate(pk, peer) {
+        var edge = cy.getElementById((peer ? 'p' : 'e') + pk);
+        apiSend('DELETE', apiFor(peer) + pk + '/').then(function () { if (edge.length) { removeEdge(edge); } })
+          .catch(function (err) { toast('Could not undo (' + err.message + ').'); });
+      }
+      function linkBetween(first, second) {      // any link (either kind, either direction) between two nodes
+        return cy.edges().filter(function (e) {
+          return (e.source().id() === first.id() && e.target().id() === second.id()) || (e.source().id() === second.id() && e.target().id() === first.id());
+        });
+      }
+
+      function placeFloat(floatBox, pt) {
+        var w = 330, h = floatBox.offsetHeight || 300, cw = cy.width(), ch = cy.height();
+        floatBox.style.left = Math.max(6, Math.min(pt.x + 14, cw - w - 6)) + 'px';
+        floatBox.style.top = Math.max(6, Math.min(pt.y - 20, ch - h - 6)) + 'px';
+      }
+      function closeLinkPop() { if (linkPop) { linkPop.remove(); linkPop = null; } }
+      function openLinkPop(from, to, pt, startAsPeer) {
+        closeLinkPop();
+        var state = {up: from, down: to, peer: !!startAsPeer};
+        var kindDep = el('button', {type: 'button', class: 'btn btn-sm', text: 'Dependency', title: 'The right device depends on the left one'});
+        var kindPeer = el('button', {type: 'button', class: 'btn btn-sm', text: 'Peer (equal)', title: 'Equal devices: neither depends on the other'});
+        var kindRow = el('div', {class: 'btn-group w-100 mb-2', role: 'group', 'aria-label': 'Kind of link'}, [kindDep, kindPeer]);
+        var typeSel = el('select', {class: 'form-select form-select-sm'}, ['network', 'power', 'other'].map(function (t) { return el('option', {value: t, text: TYPE_LABEL[t]}); }));
+        typeSel.value = lsGet('depLastType', 'network');
+        var mediumSel = el('select', {class: 'form-select form-select-sm'}, MEDIA.map(function (m) { return el('option', {value: m, text: MEDIUM_LABEL[m]}); }));
+        mediumSel.value = lsGet('depLastMedium', 'ethernet');
+        var groupIn = el('input', {type: 'text', class: 'form-control form-control-sm', maxlength: '100', list: 'dep-groups', placeholder: 'empty = no redundancy'});
+        var groups = {};
+        data.edges.forEach(function (e) { if (e.data.group) { groups[e.data.group] = true; } });
+        var datalist = el('datalist', {id: 'dep-groups'}, Object.keys(groups).sort().map(function (g) { return el('option', {value: g}); }));
+        var descIn = el('input', {type: 'text', class: 'form-control form-control-sm', maxlength: '200'});
+        var title = el('div', {class: 'd-flex align-items-center gap-2 mb-1'});
+        var hint = el('div', {class: 'text-muted small'});
+        var errorBox = el('div', {class: 'alert alert-danger py-1 px-2 small mt-2 mb-0'}); errorBox.hidden = true;
+        var createBtn = el('button', {type: 'button', class: 'btn btn-sm btn-primary', text: 'Create'});
+        var cancelBtn = el('button', {type: 'button', class: 'btn btn-sm btn-outline-secondary', text: 'Cancel'});
+        var swapBtn = el('button', {type: 'button', class: 'btn btn-sm btn-outline-secondary ms-auto', title: 'Swap the direction'}, [el('i', {class: 'mdi mdi-swap-horizontal'})]);
+        var typeBlock = [el('label', {class: 'd-block', text: 'Type'}), typeSel];
+        var groupBlock = [el('label', {class: 'd-block', text: 'Redundancy group'}), groupIn, datalist];
+        function paint() {
+          kindDep.className = 'btn btn-sm ' + (state.peer ? 'btn-outline-secondary' : 'btn-primary');
+          kindPeer.className = 'btn btn-sm ' + (state.peer ? 'btn-primary' : 'btn-outline-secondary');
+          title.innerHTML = '';
+          var kids = [el('strong', {text: state.up.data('label')}), el('span', {class: 'text-muted', text: state.peer ? '↔' : '→'}), el('strong', {text: state.down.data('label')})];
+          if (!state.peer) { kids.push(swapBtn); }
+          kids.forEach(function (k) { title.appendChild(k); });
+          hint.textContent = state.peer
+            ? 'Equal devices: neither depends on the other. Drawn without an arrow, no effect on outages.'
+            : 'The right device depends on the left one: its outage takes it down.';
+          typeBlock.concat(groupBlock).forEach(function (k) { k.hidden = state.peer; });
+        }
+        kindDep.addEventListener('click', function () { state.peer = false; paint(); });
+        kindPeer.addEventListener('click', function () { state.peer = true; paint(); });
+        swapBtn.addEventListener('click', function () { var t = state.up; state.up = state.down; state.down = t; paint(); });
+        linkPop = el('div', {class: 'dep-float', id: 'dep-linkpop', role: 'dialog', 'aria-label': 'New link'}, [].concat(
+          [el('h6', {text: 'New link'}), kindRow, title, hint],
+          typeBlock, [el('label', {class: 'd-block', text: 'Medium'}), mediumSel], groupBlock,
+          [el('label', {class: 'd-block', text: 'Description'}), descIn],
+          [errorBox, el('div', {class: 'd-flex justify-content-end gap-2 mt-2'}, [cancelBtn, createBtn])]));
+        box.appendChild(linkPop);
+        paint();
+        placeFloat(linkPop, pt);
+        cancelBtn.addEventListener('click', closeLinkPop);
+        createBtn.addEventListener('click', function () {
+          var existing = linkBetween(state.up, state.down);
+          if (existing.length) {
+            errorBox.textContent = existing[0].data('peer') ? 'These devices are linked as peers already.'
+              : (state.peer ? 'These devices already have a dependency.' : 'This dependency already exists (or the reverse one: that would be a cycle).');
+            errorBox.hidden = false; return;
+          }
+          createBtn.disabled = true; errorBox.hidden = true;
+          var peer = state.peer, fields = peer
+            ? {device_a: state.up.data('devid'), device_b: state.down.data('devid'), medium: mediumSel.value, description: descIn.value.trim()}
+            : {upstream: state.up.data('devid'), downstream: state.down.data('devid'), dependency_type: typeSel.value,
+               medium: mediumSel.value, redundancy_group: groupIn.value.trim(), description: descIn.value.trim()};
+          createLink(fields, peer)
+            .then(function (edge) {
+              if (!peer) { lsSet('depLastType', typeSel.value); }
+              lsSet('depLastMedium', mediumSel.value);
+              closeLinkPop();
+              actionToast('Created ' + state.up.data('label') + (peer ? ' ↔ ' : ' → ') + state.down.data('label') + '.', 'Undo', function () { undoCreate(edge.pk, peer); });
+            })
+            .catch(function (err) { createBtn.disabled = false; errorBox.textContent = err.message; errorBox.hidden = false; });
+        });
+        (state.peer ? descIn : groupIn).focus();
+      }
+
+      // ---- adding a device to the topology
+      function closeAddPop() { if (addPop) { addPop.remove(); addPop = null; } }
+      function addDevice(row) {
+        var existing = cy.getElementById('d' + row.id);
+        if (existing.length) { cy.animate({center: {eles: existing}, duration: 200}); showDetail(existing); closeAddPop(); return; }
+        apiSend('POST', data.topology_url, {device: row.id, scope: data.scope}).then(function (res) {
+          closeAddPop();
+          if (!res.in_scope) {
+            toast(res.node.label + ' was added to the topology. It is on the map of its location ' + res.site.name + ', not on this one.');
+            return;
+          }
+          var ext = cy.extent(), rnd = function () { return (Math.random() - 0.5) * 60; };
+          var node = cy.add({group: 'nodes', data: prepareNode(res.node), position: {x: (ext.x1 + ext.x2) / 2 + rnd(), y: (ext.y1 + ext.y2) / 2 + rnd()}});
+          data.nodes.push({data: node.data()});
+          updateCount(); scheduleSave(); scheduleMini();
+          showDetail(node);
+          actionToast(res.node.label + ' added to the map. Drag it where you want it and connect it.', 'Undo', function () {
+            apiSend('DELETE', data.topology_url + res.node.devid + '/?scope=' + encodeURIComponent(data.scope)).then(function () {
+              cy.remove(node); showDetail(null); updateCount(); scheduleSave();
+            }).catch(function (err) { toast('Could not undo (' + err.message + ').'); });
+          });
+        }).catch(function (err) { toast('Could not add the device (' + err.message + ').'); });
+      }
+      function openAddPop() {
+        closeAddPop(); closeLinkPop();
+        var input = el('input', {type: 'search', class: 'form-control form-control-sm', placeholder: 'Device name, IP or site (2+ letters)…', autocomplete: 'off'});
+        var results = el('div', {class: 'dep-results'});
+        var timer = null, seq = 0;
+        addPop = el('div', {class: 'dep-float', id: 'dep-addpop', role: 'dialog', 'aria-label': 'Add a device'}, [
+          el('h6', {text: 'Add a device to the map'}), input, results,
+          el('div', {class: 'text-muted small mt-2', text: 'The device stays in the topology, on the maps of its location, until you remove it.'})]);
+        box.appendChild(addPop);
+        addPop.style.left = '10px'; addPop.style.top = '10px';
+        input.addEventListener('input', function () {
+          clearTimeout(timer);
+          timer = setTimeout(function () {
+            var q = input.value.trim(), mine = ++seq;
+            if (q.length < 2) { results.innerHTML = ''; return; }
+            fetch(data.search_url + '?q=' + encodeURIComponent(q), {credentials: 'same-origin', headers: {'Accept': 'application/json'}})
+              .then(function (r) { return r.json(); })
+              .then(function (res) {
+                if (mine !== seq) { return; }
+                results.innerHTML = '';
+                if (!res.results.length) { results.appendChild(el('div', {class: 'text-muted small p-2', text: 'No device found.'})); }
+                res.results.forEach(function (row) {
+                  var onThis = cy.getElementById('d' + row.id).length > 0;
+                  var item = el('div', {class: 'dep-result'}, [
+                    el('span', {}, [el('strong', {text: row.name}), el('div', {class: 'small text-muted', text: [row.site, row.role, row.model].filter(Boolean).join(' · ')})]),
+                    el('span', {class: 'small text-muted align-self-center', text: onThis ? 'on this map' : (row.on_map ? 'on a map' : '')})]);
+                  item.addEventListener('click', function () { addDevice(row); });
+                  results.appendChild(item);
+                });
+              });
+          }, 250);
+        });
+        input.focus();
+      }
+
+      // ---- the mode itself
+      function setEditing(on) {
+        depEdit.on = on;
+        editBar.hidden = !on;
+        editToggle.classList.toggle('active', on);
+        if (!on) { hideHandle(); closeLinkPop(); closeAddPop(); if (dragging) { endDrag(null, true); } }
+        if (detailNode) { showDetail(detailNode); }
+      }
+      editToggle.addEventListener('click', function () { setEditing(!depEdit.on); });
+      document.getElementById('dep-edit-done').addEventListener('click', function () { setEditing(false); });
+      document.getElementById('dep-add-device').addEventListener('click', openAddPop);
+      document.addEventListener('keydown', function (ev) {
+        if (ev.key !== 'Escape') { return; }
+        if (dragging) { endDrag(null, true); } else if (linkPop || addPop) { closeLinkPop(); closeAddPop(); }
+        if ((ev.key === 'Delete') && depEdit.on) { return; }
+      });
+      document.addEventListener('keydown', function (ev) {
+        if (ev.key === 'Delete' && depEdit.on && data.can_delete && detailNode && detailNode.isEdge && detailNode.isEdge() &&
+            !/INPUT|TEXTAREA|SELECT/.test((document.activeElement || {}).tagName || '')) { deleteLink(detailNode); }
+      });
+
+      depEdit.edgeButtons = function (edge) {
+        if (!depEdit.on || !data.can_delete) { return []; }
+        var b = el('button', {type: 'button', class: 'btn btn-sm btn-outline-danger'}, [el('i', {class: 'mdi mdi-link-variant-off'}), ' Delete link']);
+        b.addEventListener('click', function () { deleteLink(edge); });
+        return [b];
+      };
+      depEdit.nodeButtons = function (node) {
+        if (!depEdit.on || !data.can_delete || !node.data('topo')) { return []; }
+        var linked = (node.data('ups') || 0) + (node.data('downs') || 0) + (node.data('peers') || 0) > 0;
+        var b = el('button', {type: 'button', class: 'btn btn-sm btn-outline-danger', disabled: linked ? 'disabled' : null,
+                               title: linked ? 'Delete its links first' : 'Take the device off the map again'},
+                   [el('i', {class: 'mdi mdi-close'}), ' Remove from map']);
+        if (!linked) {
+          b.removeAttribute('disabled');
+          b.addEventListener('click', function () {
+            apiSend('DELETE', data.topology_url + node.data('devid') + '/?scope=' + encodeURIComponent(data.scope)).then(function () {
+              cy.remove(node); showDetail(null); updateCount(); scheduleSave();
+            }).catch(function (err) { toast('Could not remove the device (' + err.message + ').'); });
+          });
+        } else { b.setAttribute('disabled', 'disabled'); }
+        return [b];
+      };
+    }
 
     // ---- opened from a notification (?focus=<device>&impact=1): simulate that outage and frame the affected part of the map
     if (data.auto_simulate && data.focus_device && cy.getElementById('d' + data.focus_device).length) {
