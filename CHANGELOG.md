@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.16.2 — 2026-10-22
+- Graph: the outages banner above the map is a single compact line - the number of outages, the first three root causes of this map as buttons that
+  zoom to them, and a "+ N more" list (with a note for outages on other maps) and a link to *Live outages* - instead of a long wrapping list.
+
 ## 1.16.1 — 2026-10-22
 - Edit mode: the bar is a compact floating panel in the corner of the canvas (it no longer pushes the graph down), the hint is behind a help button
   and the *Undo* messages float over the canvas too.

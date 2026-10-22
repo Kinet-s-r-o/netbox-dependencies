@@ -105,3 +105,4 @@ class TopologyTests(Base):
         # the edit bar floats inside the canvas (it must not push the graph down) together with the undo messages
         self.assertLess(page.index('id="dep-graph"'), page.index('id="dep-editbar"'))
         self.assertIn('id="dep-edit-toasts"', page)
+        self.assertIn('"live_url": "/plugins/dependencies/live/"', page)       # the compact outages banner links to the full list

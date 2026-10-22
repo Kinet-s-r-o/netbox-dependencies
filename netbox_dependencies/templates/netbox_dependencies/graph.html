@@ -47,6 +47,9 @@
     .dep-filter-menu { min-width: 270px; max-height: 70vh; overflow: auto; }
     .dep-filter-menu h6 { margin-top: .5rem; }
     .dep-graph-box { position: relative; }
+    .dep-outage-list { flex: 0 0 100%; max-height: 220px; overflow: auto; margin-top: .25rem; padding-top: .35rem; border-top: 1px solid rgba(214, 57, 57, .3); }
+    .dep-outage-list[hidden] { display: none; }
+    .dep-outage-row { padding: .1rem 0; }
     #dep-mini { position: absolute; right: 10px; bottom: 10px; border: 1px solid var(--tblr-border-color, #666);
                 background: rgba(20, 28, 40, .55); border-radius: 4px; cursor: crosshair; line-height: 0; z-index: 5; }
     #dep-mini[hidden] { display: none; }
@@ -1225,28 +1228,51 @@
       toasts.appendChild(box);
       setTimeout(function () { if (box.parentNode) { box.parentNode.removeChild(box); } }, 20000);
     }
+    // the outages banner is one compact line: the count, the first few root causes of THIS map and a list for the rest
     function renderOutages(roots) {
       outagesBox.innerHTML = '';
       document.title = roots.length ? '(' + roots.length + '!) ' + originalTitle : originalTitle;
       if (!roots.length) { return; }
-      var kids = [el('strong', {text: roots.length + (roots.length === 1 ? ' outage' : ' outages') + ' (root cause): '})];
-      roots.forEach(function (r, i) {
+      var here = [], elsewhere = [];
+      roots.forEach(function (r) { (cy.getElementById('d' + r.id).length ? here : elsewhere).push(r); });
+      function impact(r) { return r.down_count + ' down' + (r.degraded_count ? ', ' + r.degraded_count + ' degraded' : ''); }
+      function focusOn(r) {
         var node = cy.getElementById('d' + r.id);
-        if (i) { kids.push(', '); }
-        if (node.length) {
-          var a = el('a', {href: '#', text: r.name});
-          a.addEventListener('click', function (ev) {
-            ev.preventDefault();
-            cy.animate({fit: {eles: node.union(node.neighborhood()), padding: 80}, duration: 250});
-            showDetail(node);
-          });
-          kids.push(a);
-        } else {
-          kids.push(el('span', {text: r.name + ' (other map)'}));
-        }
-        kids.push(el('span', {class: 'text-muted small', text: ' — ' + r.down_count + ' down' + (r.degraded_count ? ', ' + r.degraded_count + ' degraded' : '')}));
+        cy.animate({fit: {eles: node.union(node.neighborhood()), padding: 80}, duration: 250});
+        showDetail(node);
+      }
+      var bar = el('div', {class: 'alert alert-danger py-2 px-3 mb-2 d-flex flex-wrap align-items-center gap-2'});
+      bar.appendChild(el('strong', {text: roots.length + (roots.length === 1 ? ' outage' : ' outages')}));
+      here.slice(0, 3).forEach(function (r) {
+        var chip = el('button', {type: 'button', class: 'btn btn-sm btn-outline-danger py-0', title: 'Show it on the map: ' + impact(r)}, [
+          r.name, el('span', {class: 'text-muted ms-1', text: '· ' + r.down_count})]);
+        chip.addEventListener('click', function () { focusOn(r); });
+        bar.appendChild(chip);
       });
-      outagesBox.appendChild(el('div', {class: 'alert alert-danger mb-2'}, kids));
+      var more = roots.length - Math.min(here.length, 3);
+      var list = el('div', {class: 'dep-outage-list'});
+      list.hidden = true;
+      if (more > 0) {
+        var toggle = el('button', {type: 'button', class: 'btn btn-sm btn-link text-danger p-0', text: '+ ' + more + ' more'});
+        toggle.addEventListener('click', function () { list.hidden = !list.hidden; });
+        bar.appendChild(toggle);
+      }
+      if (data.live_url) { bar.appendChild(el('a', {class: 'ms-auto small', href: data.live_url, text: 'Live outages →'})); }
+      here.concat(elsewhere).forEach(function (r) {
+        var onMap = cy.getElementById('d' + r.id).length > 0, row = el('div', {class: 'dep-outage-row'});
+        if (onMap) {
+          var a = el('a', {href: '#', text: r.name});
+          a.addEventListener('click', function (ev) { ev.preventDefault(); focusOn(r); });
+          row.appendChild(a);
+        } else {
+          row.appendChild(el('span', {text: r.name}));
+          row.appendChild(el('span', {class: 'badge text-bg-secondary ms-2', text: 'other map'}));
+        }
+        row.appendChild(el('span', {class: 'text-muted small ms-2', text: impact(r)}));
+        list.appendChild(row);
+      });
+      outagesBox.appendChild(bar);
+      bar.appendChild(list);
     }
     function applyLive(res) {
       var suppressedNow = res.suppressed || {};        // devices that are out of the outage analysis right now

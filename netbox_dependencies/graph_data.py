@@ -374,6 +374,7 @@ def build_graph(site_id=None, region_id=None, device_id=None, focus_id=None, map
         'dependency_api': reverse('plugins-api:netbox_dependencies-api:dependency-list'),
         'peer_api': reverse('plugins-api:netbox_dependencies-api:peerlink-list'),
         'topology_url': reverse('plugins-api:netbox_dependencies-api:topology'),
+        'live_url': reverse('plugins:netbox_dependencies:live'),
         'search_url': reverse('plugins-api:netbox_dependencies-api:topology_search'),
         'icons': graph_icons(),
         'layout_url': reverse('plugins:netbox_dependencies:graph_layout'),
