@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.19.2 — 2026-10-23
+- Map: the "Only problems" and "Links between sites" switches are remembered in the browser too (with the position, zoom and background).
+
 ## 1.19.1 — 2026-10-23
 - Map: no black frame around a line after a click on it.
 

@@ -140,6 +140,14 @@
     var markers = {}, current = null, firstLoad = true;
     var searchEl = document.getElementById('gm-search'), problemsEl = document.getElementById('gm-problems'), linksEl = document.getElementById('gm-links');
 
+    // the checkboxes are remembered in the browser, like the position and the background
+    try {
+      var saved = JSON.parse(store('dependenciesMapOptions') || 'null') || {};
+      if (typeof saved.links === 'boolean') { linksEl.checked = saved.links; }
+      if (typeof saved.problems === 'boolean') { problemsEl.checked = saved.problems; }
+    } catch (e) { /* a broken saved value is ignored */ }
+    function saveOptions() { store('dependenciesMapOptions', JSON.stringify({links: linksEl.checked, problems: problemsEl.checked})); }
+
     function iconFor(s) {
       var html = '<div class="gm-pin ' + s.state + (s.root_count ? ' root' : '') + (problemsEl.checked && s.state === 'up' ? ' dim' : '') + '">' + s.devices +
         (s.down ? '<span class="gm-down">' + s.down + '</span>' : '') + '</div>';
@@ -308,10 +316,10 @@
         .catch(function (err) { document.getElementById('gm-updated').textContent = 'update failed (' + err.message + ')'; });
     }
     document.getElementById('gm-fit').addEventListener('click', function () { fit(); });
-    problemsEl.addEventListener('change', function () { if (current) { render(current); } });
+    problemsEl.addEventListener('change', function () { saveOptions(); if (current) { render(current); } });
     map.on('zoomend', redraw);
     map.on('moveend', saveView);
-    linksEl.addEventListener('change', renderLinks);
+    linksEl.addEventListener('change', function () { saveOptions(); renderLinks(); });
     searchEl.addEventListener('change', function () {
       var q = searchEl.value.trim().toLowerCase();
       if (!q || !current) { return; }
