@@ -8,6 +8,7 @@ from netbox.api.viewsets import NetBoxModelViewSet
 
 from ..filtersets import CustomMapFilterSet, DependencyFilterSet, PeerLinkFilterSet
 from ..impact import get_impact
+from ..geomap import build_map
 from ..graph_data import device_in_scope, single_node
 from ..models import CustomMap, Dependency, DeviceStatus, PeerLink, PollerHeartbeat, TopologyDevice
 from ..status import (
@@ -45,6 +46,16 @@ class PeerLinkViewSet(NetBoxModelViewSet):
     queryset = PeerLink.objects.select_related('device_a', 'device_b').prefetch_related('tags')
     serializer_class = PeerLinkSerializer
     filterset_class = PeerLinkFilterSet
+
+
+class MapDataAPIView(APIView):
+    """GET /api/plugins/dependencies/map/ - the sites of the topology with their GPS position, live state and the links between sites
+    (everything aggregated per site; used by the geographic map)."""
+
+    queryset = Dependency.objects.none()
+
+    def get(self, request):
+        return Response(build_map())
 
 
 class TopologySearchAPIView(APIView):

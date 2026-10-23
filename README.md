@@ -31,6 +31,10 @@ live, with optional notifications to Microsoft Teams, Slack or any webhook.
   a plain line without an arrow that has **no effect on the outage analysis**, so there is no need to decide which one is the parent.
   Hold *Shift* when you release the dragged arrow, or choose *Peer (equal)* in the dialog; peer links are also managed under *Dependencies →
   Peer links* and shown in the tree. A pair is either a dependency or a peer link.
+- **Geographic map:** the sites of the topology on a free [OpenStreetMap](https://www.openstreetmap.org/) map by the GPS coordinates stored in NetBox
+  (*Dependencies → Geographic map*): a marker per site coloured by its live state (devices, number down, pulsing root causes), a line between every
+  two sites that are linked (styled by medium, red when the upstream end is down), a popup with the outages of the site and a link to its graph.
+  Sites without coordinates are listed under the map.
 - **Outage simulation**: right-click a device in the graph (or use the simulation page) to see everything it would take down.
 - **Add dependencies from the graph:** click a device and use *Add dependents* (this device is the upstream one) or *Add parent* (this device depends on others);
   the add page opens with the device filled in and returns to the graph afterwards.
@@ -101,7 +105,7 @@ Afterwards continue with [First steps](#first-steps).
    [latest release](https://github.com/Kinet-s-r-o/netbox-dependencies/releases/latest) — the version appears twice in the URL, use the one shown there:
 
    ```bash
-   /opt/netbox/venv/bin/pip install https://github.com/Kinet-s-r-o/netbox-dependencies/releases/download/v1.16.2/netbox_dependencies-1.16.2-py3-none-any.whl
+   /opt/netbox/venv/bin/pip install https://github.com/Kinet-s-r-o/netbox-dependencies/releases/download/v1.17.0/netbox_dependencies-1.17.0-py3-none-any.whl
    ```
 
    To keep it across NetBox upgrades add the same URL as a line to `local_requirements.txt` in the NetBox directory.
@@ -153,6 +157,23 @@ All keys of `PLUGINS_CONFIG['netbox_dependencies']` are optional:
 | `graph_max_nodes` | `1500` | larger graphs are not drawn (pick a site / map instead); `0` = no limit |
 | `notifications_enabled`, `notification_delay_seconds`, `notify_recovery`, `public_url` | `True`, `120`, `True`, `''` | initial defaults for notifications; they can be changed in the UI afterwards |
 | `notification_retention_days` | `90` | delete notification records this many days after the outage ended; `0` = keep |
+| `map_tile_url`, `map_attribution`, `map_max_zoom` | OpenStreetMap, its attribution, `19` | background tiles of the geographic map; empty URL = no background |
+| `map_default_center`, `map_default_zoom` | `[48.7, 19.5]`, `7` | the view when no site has coordinates yet |
+
+## Geographic map
+
+*Dependencies → Geographic map* (and the *Map* button in the graph) places every site that has devices in the topology on a map, using the **latitude and
+longitude of the site** in NetBox. Sites without coordinates are listed below the map with a link to edit them. The state is refreshed every 30 seconds.
+
+The background is **OpenStreetMap**, loaded by the browser (the Leaflet library itself is bundled with the plugin). Notes:
+
+- The public OpenStreetMap tile server is meant for light use (see its [tile usage policy](https://operations.osmfoundation.org/policies/tiles/)); the
+  attribution is shown on the map. For heavy use, or a network without internet access, run your own tile server and set
+  `map_tile_url` (for example `https://tiles.example.com/{z}/{x}/{y}.png`) and `map_attribution` in `PLUGINS_CONFIG`.
+  An empty `map_tile_url` shows only the sites and the links on a plain background.
+- If you set a Content-Security-Policy in NetBox, allow the tile server in `img-src`.
+- The tiles are requested by the browser, so the tile server sees which area is being viewed.
+- NetBox stores coordinates for sites only, so all devices of a site are one marker; open the map of the site for the devices.
 
 ## ICMP poller
 
@@ -186,13 +207,13 @@ Setting it up takes three steps and no Docker build. The poller needs its own Ne
    the file private and out of git. Add `--allowed-ip 10.0.0.5/32` to accept the token only from the poller's address, or run the command with
    `--rotate` later to replace the token.
 2. **Add the service** to your compose file (next to the file from step 1; for netbox-docker `docker-compose.override.yml`). Use the same version
-   as the plugin (`#v1.16.2` below). Docker builds the small image straight from this repository, so no registry or account is needed:
+   as the plugin (`#v1.17.0` below). Docker builds the small image straight from this repository, so no registry or account is needed:
 
    ```yaml
    services:
      dependencies-poller:
-       build: https://github.com/Kinet-s-r-o/netbox-dependencies.git#v1.16.2:poller
-       image: netbox-dependencies-poller:1.16.2
+       build: https://github.com/Kinet-s-r-o/netbox-dependencies.git#v1.17.0:poller
+       image: netbox-dependencies-poller:1.17.0
        restart: unless-stopped
        env_file: dependencies-poller.env
        cap_drop: [ALL]
@@ -202,7 +223,7 @@ Setting it up takes three steps and no Docker build. The poller needs its own Ne
    ```
 
    A prebuilt image is published with every release as `ghcr.io/kinet-s-r-o/netbox-dependencies-poller:<version>` — you can use
-   `image: ghcr.io/kinet-s-r-o/netbox-dependencies-poller:1.16.2` instead of the two lines `build:` and `image:` (it works once the package is public).
+   `image: ghcr.io/kinet-s-r-o/netbox-dependencies-poller:1.17.0` instead of the two lines `build:` and `image:` (it works once the package is public).
    If `docker compose build` stops with `failed to execute bake`, run it with `COMPOSE_BAKE=false`.
 3. **Start it:** `docker compose up -d --build dependencies-poller` (the first start builds the image, about a minute) and look at `docker compose logs -f dependencies-poller` — after a round it prints
    `polled N devices`. The poller then appears under *Dependencies → Configuration → ICMP poller*.

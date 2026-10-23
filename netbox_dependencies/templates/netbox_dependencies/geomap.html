@@ -1,0 +1,231 @@
+{% extends 'generic/_base.html' %}
+{% load helpers %}
+
+{% block title %}Geographic map{% endblock %}
+
+{% block controls %}
+  <div class="btn-list">
+    <a href="{% url 'plugins:netbox_dependencies:graph' %}" class="btn btn-outline-secondary"><i class="mdi mdi-graph-outline"></i> Graph</a>
+    <a href="{% url 'plugins:netbox_dependencies:tree' %}" class="btn btn-outline-secondary"><i class="mdi mdi-file-tree"></i> Tree</a>
+    <a href="{% url 'plugins:netbox_dependencies:live' %}" class="btn btn-outline-secondary"><i class="mdi mdi-alert-outline"></i> Live outages</a>
+  </div>
+{% endblock %}
+
+{% block content %}
+  <link rel="stylesheet" href="{% url 'plugins:netbox_dependencies:leaflet_css' %}">
+  <style>
+    #gm-map { height: 72vh; min-height: 460px; width: 100%; background: #dfe6ee; border-radius: 0 0 .5rem .5rem; z-index: 0; }
+    #gm-map.gm-dark { background: #1c2430; }
+    .gm-dark .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(.92) contrast(.9); }
+    .gm-pin { position: relative; width: 34px; height: 34px; border-radius: 50%; border: 3px solid #fff; color: #fff; font: 700 12px/28px system-ui, sans-serif;
+              text-align: center; box-shadow: 0 2px 6px rgba(0, 0, 0, .45); }
+    .gm-pin.up { background: #2fb344; }
+    .gm-pin.down { background: #d63939; }
+    .gm-pin.unknown { background: #9aa0a6; }
+    .gm-pin .gm-down { position: absolute; right: -9px; top: -9px; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 9px; background: #fff;
+                       color: #d63939; border: 2px solid #d63939; font: 700 10px/14px system-ui, sans-serif; }
+    .gm-pin.root::after { content: ''; position: absolute; inset: -9px; border-radius: 50%; border: 3px solid rgba(214, 57, 57, .55);
+                          animation: gm-pulse 1.6s ease-out infinite; }
+    @keyframes gm-pulse { from { transform: scale(.7); opacity: 1; } to { transform: scale(1.35); opacity: 0; } }
+    .gm-pin.dim { opacity: .35; }
+    .gm-popup h6 { margin: 0 0 .25rem; font-size: 1rem; }
+    .gm-popup .gm-row { display: flex; justify-content: space-between; gap: 1rem; font-size: .85rem; }
+    .gm-popup .gm-actions { display: flex; gap: .4rem; margin-top: .6rem; }
+    .gm-popup .gm-actions a { padding: .15rem .55rem; border: 1px solid #4299e1; border-radius: 6px; color: #4299e1; font-size: .8rem; text-decoration: none; }
+    .gm-legend { background: rgba(255, 255, 255, .92); padding: .4rem .6rem; border-radius: 6px; font-size: .78rem; box-shadow: 0 1px 4px rgba(0, 0, 0, .3); color: #1d273b; }
+    .gm-legend i { display: inline-block; width: 11px; height: 11px; border-radius: 50%; margin-right: .3rem; vertical-align: -1px; }
+    .gm-linklist { max-height: 180px; overflow: auto; font-size: .82rem; margin: .3rem 0 0; padding-left: 1rem; }
+  </style>
+
+  <div class="card">
+    <div class="card-header d-flex flex-wrap gap-2 align-items-center">
+      <h2 class="mb-0 me-2 fs-4" id="gm-count">Geographic map</h2>
+      <input type="search" id="gm-search" class="form-control form-control-sm" style="width: 220px" placeholder="Find a site…" list="gm-sites" autocomplete="off">
+      <datalist id="gm-sites"></datalist>
+      <label class="form-check mb-0 ms-2"><input type="checkbox" class="form-check-input" id="gm-problems"><span class="form-check-label">Only problems</span></label>
+      <label class="form-check mb-0"><input type="checkbox" class="form-check-input" id="gm-links" checked><span class="form-check-label">Links between sites</span></label>
+      <button type="button" class="btn btn-sm btn-outline-secondary" id="gm-fit">Fit</button>
+      <span class="small text-muted ms-auto" id="gm-updated"></span>
+    </div>
+    <div id="gm-map"></div>
+  </div>
+
+  <div class="card mt-3" id="gm-missing-card" hidden>
+    <h3 class="card-header fs-5">Sites without GPS coordinates <span class="badge text-bg-secondary ms-2" id="gm-missing-count"></span></h3>
+    <div class="card-body small">
+      <p class="text-muted mb-2">These sites have devices in the topology but no latitude / longitude, so they are not on the map. Add the coordinates to the site.</p>
+      <div id="gm-missing" class="d-flex flex-wrap gap-2"></div>
+    </div>
+  </div>
+
+  {{ gm_config|json_script:"gm-config" }}
+  <script src="{% url 'plugins:netbox_dependencies:leaflet_js' %}"></script>
+  <script>
+  (function () {
+    var cfg = JSON.parse(document.getElementById('gm-config').textContent);
+    var MEDIUM_COLOR = {ethernet: '#4299e1', optical: '#f59f00', radio: '#22b8cf', vpn: '#e64980', lte: '#12b886', satellite: '#845ef7', unspecified: '#868e96'};
+    var MEDIUM_LABEL = {ethernet: 'Ethernet', optical: 'Optical', radio: 'Radio', vpn: 'VPN / tunnel', lte: 'LTE / 5G', satellite: 'Satellite', unspecified: 'Unspecified'};
+    var MEDIUM_DASH = {radio: '7 5', vpn: '2 5', lte: '10 4 2 4', satellite: '16 6'};
+
+    function el(tag, attrs, kids) {
+      var e = document.createElement(tag);
+      Object.keys(attrs || {}).forEach(function (k) {
+        if (k === 'text') { e.textContent = attrs[k]; } else if (k === 'class') { e.className = attrs[k]; } else { e.setAttribute(k, attrs[k]); }
+      });
+      (kids || []).forEach(function (c) { e.appendChild(typeof c === 'string' ? document.createTextNode(c) : c); });
+      return e;
+    }
+    function isDark() { return document.documentElement.getAttribute('data-bs-theme') === 'dark'; }
+
+    var mapEl = document.getElementById('gm-map');
+    var map = L.map(mapEl, {zoomControl: true, worldCopyJump: true});
+    var tiles = null;
+    function setTiles(settings) {
+      if (tiles || !settings.tile_url) { return; }
+      tiles = L.tileLayer(settings.tile_url, {maxZoom: settings.max_zoom, attribution: settings.attribution}).addTo(map);
+    }
+    map.attributionControl.setPrefix(false);
+    function paintTheme() { mapEl.classList.toggle('gm-dark', isDark()); }
+    paintTheme();
+    new MutationObserver(paintTheme).observe(document.documentElement, {attributes: true, attributeFilter: ['data-bs-theme']});
+
+    var legend = L.control({position: 'bottomleft'});
+    legend.onAdd = function () {
+      var d = L.DomUtil.create('div', 'gm-legend');
+      d.innerHTML = '<i style="background:#2fb344"></i>up &nbsp; <i style="background:#d63939"></i>down &nbsp; <i style="background:#9aa0a6"></i>unknown ' +
+        '&nbsp; <span style="color:#d63939">◌</span> root cause<br><span style="opacity:.75">number = devices, red badge = down</span>';
+      return d;
+    };
+    legend.addTo(map);
+
+    var siteLayer = L.layerGroup().addTo(map), linkLayer = L.layerGroup().addTo(map);
+    var markers = {}, current = null, firstLoad = true;
+    var searchEl = document.getElementById('gm-search'), problemsEl = document.getElementById('gm-problems'), linksEl = document.getElementById('gm-links');
+
+    function iconFor(s) {
+      var html = '<div class="gm-pin ' + s.state + (s.root_count ? ' root' : '') + (problemsEl.checked && s.state === 'up' ? ' dim' : '') + '">' + s.devices +
+        (s.down ? '<span class="gm-down">' + s.down + '</span>' : '') + '</div>';
+      return L.divIcon({html: html, className: '', iconSize: [34, 34], iconAnchor: [17, 17]});
+    }
+    function sitePopup(s) {
+      var box = el('div', {class: 'gm-popup'});
+      box.appendChild(el('h6', {text: s.name}));
+      if (s.region || s.address) { box.appendChild(el('div', {class: 'text-muted small mb-1', text: [s.region, s.address.split('\n')[0]].filter(Boolean).join(' · ')})); }
+      function row(k, v) { box.appendChild(el('div', {class: 'gm-row'}, [el('span', {text: k}), el('strong', {text: String(v)})])); }
+      row('Devices', s.devices); row('Down', s.down);
+      if (s.unknown) { row('Unknown', s.unknown); }
+      if (s.suppressed) { row('Suppressed', s.suppressed); }
+      if (s.roots.length) {
+        box.appendChild(el('div', {class: 'mt-2 small fw-bold', text: 'Outages (root causes)'}));
+        s.roots.forEach(function (r) { box.appendChild(el('div', {class: 'gm-row'}, [el('span', {text: r.name}), el('span', {class: 'text-muted', text: r.down + ' down'})])); });
+        if (s.root_count > s.roots.length) { box.appendChild(el('div', {class: 'small text-muted', text: '+ ' + (s.root_count - s.roots.length) + ' more'})); }
+      }
+      box.appendChild(el('div', {class: 'gm-actions'}, [el('a', {href: s.graph_url, text: 'Open the map of the site'}), el('a', {href: s.url, text: 'Open in NetBox'})]));
+      return box;
+    }
+    function linkPopup(l) {
+      var box = el('div', {class: 'gm-popup'});
+      box.appendChild(el('h6', {text: l.a_name + ' ↔ ' + l.b_name}));
+      box.appendChild(el('div', {class: 'small text-muted', text: l.count + (l.count === 1 ? ' link' : ' links') + (l.affected ? ' · the upstream end is down' : '')}));
+      var list = el('ul', {class: 'gm-linklist'});
+      l.items.forEach(function (i) {
+        list.appendChild(el('li', {text: i.from + (i.peer ? ' ↔ ' : ' → ') + i.to + ' (' + (MEDIUM_LABEL[i.medium] || i.medium) + ')'}));
+      });
+      if (l.count > l.items.length) { list.appendChild(el('li', {class: 'text-muted', text: '+ ' + (l.count - l.items.length) + ' more'})); }
+      box.appendChild(list);
+      return box;
+    }
+
+    function render(data) {
+      current = data;
+      setTiles(data.settings);
+      var seen = {};
+      data.sites.forEach(function (s) {
+        seen[s.id] = true;
+        var m = markers[s.id];
+        if (!m) {
+          m = L.marker([s.lat, s.lon], {icon: iconFor(s), riseOnHover: true, keyboard: true, title: s.name}).addTo(siteLayer);
+          m.bindPopup(function () { return sitePopup(markers[s.id].site); }, {minWidth: 240});
+          markers[s.id] = m;
+        } else {
+          m.setLatLng([s.lat, s.lon]);
+          m.setIcon(iconFor(s));
+        }
+        m.site = s;
+        m.unbindTooltip();
+        m.bindTooltip(s.name + ' · ' + s.devices + ' devices' + (s.down ? ' · ' + s.down + ' down' : ''), {direction: 'top', offset: [0, -16]});
+        if (m._icon) { m._icon.style.display = (problemsEl.checked && s.state === 'up') ? 'none' : ''; }
+      });
+      Object.keys(markers).forEach(function (id) { if (!seen[id]) { siteLayer.removeLayer(markers[id]); delete markers[id]; } });
+      renderLinks();
+      document.getElementById('gm-count').textContent = data.sites.length + (data.sites.length === 1 ? ' site' : ' sites') +
+        ' · ' + data.sites.filter(function (s) { return s.state === 'down'; }).length + ' with outages';
+      document.getElementById('gm-updated').textContent = 'updated ' + new Date().toLocaleTimeString();
+      var list = document.getElementById('gm-sites'); list.innerHTML = '';
+      data.sites.forEach(function (s) { list.appendChild(el('option', {value: s.name})); });
+      var miss = document.getElementById('gm-missing'); miss.innerHTML = '';
+      data.missing.forEach(function (s) {
+        miss.appendChild(el('a', {class: 'badge text-bg-secondary text-decoration-none', href: s.edit_url, title: 'Edit the site and add its coordinates'}, [s.name + ' · ' + s.devices]));
+      });
+      document.getElementById('gm-missing-count').textContent = data.missing.length;
+      document.getElementById('gm-missing-card').hidden = !data.missing.length;
+      if (firstLoad) { firstLoad = false; fit(); focusFromUrl(); }
+    }
+    function renderLinks() {
+      linkLayer.clearLayers();
+      if (!linksEl.checked || !current) { return; }
+      var byId = {}; current.sites.forEach(function (s) { byId[s.id] = s; });
+      current.links.forEach(function (l) {
+        var a = byId[l.a], b = byId[l.b];
+        if (!a || !b || (problemsEl.checked && !l.affected && a.state === 'up' && b.state === 'up')) { return; }
+        var line = L.polyline([[a.lat, a.lon], [b.lat, b.lon]], {
+          color: l.affected ? '#d63939' : (MEDIUM_COLOR[l.medium] || '#868e96'), weight: 2 + Math.min(l.count, 6) / 1.5, opacity: .85,
+          dashArray: MEDIUM_DASH[l.medium] || null, interactive: true
+        }).addTo(linkLayer);
+        line.bindPopup(function () { return linkPopup(l); }, {minWidth: 260});
+        line.bindTooltip(l.a_name + ' ↔ ' + l.b_name + ' · ' + l.count, {sticky: true});
+      });
+    }
+    function fit() {
+      if (!current || !current.sites.length) {
+        map.setView(current ? current.settings.center : cfg.center, current ? current.settings.zoom : cfg.zoom);
+        return;
+      }
+      var pts = current.sites.map(function (s) { return [s.lat, s.lon]; });
+      if (pts.length === 1) { map.setView(pts[0], 12); } else { map.fitBounds(pts, {padding: [50, 50], maxZoom: 13}); }
+    }
+    function focusSite(id) {
+      var m = markers[id];
+      if (!m) { return; }
+      map.flyTo(m.getLatLng(), Math.max(map.getZoom(), 12), {duration: .6});
+      m.openPopup();
+    }
+    function focusFromUrl() {
+      var id = new URLSearchParams(window.location.search).get('site');
+      if (id) { focusSite(parseInt(id, 10)); }
+    }
+
+    function load() {
+      return fetch(cfg.map_api, {credentials: 'same-origin', headers: {'Accept': 'application/json'}})
+        .then(function (r) { if (!r.ok) { throw new Error('HTTP ' + r.status); } return r.json(); })
+        .then(render)
+        .catch(function (err) { document.getElementById('gm-updated').textContent = 'update failed (' + err.message + ')'; });
+    }
+    document.getElementById('gm-fit').addEventListener('click', fit);
+    problemsEl.addEventListener('change', function () { if (current) { render(current); } });
+    linksEl.addEventListener('change', renderLinks);
+    searchEl.addEventListener('change', function () {
+      var q = searchEl.value.trim().toLowerCase();
+      if (!q || !current) { return; }
+      var hit = current.sites.filter(function (s) { return s.name.toLowerCase() === q; })[0] ||
+                current.sites.filter(function (s) { return s.name.toLowerCase().indexOf(q) >= 0; })[0];
+      if (hit) { focusSite(hit.id); }
+    });
+    map.setView(cfg.center, cfg.zoom);
+    window.depMap = map;
+    load();
+    setInterval(function () { if (!document.hidden) { load(); } }, 30000);
+    setTimeout(function () { map.invalidateSize(); }, 200);
+  })();
+  </script>
+{% endblock %}

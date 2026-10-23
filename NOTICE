@@ -13,3 +13,10 @@ Material Design Icons (@mdi/svg 7.4.47)
 icmplib 3.0.4 (poller container only)
   LGPL-3.0-or-later. https://github.com/ValentinBELYN/icmplib
   Installed from PyPI into the poller image; not bundled in this repository.
+
+Leaflet 1.9.4
+  Copyright (c) 2010-2023, Volodymyr Agafonkin; (c) 2010-2011, CloudMade. BSD 2-Clause License.
+  https://leafletjs.com/
+  Bundled as netbox_dependencies/vendor/leaflet.js and leaflet.css (licence text: vendor/LEAFLET-LICENSE.txt)
+
+Map data and tiles shown by default: (c) OpenStreetMap contributors, ODbL. https://www.openstreetmap.org/copyright

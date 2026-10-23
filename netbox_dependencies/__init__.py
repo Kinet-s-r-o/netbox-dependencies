@@ -1,6 +1,6 @@
 from netbox.plugins import PluginConfig
 
-__version__ = '1.16.2'
+__version__ = '1.17.0'
 
 
 class DependenciesConfig(PluginConfig):
@@ -32,6 +32,14 @@ class DependenciesConfig(PluginConfig):
         'zabbix_sync_interval': 1,
         # A graph with more nodes than this is not drawn (pick a location / map); 0 = no limit
         'graph_max_nodes': 1500,
+        # Geographic map (Dependencies -> Geographic map): the background tiles. Empty URL = no background (only the sites and links).
+        # The default is the public OpenStreetMap server (fair use only); point it to your own tile server for heavy use or an isolated network.
+        'map_tile_url': 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+        'map_attribution': '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+        'map_max_zoom': 19,
+        # Shown when no site has coordinates yet
+        'map_default_center': [48.7, 19.5],
+        'map_default_zoom': 7,
         # Records of sent notifications are deleted this many days after the outage ended; 0 = never
         'notification_retention_days': 90,
         # Notifications (Teams / Slack / generic webhook); destinations are set up in the UI (Configuration -> Notifications)

@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.17.0 — 2026-10-23
+- **Geographic map** (*Dependencies → Geographic map*, *Map* button in the graph): the sites of the topology on a free OpenStreetMap background by the
+  GPS coordinates of the sites - markers coloured by live state with the number of devices / devices down and pulsing root causes, lines between
+  linked sites (by medium, red when the upstream end is down), popups with the outages of a site and links to its graph, search, "only problems",
+  links on / off, a list of sites without coordinates, refresh every 30 s, dark theme. The Leaflet library is bundled; the tile server is configurable
+  (`map_tile_url`, `map_attribution`, ...). New endpoint `/api/plugins/dependencies/map/`. No migration.
+
 ## 1.16.2 — 2026-10-22
 - Graph: the outages banner above the map is a single compact line - the number of outages, the first three root causes of this map as buttons that
   zoom to them, and a "+ N more" list (with a note for outages on other maps) and a link to *Live outages* - instead of a long wrapping list.

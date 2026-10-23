@@ -5,6 +5,7 @@
 
 {% block controls %}
   <div class="btn-list">
+    <a href="{% url 'plugins:netbox_dependencies:geomap' %}" class="btn btn-outline-secondary"><i class="mdi mdi-map-marker-radius-outline"></i> Map</a>
     <a href="{% url 'plugins:netbox_dependencies:tree' %}" class="btn btn-outline-secondary"><i class="mdi mdi-file-tree"></i> Tree</a>
     <a href="{% url 'plugins:netbox_dependencies:dependency_list' %}" class="btn btn-outline-secondary"><i class="mdi mdi-format-list-bulleted"></i> List</a>
     {% if perms.netbox_dependencies.add_dependency %}

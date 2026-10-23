@@ -830,6 +830,33 @@ class DestinationTestView(PermissionRequiredMixin, View):
 CYTOSCAPE_PATH = Path(__file__).parent / 'vendor' / 'cytoscape.min.js'
 
 
+class GeoMapView(PermissionRequiredMixin, View):
+    """Geographic map: the sites of the topology on a free map, by the GPS coordinates stored in NetBox."""
+
+    permission_required = 'netbox_dependencies.view_dependency'
+    template_name = 'netbox_dependencies/geomap.html'
+
+    def get(self, request):
+        return render(request, self.template_name, {'gm_config': {
+            'map_api': reverse('plugins-api:netbox_dependencies-api:map'),
+            'center': list(get_plugin_config('netbox_dependencies', 'map_default_center')),
+            'zoom': int(get_plugin_config('netbox_dependencies', 'map_default_zoom')),
+        }})
+
+
+class LeafletAssetView(View):
+    """The vendored Leaflet library (no CDN, works in an isolated network)."""
+
+    FILES = {'js': ('leaflet.js', 'application/javascript'), 'css': ('leaflet.css', 'text/css')}
+    kind = 'js'
+
+    def get(self, request):
+        name, content_type = self.FILES[self.kind]
+        response = FileResponse(open(Path(__file__).parent / 'vendor' / name, 'rb'), content_type=content_type)
+        response['Cache-Control'] = 'public, max-age=86400'
+        return response
+
+
 class CytoscapeScriptView(View):
     """Vendored Cytoscape.js library (no CDN, works in an isolated network)."""
 

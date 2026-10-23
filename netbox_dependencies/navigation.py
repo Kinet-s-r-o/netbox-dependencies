@@ -22,6 +22,11 @@ menu = PluginMenu(
                 ),
             ),
             PluginMenuItem(
+                link='plugins:netbox_dependencies:geomap',
+                link_text='Geographic map',
+                permissions=['netbox_dependencies.view_dependency'],
+            ),
+            PluginMenuItem(
                 link='plugins:netbox_dependencies:tree',
                 link_text='Dependency tree',
                 permissions=['netbox_dependencies.view_dependency'],
