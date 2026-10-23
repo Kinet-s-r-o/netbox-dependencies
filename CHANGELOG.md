@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.19.0 — 2026-10-23
+- Map: sites that are close to each other are grouped into one pin (zoom in with a click), the position and zoom of the map are remembered per browser, and the background switch is a proper button group (the Leaflet layer control showed an empty square because its icon image is not bundled).
+
 ## 1.18.0 — 2026-10-23
 - Map: a layer switch (Street / Terrain / Satellite), remembered per browser; the backgrounds are configurable with `map_layers`. The dark-theme inversion applies to the street layer only.
 

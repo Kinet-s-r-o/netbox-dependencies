@@ -34,6 +34,13 @@
     .gm-popup .gm-actions a { padding: .15rem .55rem; border: 1px solid #4299e1; border-radius: 6px; color: #4299e1; font-size: .8rem; text-decoration: none; }
     .gm-legend { background: rgba(255, 255, 255, .92); padding: .4rem .6rem; border-radius: 6px; font-size: .78rem; box-shadow: 0 1px 4px rgba(0, 0, 0, .3); color: #1d273b; }
     .gm-legend i { display: inline-block; width: 11px; height: 11px; border-radius: 50%; margin-right: .3rem; vertical-align: -1px; }
+    .gm-pin.gm-cluster { width: 44px; height: 44px; border-width: 4px; font-size: 14px; line-height: 36px; }
+    .gm-pin.gm-cluster.root::after { inset: -11px; }
+    .gm-layers { display: flex; background: rgba(255, 255, 255, .95); border-radius: 8px; box-shadow: 0 1px 5px rgba(0, 0, 0, .35); overflow: hidden; }
+    .gm-layers button { border: 0; background: transparent; padding: .35rem .75rem; font: 600 .8rem system-ui, sans-serif; color: #1d273b; cursor: pointer; }
+    .gm-layers button + button { border-left: 1px solid rgba(0, 0, 0, .12); }
+    .gm-layers button:hover { background: rgba(66, 153, 225, .12); }
+    .gm-layers button.active { background: #4299e1; color: #fff; }
     .gm-linklist { max-height: 180px; overflow: auto; font-size: .82rem; margin: .3rem 0 0; padding-left: 1rem; }
   </style>
 
@@ -85,22 +92,34 @@
       var defs = settings.layers || [];
       if (tilesReady || !defs.length) { return; }
       tilesReady = true;
-      var base = {}, wanted = store('dependenciesMapLayer'), first = null;
+      var layers = [], wanted = store('dependenciesMapLayer'), active = null;
       defs.forEach(function (d) {
         var layer = L.tileLayer(d.url, {maxZoom: d.max_zoom, attribution: d.attribution, referrerPolicy: 'origin'});
         layer.depInvert = !!d.dark;
-        base[d.name] = layer;
-        if (!first || d.name === wanted) { first = layer; }
+        layer.depName = d.name;
+        layers.push(layer);
+        if (!active || d.name === wanted) { active = layer; }
       });
-      first.addTo(map);
-      invertLayer = first.depInvert;
-      paintTheme();
-      if (defs.length > 1) { L.control.layers(base, null, {position: 'topright', collapsed: true}).addTo(map); }
-      map.on('baselayerchange', function (e) {
-        invertLayer = e.layer.depInvert;
+      var switcher = L.DomUtil.create('div', 'gm-layers');
+      function choose(layer) {
+        layers.forEach(function (other) { if (other !== layer && map.hasLayer(other)) { map.removeLayer(other); } });
+        layer.addTo(map);
+        invertLayer = layer.depInvert;
         paintTheme();
-        Object.keys(base).forEach(function (n) { if (base[n] === e.layer) { store('dependenciesMapLayer', n); } });
+        store('dependenciesMapLayer', layer.depName);
+        Array.prototype.forEach.call(switcher.querySelectorAll('button'), function (btn) { btn.classList.toggle('active', btn.textContent === layer.depName); });
+      }
+      layers.forEach(function (layer) {
+        var btn = L.DomUtil.create('button', '', switcher);
+        btn.type = 'button'; btn.textContent = layer.depName; btn.title = 'Map background: ' + layer.depName;
+        btn.addEventListener('click', function () { choose(layer); });
       });
+      if (layers.length > 1) {
+        var control = L.control({position: 'topright'});
+        control.onAdd = function () { L.DomEvent.disableClickPropagation(switcher); return switcher; };
+        control.addTo(map);
+      }
+      choose(active);
     }
     map.attributionControl.setPrefix(false);
     function paintTheme() { mapEl.classList.toggle('gm-dark', isDark()); mapEl.classList.toggle('gm-invert', invertLayer); }
@@ -111,7 +130,7 @@
     legend.onAdd = function () {
       var d = L.DomUtil.create('div', 'gm-legend');
       d.innerHTML = '<i style="background:#2fb344"></i>up &nbsp; <i style="background:#d63939"></i>down &nbsp; <i style="background:#9aa0a6"></i>unknown ' +
-        '&nbsp; <span style="color:#d63939">◌</span> root cause<br><span style="opacity:.75">number = devices, red badge = down</span>';
+        '&nbsp; <span style="color:#d63939">◌</span> root cause<br><span style="opacity:.75">number = devices (large pin: group of sites), red badge = down</span>';
       return d;
     };
     legend.addTo(map);
@@ -162,7 +181,7 @@
         seen[s.id] = true;
         var m = markers[s.id];
         if (!m) {
-          m = L.marker([s.lat, s.lon], {icon: iconFor(s), riseOnHover: true, keyboard: true, title: s.name}).addTo(siteLayer);
+          m = L.marker([s.lat, s.lon], {icon: iconFor(s), riseOnHover: true, keyboard: true, title: s.name});
           m.bindPopup(function () { return sitePopup(markers[s.id].site); }, {minWidth: 240});
           markers[s.id] = m;
         } else {
@@ -172,9 +191,9 @@
         m.site = s;
         m.unbindTooltip();
         m.bindTooltip(s.name + ' · ' + s.devices + ' devices' + (s.down ? ' · ' + s.down + ' down' : ''), {direction: 'top', offset: [0, -16]});
-        if (m._icon) { m._icon.style.display = (problemsEl.checked && s.state === 'up') ? 'none' : ''; }
       });
-      Object.keys(markers).forEach(function (id) { if (!seen[id]) { siteLayer.removeLayer(markers[id]); delete markers[id]; } });
+      Object.keys(markers).forEach(function (id) { if (!seen[id]) { delete markers[id]; } });
+      redraw();
       renderLinks();
       document.getElementById('gm-count').textContent = data.sites.length + (data.sites.length === 1 ? ' site' : ' sites') +
         ' · ' + data.sites.filter(function (s) { return s.state === 'down'; }).length + ' with outages';
@@ -187,7 +206,65 @@
       });
       document.getElementById('gm-missing-count').textContent = data.missing.length;
       document.getElementById('gm-missing-card').hidden = !data.missing.length;
-      if (firstLoad) { firstLoad = false; fit(); focusFromUrl(); }
+      if (firstLoad) { firstLoad = false; if (!restoreView()) { fit(); } focusFromUrl(); viewReady = true; }
+    }
+    var CLUSTER_PX = 48, viewReady = false;
+    function worst(a, b) { var order = {up: 0, unknown: 1, down: 2}; return order[b] > order[a] ? b : a; }
+    function clusterIcon(g) {
+      var html = '<div class="gm-pin gm-cluster ' + g.state + (g.roots ? ' root' : '') + '">' + g.sites.length +
+        (g.down ? '<span class="gm-down">' + g.down + '</span>' : '') + '</div>';
+      return L.divIcon({html: html, className: '', iconSize: [44, 44], iconAnchor: [22, 22]});
+    }
+    function clusterPopup(g) {
+      var box = el('div', {class: 'gm-popup'});
+      box.appendChild(el('h6', {text: g.sites.length + ' sites'}));
+      g.sites.forEach(function (s) {
+        var a = el('a', {href: '#', text: s.name});
+        a.addEventListener('click', function (e) { e.preventDefault(); map.closePopup(); focusSite(s.id); });
+        box.appendChild(el('div', {class: 'gm-row'}, [a, el('span', {class: 'text-muted', text: s.devices + ' dev' + (s.down ? ' · ' + s.down + ' down' : '')})]));
+      });
+      return box;
+    }
+    // sites closer than CLUSTER_PX pixels on the screen are shown as one pin (recomputed on every zoom)
+    function redraw() {
+      siteLayer.clearLayers();
+      if (!current) { return; }
+      var zoom = map.getZoom(), pending = current.sites.filter(function (s) { return !(problemsEl.checked && s.state === 'up'); }).map(function (s) {
+        return {site: s, pt: map.project([s.lat, s.lon], zoom)};
+      });
+      var taken = {};
+      pending.forEach(function (first, i) {
+        if (taken[i]) { return; }
+        var group = [first];
+        taken[i] = true;
+        pending.forEach(function (other, j) {
+          if (!taken[j] && first.pt.distanceTo(other.pt) < CLUSTER_PX) { taken[j] = true; group.push(other); }
+        });
+        if (group.length === 1) { markers[first.site.id].addTo(siteLayer); return; }
+        var g = {sites: group.map(function (x) { return x.site; }), state: 'up', down: 0, roots: 0, devices: 0};
+        g.sites.forEach(function (s) { g.state = worst(g.state, s.state); g.down += s.down; g.roots += s.root_count; g.devices += s.devices; });
+        var lat = g.sites.reduce(function (t, s) { return t + s.lat; }, 0) / g.sites.length;
+        var lon = g.sites.reduce(function (t, s) { return t + s.lon; }, 0) / g.sites.length;
+        var m = L.marker([lat, lon], {icon: clusterIcon(g), keyboard: true, title: g.sites.length + ' sites'}).addTo(siteLayer);
+        m.bindTooltip(g.sites.length + ' sites · ' + g.devices + ' devices' + (g.down ? ' · ' + g.down + ' down' : ''), {direction: 'top', offset: [0, -22]});
+        m.on('click', function () {
+          var bounds = L.latLngBounds(g.sites.map(function (s) { return [s.lat, s.lon]; }));
+          if (map.getBoundsZoom(bounds, false, L.point(60, 60)) > zoom) { map.fitBounds(bounds, {padding: [60, 60], maxZoom: 17}); }
+          else { L.popup({minWidth: 220}).setLatLng(m.getLatLng()).setContent(clusterPopup(g)).openOn(map); }
+        });
+      });
+    }
+    function saveView() {
+      if (!viewReady) { return; }
+      var c = map.getCenter();
+      store('dependenciesMapView', JSON.stringify({lat: c.lat, lng: c.lng, zoom: map.getZoom()}));
+    }
+    function restoreView() {
+      try {
+        var v = JSON.parse(store('dependenciesMapView') || 'null');
+        if (v && isFinite(v.lat) && isFinite(v.lng) && isFinite(v.zoom) && Math.abs(v.lat) <= 90 && Math.abs(v.lng) <= 180) { map.setView([v.lat, v.lng], v.zoom); return true; }
+      } catch (e) { /* a broken saved value is ignored */ }
+      return false;
     }
     function renderLinks() {
       linkLayer.clearLayers();
@@ -215,8 +292,8 @@
     function focusSite(id) {
       var m = markers[id];
       if (!m) { return; }
-      map.flyTo(m.getLatLng(), Math.max(map.getZoom(), 12), {duration: .6});
-      m.openPopup();
+      map.flyTo(m.getLatLng(), Math.max(map.getZoom(), 15), {duration: .6});
+      map.once('moveend', function () { redraw(); if (siteLayer.hasLayer(m)) { m.openPopup(); } });
     }
     function focusFromUrl() {
       var id = new URLSearchParams(window.location.search).get('site');
@@ -229,8 +306,10 @@
         .then(render)
         .catch(function (err) { document.getElementById('gm-updated').textContent = 'update failed (' + err.message + ')'; });
     }
-    document.getElementById('gm-fit').addEventListener('click', fit);
+    document.getElementById('gm-fit').addEventListener('click', function () { fit(); });
     problemsEl.addEventListener('change', function () { if (current) { render(current); } });
+    map.on('zoomend', redraw);
+    map.on('moveend', saveView);
     linksEl.addEventListener('change', renderLinks);
     searchEl.addEventListener('change', function () {
       var q = searchEl.value.trim().toLowerCase();
