@@ -16,7 +16,7 @@
   <style>
     #gm-map { height: 72vh; min-height: 460px; width: 100%; background: #dfe6ee; border-radius: 0 0 .5rem .5rem; z-index: 0; }
     #gm-map.gm-dark { background: #1c2430; }
-    .gm-dark .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(.92) contrast(.9); }
+    .gm-dark.gm-invert .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(.92) contrast(.9); }
     .gm-pin { position: relative; width: 34px; height: 34px; border-radius: 50%; border: 3px solid #fff; color: #fff; font: 700 12px/28px system-ui, sans-serif;
               text-align: center; box-shadow: 0 2px 6px rgba(0, 0, 0, .45); }
     .gm-pin.up { background: #2fb344; }
@@ -79,13 +79,31 @@
 
     var mapEl = document.getElementById('gm-map');
     var map = L.map(mapEl, {zoomControl: true, worldCopyJump: true});
-    var tiles = null;
+    var tilesReady = false, invertLayer = false;
+    function store(key, value) { try { if (value === undefined) { return localStorage.getItem(key); } localStorage.setItem(key, value); } catch (e) { return null; } }
     function setTiles(settings) {
-      if (tiles || !settings.tile_url) { return; }
-      tiles = L.tileLayer(settings.tile_url, {maxZoom: settings.max_zoom, attribution: settings.attribution, referrerPolicy: "origin"}).addTo(map);
+      var defs = settings.layers || [];
+      if (tilesReady || !defs.length) { return; }
+      tilesReady = true;
+      var base = {}, wanted = store('dependenciesMapLayer'), first = null;
+      defs.forEach(function (d) {
+        var layer = L.tileLayer(d.url, {maxZoom: d.max_zoom, attribution: d.attribution, referrerPolicy: 'origin'});
+        layer.depInvert = !!d.dark;
+        base[d.name] = layer;
+        if (!first || d.name === wanted) { first = layer; }
+      });
+      first.addTo(map);
+      invertLayer = first.depInvert;
+      paintTheme();
+      if (defs.length > 1) { L.control.layers(base, null, {position: 'topright', collapsed: true}).addTo(map); }
+      map.on('baselayerchange', function (e) {
+        invertLayer = e.layer.depInvert;
+        paintTheme();
+        Object.keys(base).forEach(function (n) { if (base[n] === e.layer) { store('dependenciesMapLayer', n); } });
+      });
     }
     map.attributionControl.setPrefix(false);
-    function paintTheme() { mapEl.classList.toggle('gm-dark', isDark()); }
+    function paintTheme() { mapEl.classList.toggle('gm-dark', isDark()); mapEl.classList.toggle('gm-invert', invertLayer); }
     paintTheme();
     new MutationObserver(paintTheme).observe(document.documentElement, {attributes: true, attributeFilter: ['data-bs-theme']});
 

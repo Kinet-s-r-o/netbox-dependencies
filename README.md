@@ -105,7 +105,7 @@ Afterwards continue with [First steps](#first-steps).
    [latest release](https://github.com/Kinet-s-r-o/netbox-dependencies/releases/latest) — the version appears twice in the URL, use the one shown there:
 
    ```bash
-   /opt/netbox/venv/bin/pip install https://github.com/Kinet-s-r-o/netbox-dependencies/releases/download/v1.17.1/netbox_dependencies-1.17.1-py3-none-any.whl
+   /opt/netbox/venv/bin/pip install https://github.com/Kinet-s-r-o/netbox-dependencies/releases/download/v1.18.0/netbox_dependencies-1.18.0-py3-none-any.whl
    ```
 
    To keep it across NetBox upgrades add the same URL as a line to `local_requirements.txt` in the NetBox directory.
@@ -158,6 +158,7 @@ All keys of `PLUGINS_CONFIG['netbox_dependencies']` are optional:
 | `notifications_enabled`, `notification_delay_seconds`, `notify_recovery`, `public_url` | `True`, `120`, `True`, `''` | initial defaults for notifications; they can be changed in the UI afterwards |
 | `notification_retention_days` | `90` | delete notification records this many days after the outage ended; `0` = keep |
 | `map_tile_url`, `map_attribution`, `map_max_zoom` | OpenStreetMap, its attribution, `19` | background tiles of the geographic map; empty URL = no background |
+| `map_layers` | `None` | the backgrounds offered in the layer switch: `None` = Street (the settings above), Terrain (OpenTopoMap) and Satellite (Esri); or your own list of `{'name', 'url', 'attribution', 'max_zoom', 'dark'}`; `[]` = no background |
 | `map_default_center`, `map_default_zoom` | `[48.7, 19.5]`, `7` | the view when no site has coordinates yet |
 
 ## Geographic map
@@ -171,6 +172,8 @@ The background is **OpenStreetMap**, loaded by the browser (the Leaflet library 
   attribution is shown on the map. For heavy use, or a network without internet access, run your own tile server and set
   `map_tile_url` (for example `https://tiles.example.com/{z}/{x}/{y}.png`) and `map_attribution` in `PLUGINS_CONFIG`.
   An empty `map_tile_url` shows only the sites and the links on a plain background.
+- The layer switch (top right of the map) changes between Street, Terrain and Satellite; the choice is remembered in the browser. The Terrain and Satellite
+  servers are public services with their own usage terms - replace them with `map_layers` if they do not fit your use.
 - If you set a Content-Security-Policy in NetBox, allow the tile server in `img-src`.
 - The tiles are requested by the browser, so the tile server sees which area is being viewed.
 - NetBox stores coordinates for sites only, so all devices of a site are one marker; open the map of the site for the devices.
@@ -207,13 +210,13 @@ Setting it up takes three steps and no Docker build. The poller needs its own Ne
    the file private and out of git. Add `--allowed-ip 10.0.0.5/32` to accept the token only from the poller's address, or run the command with
    `--rotate` later to replace the token.
 2. **Add the service** to your compose file (next to the file from step 1; for netbox-docker `docker-compose.override.yml`). Use the same version
-   as the plugin (`#v1.17.1` below). Docker builds the small image straight from this repository, so no registry or account is needed:
+   as the plugin (`#v1.18.0` below). Docker builds the small image straight from this repository, so no registry or account is needed:
 
    ```yaml
    services:
      dependencies-poller:
-       build: https://github.com/Kinet-s-r-o/netbox-dependencies.git#v1.17.1:poller
-       image: netbox-dependencies-poller:1.17.1
+       build: https://github.com/Kinet-s-r-o/netbox-dependencies.git#v1.18.0:poller
+       image: netbox-dependencies-poller:1.18.0
        restart: unless-stopped
        env_file: dependencies-poller.env
        cap_drop: [ALL]
@@ -223,7 +226,7 @@ Setting it up takes three steps and no Docker build. The poller needs its own Ne
    ```
 
    A prebuilt image is published with every release as `ghcr.io/kinet-s-r-o/netbox-dependencies-poller:<version>` — you can use
-   `image: ghcr.io/kinet-s-r-o/netbox-dependencies-poller:1.17.1` instead of the two lines `build:` and `image:` (it works once the package is public).
+   `image: ghcr.io/kinet-s-r-o/netbox-dependencies-poller:1.18.0` instead of the two lines `build:` and `image:` (it works once the package is public).
    If `docker compose build` stops with `failed to execute bake`, run it with `COMPOSE_BAKE=false`.
 3. **Start it:** `docker compose up -d --build dependencies-poller` (the first start builds the image, about a minute) and look at `docker compose logs -f dependencies-poller` — after a round it prints
    `polled N devices`. The poller then appears under *Dependencies → Configuration → ICMP poller*.

@@ -1,6 +1,6 @@
 from netbox.plugins import PluginConfig
 
-__version__ = '1.17.1'
+__version__ = '1.18.0'
 
 
 class DependenciesConfig(PluginConfig):
@@ -37,6 +37,9 @@ class DependenciesConfig(PluginConfig):
         'map_tile_url': 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
         'map_attribution': '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
         'map_max_zoom': 19,
+        # None = the street layer above plus the built-in Terrain and Satellite layers; or your own list of
+        # {'name': ..., 'url': ..., 'attribution': ..., 'max_zoom': ..., 'dark': False}; [] = no background
+        'map_layers': None,
         # Shown when no site has coordinates yet
         'map_default_center': [48.7, 19.5],
         'map_default_zoom': 7,

@@ -14,12 +14,36 @@ from .status import status_snapshot, suppressed_info
 PLUGIN = 'netbox_dependencies'
 MAX_ITEMS = 15            # links listed in the popup of one line between two sites
 MAX_ROOTS = 5             # root causes listed in the popup of one site
+BUILTIN_LAYERS = [
+    {'name': 'Street', 'url': 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', 'attribution': '', 'max_zoom': 19, 'dark': True},
+    {'name': 'Terrain', 'url': 'https://tile.opentopomap.org/{z}/{x}/{y}.png', 'max_zoom': 17, 'dark': False,
+     'attribution': 'Map data &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, SRTM | '
+                    'style &copy; <a href="https://opentopomap.org">OpenTopoMap</a> (CC-BY-SA)'},
+    {'name': 'Satellite', 'url': 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+     'max_zoom': 19, 'dark': False, 'attribution': 'Imagery &copy; Esri, Maxar, Earthstar Geographics, and the GIS User Community'},
+]
+
+
+def _layers():
+    """The selectable map backgrounds: `map_layers` if set, otherwise the street layer (`map_tile_url`) and the built-in extras.
+    `dark` = the layer is inverted in the dark theme (only sensible for light street maps)."""
+    configured = get_plugin_config(PLUGIN, 'map_layers')
+    if configured is not None:
+        return [{'name': str(layer.get('name') or 'Map'), 'url': layer['url'], 'attribution': layer.get('attribution', ''),
+                 'max_zoom': int(layer.get('max_zoom', 19)), 'dark': bool(layer.get('dark'))} for layer in configured if layer.get('url')]
+    street = get_plugin_config(PLUGIN, 'map_tile_url')
+    if not street:
+        return []
+    return [dict(BUILTIN_LAYERS[0], url=street, attribution=get_plugin_config(PLUGIN, 'map_attribution') or '',
+                 max_zoom=int(get_plugin_config(PLUGIN, 'map_max_zoom')))] + BUILTIN_LAYERS[1:]
 
 
 def _settings():
+    layers = _layers()
     return {
-        'tile_url': get_plugin_config(PLUGIN, 'map_tile_url') or '',
-        'attribution': get_plugin_config(PLUGIN, 'map_attribution') or '',
+        'layers': layers,
+        'tile_url': layers[0]['url'] if layers else '',          # kept for older clients
+        'attribution': layers[0]['attribution'] if layers else '',
         'max_zoom': int(get_plugin_config(PLUGIN, 'map_max_zoom')),
         'center': list(get_plugin_config(PLUGIN, 'map_default_center')),
         'zoom': int(get_plugin_config(PLUGIN, 'map_default_zoom')),

@@ -51,6 +51,18 @@ class GeoMapTests(Base):
         self.assertEqual([m['name'] for m in data['missing']], ['No GPS'])
         self.assertTrue(data['missing'][0]['edit_url'].endswith(f'/sites/{self.site_c.pk}/edit/'))
         self.assertEqual(data['settings']['tile_url'], 'https://tile.openstreetmap.org/{z}/{x}/{y}.png')
+        self.assertEqual([layer['name'] for layer in data['settings']['layers']], ['Street', 'Terrain', 'Satellite'])
+        self.assertEqual([layer['dark'] for layer in data['settings']['layers']], [True, False, False])
+
+    def test_map_layers_can_be_configured(self):
+        from netbox_dependencies.geomap import _layers
+        from unittest import mock
+        values = {'map_layers': [{'name': 'Own', 'url': 'https://t.example.com/{z}/{x}/{y}.png'}, {'name': 'No url'}]}
+        with mock.patch('netbox_dependencies.geomap.get_plugin_config', side_effect=lambda _p, key: values[key]):
+            self.assertEqual([(l['name'], l['max_zoom'], l['dark']) for l in _layers()], [('Own', 19, False)])
+        values = {'map_layers': None, 'map_tile_url': '', 'map_attribution': '', 'map_max_zoom': 19}
+        with mock.patch('netbox_dependencies.geomap.get_plugin_config', side_effect=lambda _p, key: values[key]):
+            self.assertEqual(_layers(), [])
 
     def test_live_state_per_site_and_root_causes(self):
         set_state(self.devs['sw1'], 'down')

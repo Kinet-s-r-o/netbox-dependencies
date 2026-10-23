@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.18.0 — 2026-10-23
+- Map: a layer switch (Street / Terrain / Satellite), remembered per browser; the backgrounds are configurable with `map_layers`. The dark-theme inversion applies to the street layer only.
+
 ## 1.17.1 — 2026-10-23
 - Map: the tile requests now send the origin as the Referer (NetBox sets `Referrer-Policy: same-origin`, so OpenStreetMap answered 403 "Access blocked" to every tile).
 
