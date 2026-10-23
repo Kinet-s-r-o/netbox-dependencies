@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.17.1 — 2026-10-23
+- Map: the tile requests now send the origin as the Referer (NetBox sets `Referrer-Policy: same-origin`, so OpenStreetMap answered 403 "Access blocked" to every tile).
+
 ## 1.17.0 — 2026-10-23
 - **Geographic map** (*Dependencies → Geographic map*, *Map* button in the graph): the sites of the topology on a free OpenStreetMap background by the
   GPS coordinates of the sites - markers coloured by live state with the number of devices / devices down and pulsing root causes, lines between

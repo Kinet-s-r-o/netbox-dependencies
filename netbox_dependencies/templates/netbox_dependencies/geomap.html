@@ -82,7 +82,7 @@
     var tiles = null;
     function setTiles(settings) {
       if (tiles || !settings.tile_url) { return; }
-      tiles = L.tileLayer(settings.tile_url, {maxZoom: settings.max_zoom, attribution: settings.attribution}).addTo(map);
+      tiles = L.tileLayer(settings.tile_url, {maxZoom: settings.max_zoom, attribution: settings.attribution, referrerPolicy: "origin"}).addTo(map);
     }
     map.attributionControl.setPrefix(false);
     function paintTheme() { mapEl.classList.toggle('gm-dark', isDark()); }
