@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "netbox-dependencies"
-version = "1.19.2"
+version = "1.20.0"
 authors = [
     { name = "Adrián Javorček", email = "adrian.javorcek@gmail.com" },
 ]

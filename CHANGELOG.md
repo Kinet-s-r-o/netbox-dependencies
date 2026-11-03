@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.20.0 — 2026-11-03
+- Map: the switch "Site names" shows the name of each site next to its pin (remembered in the browser).
+
 ## 1.19.2 — 2026-10-23
 - Map: the "Only problems" and "Links between sites" switches are remembered in the browser too (with the position, zoom and background).
 

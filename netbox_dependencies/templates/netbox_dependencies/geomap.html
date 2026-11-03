@@ -42,6 +42,9 @@
     .gm-layers button:hover { background: rgba(66, 153, 225, .12); }
     .gm-layers button.active { background: #4299e1; color: #fff; }
     path.leaflet-interactive:focus { outline: none; }     /* the black focus frame around a clicked line */
+    .leaflet-tooltip.gm-label { background: rgba(255, 255, 255, .88); border: 0; border-radius: 4px; box-shadow: 0 1px 3px rgba(0, 0, 0, .35); padding: 1px 6px;
+                                color: #1d273b; font: 600 12px/1.4 system-ui, sans-serif; }
+    .leaflet-tooltip.gm-label.leaflet-tooltip-right::before { display: none; }
     .gm-linklist { max-height: 180px; overflow: auto; font-size: .82rem; margin: .3rem 0 0; padding-left: 1rem; }
   </style>
 
@@ -51,6 +54,7 @@
       <input type="search" id="gm-search" class="form-control form-control-sm" style="width: 220px" placeholder="Find a site…" list="gm-sites" autocomplete="off">
       <datalist id="gm-sites"></datalist>
       <label class="form-check mb-0 ms-2"><input type="checkbox" class="form-check-input" id="gm-problems"><span class="form-check-label">Only problems</span></label>
+      <label class="form-check mb-0"><input type="checkbox" class="form-check-input" id="gm-labels"><span class="form-check-label">Site names</span></label>
       <label class="form-check mb-0"><input type="checkbox" class="form-check-input" id="gm-links" checked><span class="form-check-label">Links between sites</span></label>
       <button type="button" class="btn btn-sm btn-outline-secondary" id="gm-fit">Fit</button>
       <span class="small text-muted ms-auto" id="gm-updated"></span>
@@ -138,20 +142,27 @@
 
     var siteLayer = L.layerGroup().addTo(map), linkLayer = L.layerGroup().addTo(map);
     var markers = {}, current = null, firstLoad = true;
-    var searchEl = document.getElementById('gm-search'), problemsEl = document.getElementById('gm-problems'), linksEl = document.getElementById('gm-links');
+    var searchEl = document.getElementById('gm-search'), problemsEl = document.getElementById('gm-problems'), linksEl = document.getElementById('gm-links'), labelsEl = document.getElementById('gm-labels');
 
     // the checkboxes are remembered in the browser, like the position and the background
     try {
       var saved = JSON.parse(store('dependenciesMapOptions') || 'null') || {};
       if (typeof saved.links === 'boolean') { linksEl.checked = saved.links; }
       if (typeof saved.problems === 'boolean') { problemsEl.checked = saved.problems; }
+      if (typeof saved.labels === 'boolean') { labelsEl.checked = saved.labels; }
     } catch (e) { /* a broken saved value is ignored */ }
-    function saveOptions() { store('dependenciesMapOptions', JSON.stringify({links: linksEl.checked, problems: problemsEl.checked})); }
+    function saveOptions() { store('dependenciesMapOptions', JSON.stringify({links: linksEl.checked, problems: problemsEl.checked, labels: labelsEl.checked})); }
 
     function iconFor(s) {
       var html = '<div class="gm-pin ' + s.state + (s.root_count ? ' root' : '') + (problemsEl.checked && s.state === 'up' ? ' dim' : '') + '">' + s.devices +
         (s.down ? '<span class="gm-down">' + s.down + '</span>' : '') + '</div>';
       return L.divIcon({html: html, className: '', iconSize: [34, 34], iconAnchor: [17, 17]});
+    }
+    // the name of the site is shown permanently to the right of the pin when "Site names" is on, otherwise only on hover
+    function tooltipFor(m, s) {
+      m.unbindTooltip();
+      if (labelsEl.checked) { m.bindTooltip(s.name, {permanent: true, direction: 'right', offset: [20, 0], className: 'gm-label'}); }
+      else { m.bindTooltip(s.name + ' · ' + s.devices + ' devices' + (s.down ? ' · ' + s.down + ' down' : ''), {direction: 'top', offset: [0, -16]}); }
     }
     function sitePopup(s) {
       var box = el('div', {class: 'gm-popup'});
@@ -198,8 +209,7 @@
           m.setIcon(iconFor(s));
         }
         m.site = s;
-        m.unbindTooltip();
-        m.bindTooltip(s.name + ' · ' + s.devices + ' devices' + (s.down ? ' · ' + s.down + ' down' : ''), {direction: 'top', offset: [0, -16]});
+        tooltipFor(m, s);
       });
       Object.keys(markers).forEach(function (id) { if (!seen[id]) { delete markers[id]; } });
       redraw();
@@ -319,6 +329,11 @@
     problemsEl.addEventListener('change', function () { saveOptions(); if (current) { render(current); } });
     map.on('zoomend', redraw);
     map.on('moveend', saveView);
+    labelsEl.addEventListener('change', function () {
+      saveOptions();
+      Object.keys(markers).forEach(function (id) { tooltipFor(markers[id], markers[id].site); });
+      redraw();
+    });
     linksEl.addEventListener('change', function () { saveOptions(); renderLinks(); });
     searchEl.addEventListener('change', function () {
       var q = searchEl.value.trim().toLowerCase();
