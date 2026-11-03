@@ -24,6 +24,12 @@ live, with optional notifications to Microsoft Teams, Slack or any webhook.
   import it into another NetBox. Import adds links and rejects duplicates; it does not update existing ones.
 - **Interactive graph** (Cytoscape.js) per site, region or custom map; other locations appear as clouds that open
   their own map. Search, filters, role icons, PNG export, minimap. Click a link for its details (medium, type, redundancy group, description). Hover a device for its description and notes. *Filters → Link style* switches between curved and straight arrows (remembered per browser). Layouts are saved automatically; a region (or *All*) that has no layout of its own is composed from the layouts of its sub-locations, side by side.
+- **Clouds, level by level:** the graph opens as **clouds** - one per region (kraj, okres, obec, ... - any depth of NetBox regions) and per site that
+  sits directly in the open region (sites without a region are on the top level). A cloud shows the number of sites and devices below it, turns red
+  when something in it is down and is linked to the other clouds by one merged line per pair (click a line to list its links). Click a cloud to open
+  the level below it - a region its sub-regions and sites, a site its devices. The *Devices* switch (above the graph) shows all devices of the open
+  map at once, as before. Opening a site, a custom map, a branch or a link from a notification shows devices straight away. Clouds are not editable;
+  you can drag them and the arrangement is remembered in your browser.
 - **Edit the topology in the graph:** the *Edit* button switches on an edit mode. *Add device* searches NetBox and puts a device on the maps of its
   location (it stays in the topology until you remove it); drag from the dot under a device to the device that **depends on it** to create a
   dependency (a small dialog asks for the medium, type and redundancy group); click a link and *Delete link* to remove it. Every step has an *Undo*.
@@ -105,7 +111,7 @@ Afterwards continue with [First steps](#first-steps).
    [latest release](https://github.com/Kinet-s-r-o/netbox-dependencies/releases/latest) — the version appears twice in the URL, use the one shown there:
 
    ```bash
-   /opt/netbox/venv/bin/pip install https://github.com/Kinet-s-r-o/netbox-dependencies/releases/download/v1.20.0/netbox_dependencies-1.20.0-py3-none-any.whl
+   /opt/netbox/venv/bin/pip install https://github.com/Kinet-s-r-o/netbox-dependencies/releases/download/v1.21.0/netbox_dependencies-1.21.0-py3-none-any.whl
    ```
 
    To keep it across NetBox upgrades add the same URL as a line to `local_requirements.txt` in the NetBox directory.
@@ -213,13 +219,13 @@ Setting it up takes three steps and no Docker build. The poller needs its own Ne
    the file private and out of git. Add `--allowed-ip 10.0.0.5/32` to accept the token only from the poller's address, or run the command with
    `--rotate` later to replace the token.
 2. **Add the service** to your compose file (next to the file from step 1; for netbox-docker `docker-compose.override.yml`). Use the same version
-   as the plugin (`#v1.20.0` below). Docker builds the small image straight from this repository, so no registry or account is needed:
+   as the plugin (`#v1.21.0` below). Docker builds the small image straight from this repository, so no registry or account is needed:
 
    ```yaml
    services:
      dependencies-poller:
-       build: https://github.com/Kinet-s-r-o/netbox-dependencies.git#v1.20.0:poller
-       image: netbox-dependencies-poller:1.20.0
+       build: https://github.com/Kinet-s-r-o/netbox-dependencies.git#v1.21.0:poller
+       image: netbox-dependencies-poller:1.21.0
        restart: unless-stopped
        env_file: dependencies-poller.env
        cap_drop: [ALL]
@@ -229,7 +235,7 @@ Setting it up takes three steps and no Docker build. The poller needs its own Ne
    ```
 
    A prebuilt image is published with every release as `ghcr.io/kinet-s-r-o/netbox-dependencies-poller:<version>` — you can use
-   `image: ghcr.io/kinet-s-r-o/netbox-dependencies-poller:1.20.0` instead of the two lines `build:` and `image:` (it works once the package is public).
+   `image: ghcr.io/kinet-s-r-o/netbox-dependencies-poller:1.21.0` instead of the two lines `build:` and `image:` (it works once the package is public).
    If `docker compose build` stops with `failed to execute bake`, run it with `COMPOSE_BAKE=false`.
 3. **Start it:** `docker compose up -d --build dependencies-poller` (the first start builds the image, about a minute) and look at `docker compose logs -f dependencies-poller` — after a round it prints
    `polled N devices`. The poller then appears under *Dependencies → Configuration → ICMP poller*.
@@ -346,6 +352,7 @@ The command `manage.py dependencies_test_notifications [--destination NAME]` sen
 | `/api/plugins/dependencies/peers/` | CRUD for peer links |
 | `/api/plugins/dependencies/topology/`, `.../topology/search/`, `.../topology/<device id>/` | add / search / remove devices of the topology (used by the graph's edit mode) |
 | `/api/plugins/dependencies/maps/` | CRUD for custom maps |
+| `/api/plugins/dependencies/overview/?region=<id>` | the clouds of the graph (regions / sites) with their state and merged links |
 | `/api/plugins/dependencies/impact/?device=<id>&device=<id>&limit=` | impact of failing devices |
 | `/api/plugins/dependencies/outages/` | current root causes and explained outages |
 | `/api/plugins/dependencies/status/targets/`, `.../status/report/`, `.../status/states/` | used by the poller and the graph |

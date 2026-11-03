@@ -43,7 +43,8 @@ from .forms import (
     PollerForm,
     PollerSettingsForm,
 )
-from .graph_data import build_graph, build_sidebar
+from .graph_data import build_graph, build_sidebar, graph_url
+from .overview import build_overview
 from .impact import get_impact
 from .models import (
     CustomMap,
@@ -463,10 +464,13 @@ class DependencyGraphView(PermissionRequiredMixin, View):
         map_id = self._int(request, 'map')
         if map_id:
             site_id = region_id = None
-        graph = build_graph(
-            site_id=site_id, region_id=region_id, map_id=map_id,
-            device_id=self._int(request, 'branch'), focus_id=self._int(request, 'focus'),
-        )
+        branch_id, focus_id = self._int(request, 'branch'), self._int(request, 'focus')
+        # the default view is the clouds (regions / sites level by level); devices are shown for a site, a custom map,
+        # a branch, a focused device (the links in notifications) or when asked for with ?view=devices
+        overview = not (site_id or map_id or branch_id or focus_id) and request.GET.get('view') != 'devices'
+        graph = build_overview(region_id) if overview else build_graph(
+            site_id=site_id, region_id=region_id, map_id=map_id, device_id=branch_id, focus_id=focus_id)
+        graph['clouds_url'] = '' if (site_id or map_id or branch_id or focus_id or overview) else graph_url(region=region_id)
         limit = int(get_plugin_config('netbox_dependencies', 'graph_max_nodes'))
         graph['too_large'] = None
         graph['can_edit'] = request.user.has_perm('netbox_dependencies.add_dependency')
@@ -477,7 +481,7 @@ class DependencyGraphView(PermissionRequiredMixin, View):
             'netbox_dependencies.delete_devicesuppression') else ''
         graph['add_url'] = reverse('plugins:netbox_dependencies:add_multiple') if request.user.has_perm(
             'netbox_dependencies.add_dependency') else ''
-        if limit and len(graph['nodes']) > limit and request.GET.get('force') != '1':
+        if not overview and limit and len(graph['nodes']) > limit and request.GET.get('force') != '1':
             separator = '&' if request.GET else '?'
             graph['too_large'] = {'nodes': len(graph['nodes']), 'limit': limit,
                                   'force_url': f'{request.get_full_path()}{separator}force=1'}

@@ -145,9 +145,19 @@
          title="Drag to resize (double-click resets, arrow keys adjust)"></div>
 
     <div id="dep-main">
-      <nav class="mb-2 small">
-        {% for c in graph.crumbs %}<a href="{{ c.url }}">{{ c.name }}</a> <span class="text-muted">›</span> {% endfor %}
-        <strong>{{ graph.title }}</strong>
+      <nav class="mb-2 small d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <div>
+          {% for c in graph.crumbs %}<a href="{{ c.url }}">{{ c.name }}</a> <span class="text-muted">›</span> {% endfor %}
+          <strong>{{ graph.title }}</strong>
+        </div>
+        {% if graph.overview or graph.clouds_url %}
+          <div class="btn-group btn-group-sm" role="group" aria-label="Level of detail">
+            <a href="{% if graph.overview %}#{% else %}{{ graph.clouds_url }}{% endif %}" class="btn {% if graph.overview %}btn-primary{% else %}btn-outline-secondary{% endif %}"
+               title="Regions and sites as clouds, level by level"><i class="mdi mdi-cloud-outline"></i> Clouds</a>
+            <a href="{% if graph.overview %}{{ graph.devices_url }}{% else %}#{% endif %}" class="btn {% if graph.overview %}btn-outline-secondary{% else %}btn-primary{% endif %}"
+               title="All devices of this map"><i class="mdi mdi-server-network"></i> Devices</a>
+          </div>
+        {% endif %}
       </nav>
       {% if graph.neighbours %}
         <div class="dep-chips mb-2 small">
@@ -186,8 +196,8 @@
             <strong id="dep-count"></strong>
           </div>
           <div class="d-flex flex-wrap gap-2 align-items-center">
-            <button type="button" class="btn btn-sm btn-outline-secondary" id="dep-legend-btn" data-bs-toggle="modal" data-bs-target="#dep-legend-modal" title="Legend and controls"><i class="mdi mdi-help-circle-outline"></i> Legend</button>
-            {% if graph.can_edit %}<button type="button" class="btn btn-sm btn-outline-primary" id="dep-edit-toggle" title="Add devices to the map and draw dependencies by dragging"><i class="mdi mdi-pencil-outline"></i> Edit</button>{% endif %}
+            {% if not graph.overview %}<button type="button" class="btn btn-sm btn-outline-secondary" id="dep-legend-btn" data-bs-toggle="modal" data-bs-target="#dep-legend-modal" title="Legend and controls"><i class="mdi mdi-help-circle-outline"></i> Legend</button>{% endif %}
+            {% if graph.can_edit and not graph.overview %}<button type="button" class="btn btn-sm btn-outline-primary" id="dep-edit-toggle" title="Add devices to the map and draw dependencies by dragging"><i class="mdi mdi-pencil-outline"></i> Edit</button>{% endif %}
             <button type="button" class="btn btn-sm btn-outline-secondary" id="dep-fit">Fit</button>
             <button type="button" class="btn btn-sm btn-outline-secondary" id="dep-png" title="Download the whole map as a PNG image"><i class="mdi mdi-image-outline"></i> PNG</button>
             <button type="button" class="btn btn-sm btn-outline-secondary" id="dep-print" title="Print the map"><i class="mdi mdi-printer"></i></button>
@@ -195,7 +205,7 @@
           </div>
         </div>
 
-        <div class="dep-toolbar">
+        {% if not graph.overview %}<div class="dep-toolbar">
           <div class="d-flex align-items-center gap-2">
             <input type="search" id="dep-search" class="form-control form-control-sm" placeholder="Search name, IP, site, role…" title="Type to highlight matches, Enter zooms to them, Esc clears" autocomplete="off">
             <span id="dep-search-count" class="text-muted small"></span>
@@ -245,6 +255,7 @@
           <button type="button" class="btn btn-sm btn-outline-secondary ms-auto" id="dep-mini-toggle" title="Show / hide the overview map"><i class="mdi mdi-map-outline"></i> Overview</button>
         </div>
 
+        {% endif %}
         <div id="dep-summary" class="px-3 pt-2"></div>
         <div class="dep-graph-box">
           <div id="dep-graph"></div>
@@ -266,6 +277,12 @@
           {% endif %}
           <div id="dep-mini" hidden><img id="dep-mini-img" alt="" draggable="false"><div id="dep-mini-view"></div></div>
         </div>
+        {% if graph.overview %}
+          <div class="card-footer small text-muted">
+            Click a cloud to open it: a region opens its sub-regions and sites, a site opens its devices. Click a link for its details.
+            Clouds with a dashed outline are outside this region but linked to it. <strong>Devices</strong> shows all devices of this map at once.
+          </div>
+        {% endif %}
       </div>
 
     </div>
@@ -377,6 +394,186 @@
     });
 
     var data = JSON.parse(document.getElementById('dep-graph-data').textContent);
+    function depOverview(data) {
+      // ---- the clouds view: regions and sites as clouds, the links between them merged into one line per pair
+      var COLORS = {up: '#2fb344', down: '#d63939', unknown: '#9aa0a6', none: '#566a80'};
+      var MEDIUM_COLOR = {ethernet: '#4299e1', optical: '#f59f00', radio: '#22b8cf', vpn: '#e64980', lte: '#12b886', satellite: '#845ef7', unspecified: '#868e96'};
+      var MEDIUM_LABEL = {ethernet: 'Ethernet', optical: 'Optical', radio: 'Radio', vpn: 'VPN / tunnel', lte: 'LTE / 5G', satellite: 'Satellite', unspecified: 'Unspecified'};
+      var MEDIUM_DASH = {radio: [7, 5], vpn: [2, 5], lte: [10, 4, 2, 4], satellite: [16, 6]};
+      var PAL = {light: {card: '#ffffff', text: '#1d273b', muted: '#667085', border: '#c9d1dc'}, dark: {card: '#243142', text: '#e8edf5', muted: '#9fb0c6', border: '#3d4d63'}};
+      function dark() { return document.documentElement.getAttribute('data-bs-theme') === 'dark'; }
+      function pal() { return dark() ? PAL.dark : PAL.light; }
+      function svgUri(svg) { return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg); }
+      var CLOUD_LOBES = '<ellipse cx="100" cy="45" rx="80" ry="31"/><circle cx="27" cy="45" r="21"/><circle cx="173" cy="45" r="21"/><circle cx="55" cy="31" r="22"/><circle cx="87" cy="24" r="24"/><circle cx="121" cy="24" r="24"/><circle cx="150" cy="31" r="22"/><circle cx="55" cy="60" r="21"/><circle cx="87" cy="66" r="21"/><circle cx="121" cy="66" r="21"/><circle cx="150" cy="60" r="21"/>';
+      function cloudUri(color, isDark, dashed) {
+        var P = isDark ? PAL.dark : PAL.light;
+        return svgUri('<svg xmlns="http://www.w3.org/2000/svg" width="208" height="98" viewBox="-4 -4 208 98">' +
+          '<g fill="' + color + '" stroke="' + color + '" stroke-width="5"' + (dashed ? ' stroke-dasharray="9 7" opacity="0.8"' : '') + '>' + CLOUD_LOBES + '</g>' +
+          '<g fill="' + P.card + '">' + CLOUD_LOBES + '</g><g fill="' + color + '" opacity="0.16">' + CLOUD_LOBES + '</g></svg>');
+      }
+      var CLOUD = {};
+      ['light', 'dark'].forEach(function (t) {
+        Object.keys(COLORS).forEach(function (k) {
+          [false, true].forEach(function (dashed) {
+            var key = t + k + (dashed ? 'x' : '');
+            CLOUD[key] = cloudUri(COLORS[k], t === 'dark', dashed);
+            new Image().src = CLOUD[key];
+          });
+        });
+      });
+      function cloudImage(n) {
+        return CLOUD[(dark() ? 'dark' : 'light') + (n.data('state') in COLORS ? n.data('state') : 'none') + (n.data('outside') ? 'x' : '')];
+      }
+
+      var box = document.getElementById('dep-graph');
+      var countEl = document.getElementById('dep-count');
+      var outagesBox = document.getElementById('dep-outages');
+      var pop = document.getElementById('dep-pop');
+      if (!data.nodes.length) {
+        countEl.textContent = '0 clouds';
+        box.innerHTML = '<div class="text-muted p-4">No dependencies on this map yet.</div>';
+        document.querySelectorAll('#dep-fit, #dep-png').forEach(function (b) { b.disabled = true; });
+        return;
+      }
+      var POS_KEY = 'depCloudPos:' + data.scope;
+      document.getElementById('dep-live-dot') && (document.getElementById('dep-live-dot').className = 'dep-live-dot on');
+
+      function curveStyle(e) { return e.data('peer') ? 'bezier' : 'unbundled-bezier'; }
+      function curveOf(e) {
+        var a = e.source().position(), b = e.target().position();
+        var dx = b.x - a.x, dy = b.y - a.y, L = Math.sqrt(dx * dx + dy * dy);
+        if (L < 1 || Math.abs(dy) < 12) { return {w: [0.33, 0.66], d: [0, 0]}; }
+        var w = dy * dy / (2 * L * L), d = dx * dy / (2 * L);
+        return {w: [w, 1 - w], d: [d, -d]};
+      }
+      function edgeColor(e) { return e.data('affected') ? COLORS.down : (MEDIUM_COLOR[e.data('medium')] || MEDIUM_COLOR.unspecified); }
+
+      var cy = cytoscape({
+        container: box,
+        elements: data.nodes.concat(data.edges),
+        wheelSensitivity: 0.25, minZoom: 0.1, maxZoom: 3,
+        style: [
+          {selector: 'node', style: {
+            'shape': 'rectangle', 'background-opacity': 0, 'border-width': 0, 'width': 200, 'height': 94,
+            'label': function (n) { return n.data('label') + '\n' + n.data('info'); },
+            'text-wrap': 'wrap', 'text-max-width': 140, 'text-valign': 'center', 'text-halign': 'center',
+            'font-size': 11, 'font-weight': 600, 'color': function () { return pal().text; },
+            'font-family': getComputedStyle(document.body).fontFamily || 'sans-serif',
+            'background-image': function (n) { return cloudImage(n); },
+            'background-width': '100%', 'background-height': '100%', 'background-fit': 'none', 'background-clip': 'none',
+            'background-position-x': '50%', 'background-position-y': '50%'
+          }},
+          {selector: 'node[?outside]', style: {'opacity': 0.75}},
+          {selector: 'node.dim', style: {'opacity': 0.25}},
+          {selector: 'edge', style: {
+            'curve-style': curveStyle, 'control-point-weights': function (e) { return curveOf(e).w; }, 'control-point-distances': function (e) { return curveOf(e).d; },
+            'target-arrow-shape': function (e) { return e.data('peer') ? 'none' : 'triangle'; }, 'arrow-scale': 0.9, 'opacity': 0.9,
+            'width': function (e) { return 2 + Math.min(e.data('count'), 6) / 1.5; },
+            'line-color': edgeColor, 'target-arrow-color': edgeColor,
+            'line-style': function (e) { return MEDIUM_DASH[e.data('medium')] ? 'dashed' : 'solid'; },
+            'line-dash-pattern': function (e) { return MEDIUM_DASH[e.data('medium')] || [1, 0]; },
+            'label': 'data(elabel)', 'font-size': 9, 'font-weight': 600, 'color': function () { return pal().muted; },
+            'text-background-color': function () { return pal().card; }, 'text-background-opacity': 0.95, 'text-background-padding': 3,
+            'text-background-shape': 'round-rectangle', 'text-border-width': 1, 'text-border-opacity': 1, 'text-border-color': function () { return pal().border; }
+          }},
+          {selector: 'edge.hl', style: {'width': 5, 'opacity': 1, 'z-index': 10}}
+        ]
+      });
+      window.depCy = cy;
+      new MutationObserver(function () { cy.elements().forEach(function (e) { e.addClass('t'); e.removeClass('t'); }); })
+        .observe(document.documentElement, {attributes: true, attributeFilter: ['data-bs-theme']});
+
+      // layout: automatic (dependencies run top-down), then the positions the viewer has dragged
+      cy.layout({name: 'breadthfirst', directed: true, spacingFactor: 1.0, padding: 20, animate: false, avoidOverlap: true,
+                 eles: cy.nodes().union(cy.edges('[!peer]'))}).run();
+      try {
+        var saved = JSON.parse(lsGet(POS_KEY, 'null')) || {};
+        cy.nodes().forEach(function (n) { if (saved[n.id()]) { n.position({x: saved[n.id()][0], y: saved[n.id()][1]}); } });
+      } catch (e) { /* a broken saved layout is ignored */ }
+      cy.fit(undefined, 30);
+      cy.on('dragfree', 'node', function () {
+        var all = {};
+        cy.nodes().forEach(function (n) { all[n.id()] = [Math.round(n.position('x')), Math.round(n.position('y'))]; });
+        lsSet(POS_KEY, JSON.stringify(all));
+      });
+      cy.on('drag position', 'node', function (evt) { evt.target.connectedEdges().forEach(function (e) { e.addClass('flip'); e.removeClass('flip'); }); });
+      document.getElementById('dep-fit').addEventListener('click', function () { cy.fit(undefined, 30); });
+      document.getElementById('dep-print').addEventListener('click', function () { cy.resize(); cy.fit(undefined, 30); setTimeout(function () { window.print(); }, 150); });
+      document.getElementById('dep-png').addEventListener('click', function () {
+        var blob = cy.png({output: 'blob', bg: dark() ? '#1b2432' : '#ffffff', full: true, scale: 2, maxWidth: 8000, maxHeight: 8000});
+        var a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'dependencies-clouds-' + new Date().toISOString().slice(0, 10) + '.png';
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(function () { URL.revokeObjectURL(a.href); }, 5000);
+      });
+
+      // a click on a cloud opens the level below it; a click on a link lists what it consists of
+      function hidePop() { pop.hidden = true; }
+      cy.on('tap', 'node', function (evt) { window.location.href = evt.target.data('map_url'); });
+      cy.on('mouseover', 'node', function (evt) {
+        var d = evt.target.data();
+        box.style.cursor = 'pointer';
+        box.title = d.label + ' · ' + (d.kind === 'r' ? d.sites + ' sites · ' : '') + d.devices + ' devices' + (d.down ? ' · ' + d.down + ' down' : '') +
+          (d.suppressed ? ' · ' + d.suppressed + ' suppressed' : '') + (d.outside ? ' (outside this region)' : '') + ' — click to open';
+        evt.target.connectedEdges().addClass('hl');
+      });
+      cy.on('mouseout', 'node', function (evt) { box.style.cursor = ''; box.title = ''; evt.target.connectedEdges().removeClass('hl'); });
+      cy.on('mouseover', 'edge', function () { box.style.cursor = 'pointer'; });
+      cy.on('mouseout', 'edge', function () { box.style.cursor = ''; });
+      cy.on('tap', function (evt) { if (evt.target === cy) { hidePop(); } });
+      cy.on('pan zoom', hidePop);
+      cy.on('tap', 'edge', function (evt) {
+        var d = evt.target.data();
+        pop.innerHTML = '';
+        pop.appendChild(el('button', {type: 'button', class: 'dep-close', 'aria-label': 'Close', text: '×'}));
+        pop.firstChild.addEventListener('click', hidePop);
+        pop.appendChild(el('h6', {class: 'mb-1', text: d.a_name + (d.peer ? ' ↔ ' : ' → ') + d.b_name}));
+        pop.appendChild(el('div', {class: 'small text-muted mb-2', text: d.count + (d.count === 1 ? ' link' : ' links') + (d.peer ? ' (peer links)' : '') +
+          (d.affected ? ' · the upstream end is down' : '')}));
+        var list = el('ul', {class: 'small ps-3 mb-0'});
+        d.items.forEach(function (i) { list.appendChild(el('li', {text: i.from + (i.peer ? ' ↔ ' : ' → ') + i.to + ' (' + (MEDIUM_LABEL[i.medium] || i.medium) + ')'})); });
+        if (d.count > d.items.length) { list.appendChild(el('li', {class: 'text-muted', text: '+ ' + (d.count - d.items.length) + ' more'})); }
+        pop.appendChild(list);
+        pop.hidden = false;
+        var p = evt.renderedPosition, w = pop.offsetWidth, h = pop.offsetHeight;
+        pop.style.left = Math.max(8, Math.min(p.x + 12, box.clientWidth - w - 8)) + 'px';
+        pop.style.top = Math.max(8, Math.min(p.y + 12, box.clientHeight - h - 8)) + 'px';
+      });
+
+      // header, outage line and refresh
+      function renderHeader(d) {
+        var t = d.totals;
+        countEl.textContent = t.clouds + (t.clouds === 1 ? ' cloud' : ' clouds') + ' · ' + t.devices + ' devices' + (t.down ? ' · ' + t.down + ' down' : '');
+        outagesBox.innerHTML = '';
+        document.title = d.roots.length ? '(' + d.roots.length + '!) ' + originalTitleOv : originalTitleOv;
+        if (!d.roots.length) { return; }
+        var line = el('div', {class: 'alert alert-danger py-2 small mb-2'}, [el('i', {class: 'mdi mdi-alert'}), ' ',
+          el('strong', {text: d.roots.length + (d.roots.length === 1 ? ' outage: ' : ' outages: ')})]);
+        d.roots.forEach(function (r, i) {
+          if (i) { line.appendChild(document.createTextNode(' · ')); }
+          line.appendChild(el('a', {href: r.url, text: r.name, title: r.site + ' — ' + r.down + ' down; click to open its map and the impact'}));
+        });
+        outagesBox.appendChild(line);
+      }
+      var originalTitleOv = document.title;
+      renderHeader(data);
+      function refresh() {
+        fetch(data.overview_api, {credentials: 'same-origin', headers: {'Accept': 'application/json'}})
+          .then(function (r) { if (!r.ok) { throw new Error('HTTP ' + r.status); } return r.json(); })
+          .then(function (fresh) {
+            var have = cy.nodes().map(function (n) { return n.id(); }).concat(cy.edges().map(function (e) { return e.id(); })).sort().join();
+            var next = fresh.nodes.concat(fresh.edges).map(function (x) { return x.data.id; }).sort().join();
+            if (have !== next) { window.location.reload(); return; }       // clouds or links appeared / disappeared
+            fresh.nodes.concat(fresh.edges).forEach(function (x) { cy.getElementById(x.data.id).data(x.data); });
+            renderHeader(fresh);
+            cy.forceRender();
+          })
+          .catch(function () { /* the next round tries again */ });
+      }
+      setInterval(function () { if (!document.hidden) { refresh(); } }, 30000);
+    }
+    if (data.overview) { depOverview(data); return; }
     var textColor = getComputedStyle(document.body).color || '#fff';
     var COLORS = {up: '#2fb344', down: '#d63939', unknown: '#9aa0a6', none: '#566a80', degraded: '#f76707', failed: '#ae3ec9', suppressed: '#9aa0a6'};
     var MEDIA = ['ethernet', 'optical', 'radio', 'vpn', 'lte', 'satellite', 'unspecified'];

@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.21.0 — 2026-11-03
+- **Graph: clouds by default.** The dependency graph now opens as clouds - regions (any depth: kraj → okres → obec) and the sites in the open region -
+  with the number of sites / devices, the live state and one merged link per pair of clouds. A click opens the level below (a site opens its devices).
+  The new *Clouds / Devices* switch shows all devices of a map at once as before; a site, a custom map, a branch and the links in notifications still
+  open the devices directly. New endpoint `/api/plugins/dependencies/overview/`. No migration.
+
 ## 1.20.0 — 2026-11-03
 - Map: the switch "Site names" shows the name of each site next to its pin (remembered in the browser).
 

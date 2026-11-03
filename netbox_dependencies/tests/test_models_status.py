@@ -445,7 +445,7 @@ class LinkMediumTests(Base):
         self.assertEqual(denied.status_code, 403)       # without a CSRF token the change is not allowed
 
     def test_legend_lives_in_modal_not_in_the_graph_card(self):
-        page = self._client('leg').get('/plugins/dependencies/graph/').content.decode()
+        page = self._client('leg').get('/plugins/dependencies/graph/?view=devices').content.decode()
         self.assertIn('id="dep-legend-modal"', page)
         self.assertIn('data-bs-target="#dep-legend-modal"', page)
         self.assertNotIn('dep-legend">', page)             # the original legend strip above the graph is gone
@@ -618,10 +618,10 @@ class PaginationAndLimitsTests(Base):
         real = __import__('netbox.plugins', fromlist=['get_plugin_config']).get_plugin_config
         limited = lambda plugin, key: 3 if key == 'graph_max_nodes' else real(plugin, key)
         with mock.patch('netbox_dependencies.views.get_plugin_config', side_effect=limited):
-            page = c.get('/plugins/dependencies/graph/').content.decode()
+            page = c.get('/plugins/dependencies/graph/?view=devices').content.decode()
             self.assertIn('"too_large": {"nodes": 7, "limit": 3', page)
             self.assertIn('"nodes": []', page)
-            forced = c.get('/plugins/dependencies/graph/?force=1').content.decode()
+            forced = c.get('/plugins/dependencies/graph/?view=devices&force=1').content.decode()
             self.assertIn('"too_large": null', forced)
             self.assertNotIn('"nodes": []', forced)
 

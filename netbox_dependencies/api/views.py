@@ -9,6 +9,7 @@ from netbox.api.viewsets import NetBoxModelViewSet
 from ..filtersets import CustomMapFilterSet, DependencyFilterSet, PeerLinkFilterSet
 from ..impact import get_impact
 from ..geomap import build_map
+from ..overview import build_overview
 from ..graph_data import device_in_scope, single_node
 from ..models import CustomMap, Dependency, DeviceStatus, PeerLink, PollerHeartbeat, TopologyDevice
 from ..status import (
@@ -56,6 +57,17 @@ class MapDataAPIView(APIView):
 
     def get(self, request):
         return Response(build_map())
+
+
+class OverviewAPIView(APIView):
+    """GET /api/plugins/dependencies/overview/?region=<id> - the clouds (regions / sites) of the graph with their live state and the
+    merged links between them (the default view of the dependency graph)."""
+
+    queryset = Dependency.objects.none()
+
+    def get(self, request):
+        region = request.query_params.get('region', '')
+        return Response(build_overview(int(region) if region.isdigit() else None))
 
 
 class TopologySearchAPIView(APIView):

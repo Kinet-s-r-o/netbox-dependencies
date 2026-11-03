@@ -12,6 +12,7 @@ router.register('peers', views.PeerLinkViewSet)
 urlpatterns = [
     path('impact/', views.ImpactAPIView.as_view(), name='impact'),
     path('map/', views.MapDataAPIView.as_view(), name='map'),
+    path('overview/', views.OverviewAPIView.as_view(), name='overview'),
     path('topology/', views.TopologyAPIView.as_view(), name='topology'),
     path('topology/search/', views.TopologySearchAPIView.as_view(), name='topology_search'),
     path('topology/<int:device_id>/', views.TopologyDeviceAPIView.as_view(), name='topology_device'),
