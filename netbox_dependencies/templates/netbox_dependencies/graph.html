@@ -836,6 +836,7 @@
           'width': 2.5, 'line-style': 'dashed', 'line-dash-pattern': MEDIUM_DASH.satellite,
           'line-color': MEDIUM_COLOR.satellite, 'target-arrow-color': MEDIUM_COLOR.satellite
         }},
+        {selector: 'edge[?merged]', style: {'width': 4}},          // several links to one cloud, drawn as one line
         {selector: 'edge.picked', style: {'width': 4.5, 'opacity': 1, 'z-index': 10}},
         {selector: 'edge[group != ""]', style: {
           'underlay-color': '#ae3ec9', 'underlay-opacity': 0.35, 'underlay-padding': 4
@@ -1023,6 +1024,7 @@
     }
     cy.container().addEventListener('contextmenu', function (ev) { ev.preventDefault(); });
     cy.on('cxttap', 'edge', function (evt) {
+      if (evt.target.data('merged')) { return; }       // a merged line has no single medium: click it for the list of its links
       var oe = evt.originalEvent;
       showCtx(evt.target, oe.clientX, oe.clientY);
     });
@@ -1171,14 +1173,14 @@
       var all = cy.nodes().filter(function (n) { return !n.data('cloud'); });
       var shown = all.filter(function (n) { return !n.hasClass('hidden'); });
       countEl.textContent = (shown.length === all.length ? all.length : shown.length + ' of ' + all.length) +
-        ' devices, ' + data.edges.length + ' dependencies';
+        ' devices, ' + cy.edges().reduce(function (t, e) { return t + (e.data('count') || 1); }, 0) + ' dependencies';
     }
     updateCount();
 
     // ---- device info: a small popup next to the node
     var pop = document.getElementById('dep-pop');
     // hooks of the edit mode (filled in further below): the popups ask it for extra buttons
-    var depEdit = {on: false, nodeButtons: function () { return []; }, edgeButtons: function () { return []; }};
+    var depEdit = {on: false, nodeButtons: function () { return []; }, edgeButtons: function () { return []; }, itemButtons: function () { return []; }};
     var detailNode = null;
     function positionPop() {
       if (!detailNode || pop.hidden) { return; }
@@ -1192,7 +1194,36 @@
       pop.style.left = x + 'px';
       pop.style.top = y + 'px';
     }
+    // several links between one device and one cloud are drawn as one line; its popup lists them
+    function showMergedDetail(edge) {
+      var d = edge.data(), s = edge.source().data(), t = edge.target().data();
+      detailNode = edge;
+      edge.addClass('picked');
+      var close = el('button', {type: 'button', class: 'dep-close', title: 'Close', 'aria-label': 'Close', text: '×'});
+      close.addEventListener('click', function () { showDetail(null); });
+      var title = el('h5', {class: 'mb-1 pe-3'}, [
+        el('span', {text: s.label}), el('span', {class: 'text-muted mx-1', text: d.peer ? '↔' : '→'}), el('span', {text: t.label})]);
+      var list = el('div', {});
+      d.items.forEach(function (i) {
+        var row = el('div', {class: 'border-top pt-2 mt-2'});
+        row.appendChild(el('div', {class: 'd-flex align-items-center gap-2'}, [
+          mediumSwatch(i.medium), el('strong', {text: i.from_name}), el('span', {class: 'text-muted', text: i.peer ? '↔' : '→'}), el('strong', {text: i.to_name})]));
+        row.appendChild(el('div', {class: 'small text-muted', text: [i.peer ? 'Peer link' : (TYPE_LABEL[i.type] || i.type), MEDIUM_LABEL[i.medium] || i.medium,
+          i.group ? 'group ' + i.group : ''].filter(Boolean).join(' · ')}));
+        if (i.description) { row.appendChild(el('div', {class: 'small', text: i.description})); }
+        var actions = [el('a', {class: 'btn btn-sm btn-outline-secondary', href: i.url, text: 'Open'})];
+        if (canSave) { actions.push(el('a', {class: 'btn btn-sm btn-outline-secondary', href: i.edit_url, text: 'Edit'})); }
+        depEdit.itemButtons(edge, i).forEach(function (b) { actions.push(b); });
+        row.appendChild(el('div', {class: 'd-flex flex-wrap gap-2 mt-1'}, actions));
+        list.appendChild(row);
+      });
+      pop.innerHTML = '';
+      [close, title, el('div', {class: 'text-muted small'}, [document.createTextNode(d.count + (d.count === 1 ? ' link' : ' links'))]), list].forEach(function (k) { pop.appendChild(k); });
+      pop.hidden = false;
+      positionPop();
+    }
     function showEdgeDetail(edge) {
+      if (edge.data('merged')) { showMergedDetail(edge); return; }
       var d = edge.data();
       detailNode = edge;
       edge.addClass('picked');
@@ -1876,12 +1907,45 @@
         if ((ev.key === 'Delete') && depEdit.on) { return; }
       });
       document.addEventListener('keydown', function (ev) {
-        if (ev.key === 'Delete' && depEdit.on && data.can_delete && detailNode && detailNode.isEdge && detailNode.isEdge() &&
+        if (ev.key === 'Delete' && depEdit.on && data.can_delete && detailNode && detailNode.isEdge && detailNode.isEdge() && !detailNode.data('merged') &&
             !/INPUT|TEXTAREA|SELECT/.test((document.activeElement || {}).tagName || '')) { deleteLink(detailNode); }
       });
 
-      depEdit.edgeButtons = function (edge) {
+      depEdit.itemButtons = function (edge, item) {
         if (!depEdit.on || !data.can_delete) { return []; }
+        var b = el('button', {type: 'button', class: 'btn btn-sm btn-outline-danger'}, [el('i', {class: 'mdi mdi-link-variant-off'}), ' Delete']);
+        b.addEventListener('click', function () { deleteMergedItem(edge, item); });
+        return [b];
+      };
+      function deleteMergedItem(edge, item) {
+        var peer = !!item.peer, label = item.from_name + (peer ? ' ↔ ' : ' → ') + item.to_name;
+        if (!window.confirm('Delete the ' + (peer ? 'peer link ' : 'dependency ') + label + '?')) { return; }
+        var restore = peer
+          ? {device_a: item.from_id, device_b: item.to_id, medium: item.medium, description: item.description || ''}
+          : {upstream: item.from_id, downstream: item.to_id, dependency_type: item.type, medium: item.medium,
+             redundancy_group: item.group || '', description: item.description || ''};
+        apiSend('DELETE', apiFor(peer) + item.pk + '/').then(function () {
+          var rest = edge.data('items').filter(function (i) { return i !== item; });
+          if (peer) { bump(item.from_id, 'peers', -1); bump(item.to_id, 'peers', -1); } else { bump(item.from_id, 'downs', -1); bump(item.to_id, 'ups', -1); }
+          if (!rest.length) {
+            var id = edge.id();
+            cy.remove(edge);
+            data.edges = data.edges.filter(function (e) { return e.data.id !== id; });
+            showDetail(null);
+          } else {
+            edge.data({items: rest, count: rest.length, elabel: rest.length + (rest.length === 1 ? ' link' : ' links')});
+            showEdgeDetail(edge);
+          }
+          updateCount(); scheduleMini(); refreshLive();
+          actionToast('Deleted ' + label + '.', 'Undo', function () {
+            // the other end is not on this map, so the line is rebuilt by reloading the page
+            apiSend('POST', apiFor(peer), restore).then(function () { window.location.reload(); })
+              .catch(function (err) { toast('Could not restore the link (' + err.message + ').'); });
+          });
+        }).catch(function (err) { toast('Could not delete the link (' + err.message + ').'); });
+      }
+      depEdit.edgeButtons = function (edge) {
+        if (!depEdit.on || !data.can_delete || edge.data('merged')) { return []; }
         var b = el('button', {type: 'button', class: 'btn btn-sm btn-outline-danger'}, [el('i', {class: 'mdi mdi-link-variant-off'}), ' Delete link']);
         b.addEventListener('click', function () { deleteLink(edge); });
         return [b];

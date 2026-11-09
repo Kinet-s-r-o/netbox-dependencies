@@ -24,6 +24,8 @@ live, with optional notifications to Microsoft Teams, Slack or any webhook.
   import it into another NetBox. Import adds links and rejects duplicates; it does not update existing ones.
 - **Interactive graph** (Cytoscape.js) per site, region or custom map; other locations appear as clouds that open
   their own map. Search, filters, role icons, PNG export, minimap. Click a link for its details (medium, type, redundancy group, description). Hover a device for its description and notes. *Filters → Link style* switches between curved and straight arrows (remembered per browser). Layouts are saved automatically; a region (or *All*) that has no layout of its own is composed from the layouts of its sub-locations, side by side.
+- **One line per cloud:** several links between the same device and the same cloud (another location) are drawn as one thicker line labelled
+  *N links*; click it for the list of the links (with *Open*, *Edit* and, in edit mode, *Delete* for each). Links to a cloud are always straight.
 - **Clouds, level by level:** the graph opens as **clouds** - one per region (kraj, okres, obec, ... - any depth of NetBox regions) and per site that
   sits directly in the open region (sites without a region are on the top level). A cloud shows the number of sites and devices below it, turns red
   when something in it is down and is linked to the other clouds by one merged line per pair (click a line to list its links). Click a cloud to open
@@ -111,7 +113,7 @@ Afterwards continue with [First steps](#first-steps).
    [latest release](https://github.com/Kinet-s-r-o/netbox-dependencies/releases/latest) — the version appears twice in the URL, use the one shown there:
 
    ```bash
-   /opt/netbox/venv/bin/pip install https://github.com/Kinet-s-r-o/netbox-dependencies/releases/download/v1.21.1/netbox_dependencies-1.21.1-py3-none-any.whl
+   /opt/netbox/venv/bin/pip install https://github.com/Kinet-s-r-o/netbox-dependencies/releases/download/v1.22.0/netbox_dependencies-1.22.0-py3-none-any.whl
    ```
 
    To keep it across NetBox upgrades add the same URL as a line to `local_requirements.txt` in the NetBox directory.
@@ -219,13 +221,13 @@ Setting it up takes three steps and no Docker build. The poller needs its own Ne
    the file private and out of git. Add `--allowed-ip 10.0.0.5/32` to accept the token only from the poller's address, or run the command with
    `--rotate` later to replace the token.
 2. **Add the service** to your compose file (next to the file from step 1; for netbox-docker `docker-compose.override.yml`). Use the same version
-   as the plugin (`#v1.21.1` below). Docker builds the small image straight from this repository, so no registry or account is needed:
+   as the plugin (`#v1.22.0` below). Docker builds the small image straight from this repository, so no registry or account is needed:
 
    ```yaml
    services:
      dependencies-poller:
-       build: https://github.com/Kinet-s-r-o/netbox-dependencies.git#v1.21.1:poller
-       image: netbox-dependencies-poller:1.21.1
+       build: https://github.com/Kinet-s-r-o/netbox-dependencies.git#v1.22.0:poller
+       image: netbox-dependencies-poller:1.22.0
        restart: unless-stopped
        env_file: dependencies-poller.env
        cap_drop: [ALL]
@@ -235,7 +237,7 @@ Setting it up takes three steps and no Docker build. The poller needs its own Ne
    ```
 
    A prebuilt image is published with every release as `ghcr.io/kinet-s-r-o/netbox-dependencies-poller:<version>` — you can use
-   `image: ghcr.io/kinet-s-r-o/netbox-dependencies-poller:1.21.1` instead of the two lines `build:` and `image:` (it works once the package is public).
+   `image: ghcr.io/kinet-s-r-o/netbox-dependencies-poller:1.22.0` instead of the two lines `build:` and `image:` (it works once the package is public).
    If `docker compose build` stops with `failed to execute bake`, run it with `COMPOSE_BAKE=false`.
 3. **Start it:** `docker compose up -d --build dependencies-poller` (the first start builds the image, about a minute) and look at `docker compose logs -f dependencies-poller` — after a round it prints
    `polled N devices`. The poller then appears under *Dependencies → Configuration → ICMP poller*.

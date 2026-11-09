@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.22.0 — 2026-11-09
+- Graph: several links between one device and one cloud are merged into a single line "N links"; a click lists them (open, edit, and delete in edit mode). Single links and links in opposite directions are unchanged.
+
 ## 1.21.1 — 2026-11-09
 - Graph: links to a cloud are straight lines that end on the outline of the cloud (the S-curve bent sharply on long diagonals and the arrow stopped in the corner of the cloud's box).
 

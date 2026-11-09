@@ -164,6 +164,31 @@ def node_data(d, upstream_count, downstream_count, states, status_rows, suppress
     }
 
 
+def _merge_cloud_links(graph_edges):
+    """Several links between the same device and the same cloud (or the same cloud and device) are drawn as one line "N links";
+    a click on it lists them. A single link, and links in the opposite directions, stay as they are."""
+    groups = defaultdict(list)
+    for edge in graph_edges:
+        d = edge['data']
+        if d['source'].startswith('x') or d['target'].startswith('x'):
+            groups[(d['source'], d['target'], d['peer'])].append(edge)
+    merged_ids, merged = set(), []
+    for (source, target, peer), members in groups.items():
+        if len(members) < 2:
+            continue
+        rows = [m['data'] for m in members]
+        merged_ids |= {r['id'] for r in rows}
+        merged.append({'data': {
+            'id': f"m:{source}>{target}:{int(peer)}", 'merged': True, 'peer': peer, 'source': source, 'target': target,
+            'count': len(rows), 'elabel': f'{len(rows)} links', 'group': '', 'description': '', 'pk': 0,
+            'medium': Counter(r['medium'] for r in rows).most_common(1)[0][0],
+            'type': Counter(r['type'] for r in rows).most_common(1)[0][0],
+            'items': [{k: r[k] for k in ('pk', 'peer', 'type', 'medium', 'group', 'description', 'url', 'edit_url',
+                                         'from_id', 'to_id', 'from_name', 'to_name')} for r in rows],
+        }})
+    return [e for e in graph_edges if e['data']['id'] not in merged_ids] + merged
+
+
 def build_graph(site_id=None, region_id=None, device_id=None, focus_id=None, map_id=None):
     """Returns a dict with nodes, edges, navigation items and saved positions."""
     custom = CustomMap.objects.filter(pk=map_id).first() if map_id else None
@@ -291,6 +316,8 @@ def build_graph(site_id=None, region_id=None, device_id=None, focus_id=None, map
             'elabel': label,
             'url': e.get_absolute_url(),
             'edit_url': f'{e.get_absolute_url()}edit/',
+            'from_id': e.upstream_id, 'to_id': e.downstream_id,
+            'from_name': devices[e.upstream_id].name, 'to_name': devices[e.downstream_id].name,
         }})
 
     for p in peer_links:
@@ -312,7 +339,10 @@ def build_graph(site_id=None, region_id=None, device_id=None, focus_id=None, map
             'elabel': remote or '',
             'url': p.get_absolute_url(),
             'edit_url': reverse('plugins:netbox_dependencies:peerlink_edit', args=[p.pk]),
+            'from_id': p.device_a_id, 'to_id': p.device_b_id,
+            'from_name': devices[p.device_a_id].name, 'to_name': devices[p.device_b_id].name,
         }})
+    graph_edges = _merge_cloud_links(graph_edges)
 
     # navigation: parent locations + neighbouring maps
     crumbs = [{'name': 'All', 'url': graph_url()}]
