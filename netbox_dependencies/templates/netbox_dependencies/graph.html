@@ -438,7 +438,7 @@
       var POS_KEY = 'depCloudPos:' + data.scope;
       document.getElementById('dep-live-dot') && (document.getElementById('dep-live-dot').className = 'dep-live-dot on');
 
-      function curveStyle(e) { return e.data('peer') ? 'bezier' : 'unbundled-bezier'; }
+      function curveStyle() { return 'bezier'; }              // straight lines: parallel links fan out and nothing bends sharply
       function curveOf(e) {
         var a = e.source().position(), b = e.target().position();
         var dx = b.x - a.x, dy = b.y - a.y, L = Math.sqrt(dx * dx + dy * dy);
@@ -454,7 +454,7 @@
         wheelSensitivity: 0.25, minZoom: 0.1, maxZoom: 3,
         style: [
           {selector: 'node', style: {
-            'shape': 'rectangle', 'background-opacity': 0, 'border-width': 0, 'width': 200, 'height': 94,
+            'shape': 'ellipse', 'background-opacity': 0, 'border-width': 0, 'width': 200, 'height': 94,
             'label': function (n) { return n.data('label') + '\n' + n.data('info'); },
             'text-wrap': 'wrap', 'text-max-width': 140, 'text-valign': 'center', 'text-halign': 'center',
             'font-size': 11, 'font-weight': 600, 'color': function () { return pal().text; },
@@ -781,7 +781,8 @@
           'underlay-padding': 4, 'underlay-shape': 'round-rectangle'
         }},
         {selector: 'node[?cloud]', style: {
-          'shape': 'rectangle', 'background-opacity': 0, 'border-width': 0, 'width': 190, 'height': 88,
+          'shape': 'ellipse',          // the links end on the outline of the cloud, not in the corners of its bounding box
+          'background-opacity': 0, 'border-width': 0, 'width': 190, 'height': 88,
           'background-width': '100%', 'background-height': '100%', 'background-fit': 'none', 'background-clip': 'none',
           'background-position-x': '50%', 'background-position-y': '50%', 'text-margin-x': 0,
           'background-image': function (n) { return CLOUD[isDark() ? 'dark' : 'light'][effState(n)] || CLOUD.light.none; },
@@ -800,7 +801,9 @@
         {selector: 'node.dim', style: {'opacity': 0.25}},
         {selector: 'node.nomatch', style: {'opacity': 0.18}},
         {selector: 'edge', style: {
-          'curve-style': function (e) { return (e.data('peer') || LINK_STYLE === 'straight') ? 'bezier' : 'unbundled-bezier'; },   // bezier = a straight line (parallel links fan out)
+          'curve-style': function (e) {   // bezier = a straight line (parallel links fan out); links to a cloud are always straight, an S-curve bends sharply there
+          return (e.data('peer') || LINK_STYLE === 'straight' || e.source().data('cloud') || e.target().data('cloud')) ? 'bezier' : 'unbundled-bezier';
+        },
           'control-point-weights': function (e) { return curveOf(e).w; },
           'control-point-distances': function (e) { return curveOf(e).d; },
           'target-arrow-shape': 'triangle', 'arrow-scale': 0.9, 'width': 2, 'opacity': 0.9,

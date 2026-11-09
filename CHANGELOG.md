@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.21.1 — 2026-11-09
+- Graph: links to a cloud are straight lines that end on the outline of the cloud (the S-curve bent sharply on long diagonals and the arrow stopped in the corner of the cloud's box).
+
 ## 1.21.0 — 2026-11-03
 - **Graph: clouds by default.** The dependency graph now opens as clouds - regions (any depth: kraj → okres → obec) and the sites in the open region -
   with the number of sites / devices, the live state and one merged link per pair of clouds. A click opens the level below (a site opens its devices).
