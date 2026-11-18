@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.23.0 — 2026-11-18
+- Zabbix integration: tolerant of a higher `netbox-zabbix-status` version. A renamed or removed class/field/helper on the upstream plugin (`ZabbixHost`, `ZabbixHostStatusChoices`, `ZabbixProblem` fields, `ZabbixSyncJob`, `zabbix.get_setting`) no longer crashes the Zabbix sync, the poller coverage lookup or the watchdog — the plugin degrades to "Zabbix unavailable" with a warning in the log.
+
 ## 1.22.0 — 2026-11-09
 - Graph: several links between one device and one cloud are merged into a single line "N links"; a click lists them (open, edit, and delete in edit mode). Single links and links in opposite directions are unchanged.
 

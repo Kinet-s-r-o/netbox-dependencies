@@ -23,9 +23,11 @@ class ZabbixStatusSyncJob(JobRunner):
 
     def run(self, *args, **kwargs):
         self.job.data = sync_from_zabbix()
-        # watchdog: a stuck Zabbix sync is marked as failed and scheduled again
+        # watchdog: a stuck Zabbix sync is marked as failed and scheduled again. The
+        # watchdog can also return {'error': ...} if a newer netbox_zabbix_status version
+        # has moved or renamed something — surface it but do not fail the parent job.
         watchdog = heal_zabbix_sync()
-        if watchdog and (watchdog['failed_stale'] or watchdog['rescheduled']):
+        if watchdog and (watchdog.get('failed_stale') or watchdog.get('rescheduled') or watchdog.get('error')):
             self.job.data['watchdog'] = watchdog
             self.logger.warning('Zabbix sync watchdog: %s', watchdog)
         # notifications (new outage / outage ended)

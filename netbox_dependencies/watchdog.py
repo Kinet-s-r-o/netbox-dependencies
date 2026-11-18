@@ -5,12 +5,16 @@ running exists. If a worker stops while the sync runs (container restart), the r
 `running` forever and the sync never starts again.
 This watchdog runs in the minute job of the plugin: it marks the stuck record as failed
 and, if no further run is scheduled, schedules the sync again."""
+import logging
 from datetime import timedelta
 
+from django.conf import settings
 from django.db.models import Q
 from django.utils import timezone
 
 from .status import zabbix_available
+
+_logger = logging.getLogger(__name__)
 
 # The Zabbix sync has a 2 min timeout; anything running longer than 15 min is certainly stuck.
 STALE_AFTER = timedelta(minutes=15)
@@ -18,13 +22,36 @@ STALE_AFTER = timedelta(minutes=15)
 GRACE = timedelta(seconds=90)
 
 
+def _zabbix_sync_interval():
+    """Current sync interval (minutes), resilient to a renamed get_setting() in a newer
+    netbox_zabbix_status: tries the helper, then PLUGINS_CONFIG, then the documented default."""
+    try:
+        from netbox_zabbix_status.zabbix import get_setting
+        return int(get_setting('sync_interval', 5))
+    except Exception:
+        try:
+            cfg = settings.PLUGINS_CONFIG.get('netbox_zabbix_status', {}) or {}
+            return int(cfg.get('sync_interval', 5))
+        except Exception:
+            return 5
+
+
 def heal_zabbix_sync():
-    """Returns {'failed_stale': [pk, ...], 'rescheduled': bool} or None if the plugin is not installed."""
+    """Returns {'failed_stale': [pk, ...], 'rescheduled': bool} or None if the plugin is not
+    installed. A compatibility failure (ZabbixSyncJob moved/renamed/signature changed) is
+    caught and returned as {'error': ...} so the minute job of this plugin keeps running."""
     if not zabbix_available():
         return None
+    try:
+        return _heal_zabbix_sync_impl()
+    except Exception as e:
+        _logger.warning('Zabbix watchdog failed (%s); skipping this round.', e)
+        return {'error': f'{type(e).__name__}: {e}'}
+
+
+def _heal_zabbix_sync_impl():
     from core.choices import JobStatusChoices
     from netbox_zabbix_status.jobs import ZabbixSyncJob
-    from netbox_zabbix_status.zabbix import get_setting
 
     now = timezone.now()
     jobs = ZabbixSyncJob.get_jobs()
@@ -46,6 +73,6 @@ def heal_zabbix_sync():
     rescheduled = False
     nothing_enqueued = not jobs.filter(status__in=JobStatusChoices.ENQUEUED_STATE_CHOICES).exists()
     if nothing_enqueued and not just_finished:
-        ZabbixSyncJob.enqueue_once(interval=int(get_setting('sync_interval', 5)))
+        ZabbixSyncJob.enqueue_once(interval=_zabbix_sync_interval())
         rescheduled = True
     return {'failed_stale': failed, 'rescheduled': rescheduled}

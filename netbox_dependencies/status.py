@@ -1,4 +1,5 @@
 """Sources of device status (Zabbix, ICMP poller) and analysis of live outages."""
+import logging
 import re
 from collections import defaultdict
 from datetime import timedelta
@@ -16,6 +17,8 @@ from .impact import load_edges
 from .models import DeviceStatus, DeviceSuppression, Poller, PollerSettings
 
 PLUGIN = 'netbox_dependencies'
+
+_logger = logging.getLogger(__name__)
 
 
 def _setting(key):
@@ -126,20 +129,49 @@ def poll_targets(cfg=None, only_in_graph=None, poller=None):
 
 
 def zabbix_available():
-    return apps.is_installed('netbox_zabbix_status')
+    """True when the netbox_zabbix_status plugin is installed AND the symbols this plugin
+    reads from it (ZabbixHost, ZabbixHostStatusChoices) are importable. Any deviation from
+    that contract (a newer version renamed or removed a class) counts as "unavailable" —
+    the plugin then runs as if Zabbix were not integrated, instead of raising on import."""
+    if not apps.is_installed('netbox_zabbix_status'):
+        return False
+    try:
+        from netbox_zabbix_status.models import ZabbixHost  # noqa: F401
+        from netbox_zabbix_status.choices import ZabbixHostStatusChoices  # noqa: F401
+    except Exception as e:
+        _logger.warning('netbox_zabbix_status is installed but its API has changed (%s); '
+                        'treating Zabbix as unavailable.', e)
+        return False
+    return True
+
+
+def _zabbix_enabled_value():
+    """The value representing "enabled" in ZabbixHostStatusChoices — reads the choice
+    attribute if present, falls back to the string literal 'enabled' (the stored DB value
+    is stable even if the Python attribute is renamed)."""
+    try:
+        from netbox_zabbix_status.choices import ZabbixHostStatusChoices
+        return getattr(ZabbixHostStatusChoices, 'ENABLED', 'enabled')
+    except Exception:
+        return 'enabled'
 
 
 def zabbix_covered_device_ids():
-    """Devices that have an active (enabled) host in Zabbix — the ICMP poller skips them."""
+    """Devices that have an active (enabled) host in Zabbix — the ICMP poller skips them.
+    A compatibility failure returns an empty set: the poller will then cover those devices
+    itself (safer than skipping them silently)."""
     if not zabbix_available():
         return set()
-    from netbox_zabbix_status.choices import ZabbixHostStatusChoices
-    from netbox_zabbix_status.models import ZabbixHost
-    return set(
-        ZabbixHost.objects.filter(
-            device__isnull=False, status=ZabbixHostStatusChoices.ENABLED
-        ).values_list('device_id', flat=True)
-    )
+    try:
+        from netbox_zabbix_status.models import ZabbixHost
+        return set(
+            ZabbixHost.objects.filter(
+                device__isnull=False, status=_zabbix_enabled_value()
+            ).values_list('device_id', flat=True)
+        )
+    except Exception as e:
+        _logger.warning('Zabbix coverage lookup failed (%s); the ICMP poller will cover all devices.', e)
+        return set()
 
 
 def _set_state(device_id, state, source, detail, fail_count, now):
@@ -186,10 +218,21 @@ def apply_icmp_report(device_id, reachable, detail='', cfg=None):
 
 def sync_from_zabbix():
     """Overwrites the state of devices matched with Zabbix. DOWN = the host has an active
-    (unsuppressed) problem whose name matches `zabbix_down_patterns`."""
+    (unsuppressed) problem whose name matches `zabbix_down_patterns`.
+
+    Any compatibility failure (netbox_zabbix_status renamed/removed a symbol, a field was
+    dropped, ...) is caught here so the periodic job keeps scheduling instead of staying
+    `running` forever."""
     if not zabbix_available():
         return {'skipped': 'netbox_zabbix_status is not installed'}
-    from netbox_zabbix_status.choices import ZabbixHostStatusChoices
+    try:
+        return _sync_from_zabbix_impl()
+    except Exception as e:
+        _logger.warning('Zabbix sync failed (%s); the plugin keeps running without Zabbix.', e)
+        return {'error': f'{type(e).__name__}: {e}'}
+
+
+def _sync_from_zabbix_impl():
     from netbox_zabbix_status.models import ZabbixHost
 
     patterns = [re.compile(p, re.IGNORECASE) for p in _setting('zabbix_down_patterns')]
@@ -199,19 +242,26 @@ def sync_from_zabbix():
     verdicts = {}  # device_id -> (state, detail); DOWN > UNKNOWN > UP
     rank = {StateChoices.UP: 0, StateChoices.UNKNOWN: 1, StateChoices.DOWN: 2}
     hosts = ZabbixHost.objects.filter(
-        device__isnull=False, status=ZabbixHostStatusChoices.ENABLED
+        device__isnull=False, status=_zabbix_enabled_value()
     ).prefetch_related('problems')
     for host in hosts:
-        if host.in_maintenance:
+        # getattr with defaults so the sync keeps working if a newer netbox_zabbix_status
+        # version renames or drops one of these fields (not fatal — we fall back to a safe value)
+        if getattr(host, 'in_maintenance', False):
             verdict = (StateChoices.UNKNOWN, 'Zabbix host in maintenance')
-        elif host.last_synced is None or now - host.last_synced > stale_after:
-            verdict = (StateChoices.UNKNOWN, 'Zabbix data is stale')
         else:
-            matched = [
-                p.name for p in host.problems.all()
-                if not p.suppressed and any(rx.search(p.name) for rx in patterns)
-            ]
-            verdict = (StateChoices.DOWN, matched[0]) if matched else (StateChoices.UP, '')
+            last_synced = getattr(host, 'last_synced', None)
+            if last_synced is None or now - last_synced > stale_after:
+                verdict = (StateChoices.UNKNOWN, 'Zabbix data is stale')
+            else:
+                problems = getattr(host, 'problems', None)
+                problem_list = problems.all() if problems is not None else []
+                matched = [
+                    getattr(p, 'name', '') for p in problem_list
+                    if not getattr(p, 'suppressed', False)
+                    and any(rx.search(getattr(p, 'name', '') or '') for rx in patterns)
+                ]
+                verdict = (StateChoices.DOWN, matched[0]) if matched else (StateChoices.UP, '')
         current = verdicts.get(host.device_id)
         if current is None or rank[verdict[0]] > rank[current[0]]:
             verdicts[host.device_id] = verdict
