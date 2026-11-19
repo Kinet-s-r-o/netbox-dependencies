@@ -23,7 +23,6 @@
             <tr>
               <td><a href="{{ dep.upstream.get_absolute_url }}">{{ dep.upstream }}</a></td>
               <td>{% badge dep.get_dependency_type_display bg_color=dep.get_dependency_type_color %}</td>
-              <td>{{ dep.redundancy_group|placeholder }}</td>
               <td class="text-end"><a href="{{ dep.get_absolute_url }}">Detail</a></td>
             </tr>
           {% empty %}
@@ -44,7 +43,6 @@
             <tr>
               <td><a href="{{ dep.downstream.get_absolute_url }}">{{ dep.downstream }}</a></td>
               <td>{% badge dep.get_dependency_type_display bg_color=dep.get_dependency_type_color %}</td>
-              <td>{{ dep.redundancy_group|placeholder }}</td>
               <td class="text-end"><a href="{{ dep.get_absolute_url }}">Detail</a></td>
             </tr>
           {% empty %}
@@ -62,7 +60,6 @@
     <h2 class="card-header">
       Impact if {{ object }} fails
       <span class="ms-3 badge text-bg-red">{{ impact_summary.down }} down</span>
-      <span class="badge text-bg-orange">{{ impact_summary.degraded }} degraded</span>
     </h2>
     {% include 'netbox_dependencies/inc/impact_table.html' with rows=impact_rows %}
     {% include 'inc/paginator.html' with paginator=paginator page=page %}

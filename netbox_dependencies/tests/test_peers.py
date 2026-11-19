@@ -57,7 +57,7 @@ class PeerEffectTests(Base):
         self.dep('core', 'sw1')
         PeerLink.objects.create(device_a=self.devs['sw1'], device_b=self.devs['sw2'])
         rows, summary = get_impact([self.devs['sw1'].pk])
-        self.assertEqual((summary['down'], summary['degraded']), (0, 0))                   # sw2 is not affected by sw1
+        self.assertEqual(summary['down'], 0)                   # sw2 is not affected by sw1
         now = timezone.now()
         DeviceStatus.objects.create(device=self.devs['sw1'], state='down', source='icmp', last_checked=now, last_changed=now)
         outages, explained = analyze_outages()

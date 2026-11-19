@@ -16,14 +16,13 @@ live, with optional notifications to Microsoft Teams, Slack or any webhook.
 
 ## Features
 
-- **Dependencies** between devices: upstream → downstream, link medium (Ethernet, optical, radio, VPN / tunnel, LTE / 5G, satellite), optional
-  **redundancy groups** (a device goes *down* only when all its redundant parents are down, otherwise it is *degraded*).
+- **Dependencies** between devices: upstream → downstream, link medium (Ethernet, optical, radio, VPN / tunnel, LTE / 5G, satellite).
   Cycles, self-references and duplicates are rejected. REST API included.
 - **Export and import as CSV:** *All dependencies → Export → Re-importable CSV* downloads the (filtered) list in exactly the columns the *Import*
-  page reads (`upstream,downstream,dependency_type,medium,redundancy_group,description,tags`; devices by name). Edit it in a spreadsheet or
+  page reads (`upstream,downstream,dependency_type,medium,description,tags`; devices by name). Edit it in a spreadsheet or
   import it into another NetBox. Import adds links and rejects duplicates; it does not update existing ones.
 - **Interactive graph** (Cytoscape.js) per site, region or custom map; other locations appear as clouds that open
-  their own map. Search, filters, role icons, PNG export, minimap. Click a link for its details (medium, type, redundancy group, description). Hover a device for its description and notes. *Filters → Link style* switches between curved and straight arrows (remembered per browser). Layouts are saved automatically; a region (or *All*) that has no layout of its own is composed from the layouts of its sub-locations, side by side.
+  their own map. Search, filters, role icons, PNG export, minimap. Click a link for its details (medium, type, description). Hover a device for its description and notes. *Filters → Link style* switches between curved and straight arrows (remembered per browser). Layouts are saved automatically; a region (or *All*) that has no layout of its own is composed from the layouts of its sub-locations, side by side.
 - **One line per cloud:** several links between the same device and the same cloud (another location) are drawn as one thicker line labelled
   *N links*; click it for the list of the links (with *Open*, *Edit* and, in edit mode, *Delete* for each). Links to a cloud are always straight.
 - **Clouds, level by level:** the graph opens as **clouds** - one per region (kraj, okres, obec, ... - any depth of NetBox regions) and per site that
@@ -34,7 +33,7 @@ live, with optional notifications to Microsoft Teams, Slack or any webhook.
   you can drag them and the arrangement is remembered in your browser.
 - **Edit the topology in the graph:** the *Edit* button switches on an edit mode. *Add device* searches NetBox and puts a device on the maps of its
   location (it stays in the topology until you remove it); drag from the dot under a device to the device that **depends on it** to create a
-  dependency (a small dialog asks for the medium, type and redundancy group); click a link and *Delete link* to remove it. Every step has an *Undo*.
+  dependency (a small dialog asks for the type and medium); click a link and *Delete link* to remove it. Every step has an *Undo*.
 - **Peer links:** two **equal** devices (for example two aggregation switches cabled together, each with its own uplink) are linked with a peer link:
   a plain line without an arrow that has **no effect on the outage analysis**, so there is no need to decide which one is the parent.
   Hold *Shift* when you release the dragged arrow, or choose *Peer (equal)* in the dialog; peer links are also managed under *Dependencies →
@@ -43,14 +42,20 @@ live, with optional notifications to Microsoft Teams, Slack or any webhook.
   (*Dependencies → Geographic map*): a marker per site coloured by its live state (devices, number down, pulsing root causes), a line between every
   two sites that are linked (styled by medium, red when the upstream end is down), a popup with the outages of the site and a link to its graph.
   Sites without coordinates are listed under the map.
-- **Outage simulation**: right-click a device in the graph (or use the simulation page) to see everything it would take down.
+- **Reverse a dependency** without deleting it: right-click a link in the graph (or *Reverse* in its popup), *Reverse direction* on the
+  dependency page, or *Reverse selected* in the list. Upstream and downstream swap places on the same object (type, medium, description and
+  tags stay); refused when it would create a cycle. API:
+  `POST /api/plugins/dependencies/dependencies/<id>/reverse/`.
+- **Find a device:** the filter above the locations in the graph also finds devices of the topology by name or IP and opens the map of their site with the device selected.
+- **Highlight dependents:** right-click a device in the graph and choose *Highlight dependents* to see everything below it.
+- **Outage simulation** on its own page (*Dependencies → Outage simulation*) and in the graph opened from a notification: everything a failure would take down.
 - **Add dependencies from the graph:** click a device and use *Add dependents* (this device is the upstream one) or *Add parent* (this device depends on others);
   the add page opens with the device filled in and returns to the graph afterwards.
 - **Live status** from two sources: the [Zabbix](#zabbix-optional) sync and a built-in **ICMP poller** for devices
   that are not monitored elsewhere.
 - **Suppressing devices:** take a device out of the outage analysis for a while — for example a backup unit that is switched off, or a device in
   planned maintenance (*Dependencies → Suppressed devices*, or *Suppress…* in the device popup of the graph). While suppressed it is treated as up:
-  no root cause, no notification, nothing degraded below it (optionally the devices below it are ignored too). It ends at a chosen time or when you resume it.
+  no root cause, no notification, nothing down below it (optionally the devices below it are ignored too). It ends at a chosen time or when you resume it.
 - **Root-cause analysis**: a live outage is split into *root causes* and devices that are merely *explained* by an upstream failure.
 - **Notifications** to any number of destinations (Teams, Slack, generic JSON webhook): one message per root-cause outage,
   one when it ends.
@@ -134,8 +139,8 @@ If the menu is missing, see [Troubleshooting](#troubleshooting).
 ### First steps
 
 1. **Add dependencies:** *Dependencies → Add dependencies* (pick the parent and several children at once), or import a CSV
-   (*All dependencies → Import*; columns `upstream,downstream,dependency_type,medium,redundancy_group,description,tags`).
-2. **Open the graph** (*Dependencies → Dependency graph*): maps per site and region; right-click a device to simulate its outage.
+   (*All dependencies → Import*; columns `upstream,downstream,dependency_type,medium,description,tags`).
+2. **Open the graph** (*Dependencies → Dependency graph*): maps per site and region; right-click a device to highlight what depends on it.
 3. **Get a live status** — at least one of:
    - the [ICMP poller](#icmp-poller) (a small container that pings the devices) — works for any device with a primary IP;
    - the [Zabbix](#zabbix-optional) integration, if you use Zabbix and the `netbox_zabbix_status` plugin (nothing to configure).
@@ -318,10 +323,10 @@ Each destination has a **Test** button that sends two clearly marked sample mess
  "sent_at": "2026-10-13T12:00:00+00:00", "text": "plain text summary",
  "outages": [{"device": {"id": 12, "name": "core-sw-02", "site": "HQ Campus", "url": "...", "graph_url": "..."},
               "started_at": "...", "duration_seconds": 1800, "source": "ICMP poller - no ICMP reply",
-              "impact": {"down": 1, "degraded": 2, "affected": ["srv-erp-01", "dist-sw-01"]}}]}
+              "impact": {"down": 2, "affected": ["srv-erp-01", "dist-sw-01"]}}]}
 ```
 
-`recovery` carries `recoveries: [{device, started_at, resolved_at, duration_seconds, peak_impact: {down, degraded}}]`.
+`recovery` carries `recoveries: [{device, started_at, resolved_at, duration_seconds, peak_impact: {down}}]`.
 If a **signing secret** is set, every request has the header `X-Signature-256: sha256=<hex HMAC-SHA256 of the raw body>` —
 verify it before trusting a request.
 
@@ -361,10 +366,8 @@ The command `manage.py dependencies_test_notifications [--destination NAME]` sen
 
 ## Impact rules
 
-- No redundancy group: the failure of the upstream device takes the downstream device **down**.
-- Several dependencies of one downstream device with the same `redundancy_group`: it goes down only when **all** of them are
-  down; if only some are, it is **degraded** (and does not propagate further).
-- Dependencies in different groups (or without a group) are independent and all mandatory.
+- A device needs **all** of its upstream devices: the failure of any one of them takes it **down**, and the outage propagates further down.
+- Peer links (equal devices) have no effect on the outage analysis.
 
 ## Security notes
 

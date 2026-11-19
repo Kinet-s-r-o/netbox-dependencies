@@ -232,7 +232,7 @@ class MultiDestinationTests(NotifBase):
         self.assertNotIn('card', slack)
         self.assertEqual((generic['event'], generic['version'], generic['source']), ('outage', 1, 'netbox-dependencies'))
         self.assertEqual(generic['outages'][0]['device']['name'], 'core')
-        self.assertEqual(generic['outages'][0]['impact'], {'down': 1, 'degraded': 0, 'affected': ['sw1']})
+        self.assertEqual(generic['outages'][0]['impact'], {'down': 1, 'affected': ['sw1']})
         # only the generic webhook gets the signing key
         secrets = {url: secret for url, _payload, secret in self.sent}
         self.assertEqual(secrets, {self.TEAMS_URL: '', self.SLACK_URL: '', 'https://hook.example/in': 's3cret'})
@@ -288,7 +288,7 @@ class RendererTests(NotifBase):
     def views(self, count=2, names=None, now=None):
         now = now or timezone.now()
         return [{'device_id': i + 1, 'name': (names or {}).get(i, f'dev-{i:02d}'), 'site': 'Site', 'since': now - timedelta(minutes=30),
-                 'down': 5 - min(i, 5), 'degraded': 1 if i == 0 else 0, 'names': [f'child-{i}-{j}' for j in range(3)],
+                 'down': 5 - min(i, 5), 'names': [f'child-{i}-{j}' for j in range(3)],
                  'source': 'ICMP poller — no ICMP reply', 'affected_pks': {i * 10 + j for j in range(4)},
                  'graph_url': f'http://nb/graph/{i}', 'device_url': f'http://nb/dev/{i}'} for i in range(count)]
 
@@ -357,7 +357,7 @@ class RendererTests(NotifBase):
         self.assertEqual(first['device']['graph_url'], 'http://nb/graph/0')
         recovery = channels.render_recovery('generic', [{**views[0], 'until': now}], now)
         self.assertEqual(recovery['event'], 'recovery')
-        self.assertEqual(recovery['recoveries'][0]['peak_impact'], {'down': 5, 'degraded': 1})
+        self.assertEqual(recovery['recoveries'][0]['peak_impact'], {'down': 5})
 
     def test_large_outages_are_summarised_in_every_format(self):
         now = timezone.now()

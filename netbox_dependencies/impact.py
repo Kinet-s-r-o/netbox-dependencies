@@ -1,12 +1,12 @@
 """Link between the graph algorithm and the NetBox models."""
 from dcim.models import Device
 
-from .graph import DEGRADED, DOWN, compute_impact
+from .graph import DOWN, compute_impact
 from .models import Dependency
 
 
 def load_edges():
-    return list(Dependency.objects.values_list('upstream_id', 'downstream_id', 'redundancy_group'))
+    return list(Dependency.objects.values_list('upstream_id', 'downstream_id'))
 
 
 def get_impact(failed_ids, edges=None):
@@ -21,9 +21,6 @@ def get_impact(failed_ids, edges=None):
         {'device': d, 'state': result[d.pk].state, 'depth': result[d.pk].depth}
         for d in devices
     ]
-    rows.sort(key=lambda r: (r['state'] != DOWN, r['depth'], r['device'].name or ''))
-    summary = {
-        DOWN: sum(1 for r in rows if r['state'] == DOWN),
-        DEGRADED: sum(1 for r in rows if r['state'] == DEGRADED),
-    }
+    rows.sort(key=lambda r: (r['depth'], r['device'].name or ''))
+    summary = {DOWN: len(rows)}
     return rows, summary

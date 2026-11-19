@@ -1,0 +1,8 @@
+{# Detail page: swap upstream and downstream of the dependency (POST). #}
+<form action="{{ url }}{% if url_params %}?{{ url_params.urlencode }}{% endif %}" method="post" class="d-inline"
+      onsubmit="return confirm('Reverse this dependency? The downstream device becomes the upstream one.');">
+  <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+  <button type="submit" class="btn btn-cyan" title="Swap upstream and downstream (the same dependency, nothing is deleted)">
+    <i class="mdi mdi-swap-vertical" aria-hidden="true"></i> {{ label }}
+  </button>
+</form>

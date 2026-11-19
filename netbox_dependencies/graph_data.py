@@ -140,6 +140,7 @@ def node_data(d, upstream_count, downstream_count, states, status_rows, suppress
         'label': d.name or f'#{pk}',
         'site': d.site.name,
         'site_id': d.site_id,
+        'site_geo': d.site.latitude is not None and d.site.longitude is not None,   # the site has a pin on the geographic map
         'role': d.role.name if d.role else '',
         'dtype': d.device_type.model if d.device_type_id else '',
         'ip': str((d.primary_ip4 or d.primary_ip6).address.ip) if (d.primary_ip4 or d.primary_ip6) else '',
@@ -180,10 +181,10 @@ def _merge_cloud_links(graph_edges):
         merged_ids |= {r['id'] for r in rows}
         merged.append({'data': {
             'id': f"m:{source}>{target}:{int(peer)}", 'merged': True, 'peer': peer, 'source': source, 'target': target,
-            'count': len(rows), 'elabel': f'{len(rows)} links', 'group': '', 'description': '', 'pk': 0,
+            'count': len(rows), 'elabel': f'{len(rows)} links', 'description': '', 'pk': 0,
             'medium': Counter(r['medium'] for r in rows).most_common(1)[0][0],
             'type': Counter(r['type'] for r in rows).most_common(1)[0][0],
-            'items': [{k: r[k] for k in ('pk', 'peer', 'type', 'medium', 'group', 'description', 'url', 'edit_url',
+            'items': [{k: r[k] for k in ('pk', 'peer', 'type', 'medium', 'description', 'url', 'edit_url',
                                          'from_id', 'to_id', 'from_name', 'to_name')} for r in rows],
         }})
     return [e for e in graph_edges if e['data']['id'] not in merged_ids] + merged
@@ -300,9 +301,6 @@ def build_graph(site_id=None, region_id=None, device_id=None, focus_id=None, map
             remote = devices[e.upstream_id].name
         elif e.downstream_id in external:
             remote = devices[e.downstream_id].name
-        label = e.redundancy_group
-        if remote:
-            label = f'{remote} ⇄ {label}' if label else remote
         graph_edges.append({'data': {
             'id': f'e{e.pk}',
             'peer': False,
@@ -311,9 +309,8 @@ def build_graph(site_id=None, region_id=None, device_id=None, focus_id=None, map
             'pk': e.pk,
             'type': e.dependency_type,
             'medium': e.medium,
-            'group': e.redundancy_group,
             'description': e.description,
-            'elabel': label,
+            'elabel': remote or '',
             'url': e.get_absolute_url(),
             'edit_url': f'{e.get_absolute_url()}edit/',
             'from_id': e.upstream_id, 'to_id': e.downstream_id,
@@ -334,7 +331,6 @@ def build_graph(site_id=None, region_id=None, device_id=None, focus_id=None, map
             'pk': p.pk,
             'type': 'peer',
             'medium': p.medium,
-            'group': '',
             'description': p.description,
             'elabel': remote or '',
             'url': p.get_absolute_url(),

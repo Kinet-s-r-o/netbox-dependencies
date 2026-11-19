@@ -160,11 +160,11 @@ def _outage_view(episode):
     rows, summary = get_impact([device.pk])
     return {
         'device_id': device.pk, 'name': device.name, 'site': device.site.name, 'since': episode.started_at,
-        'down': summary['down'], 'degraded': summary['degraded'],
-        'names': [r['device'].name + (' (degraded)' if r['state'] == 'degraded' else '') for r in rows],
+        'down': summary['down'],
+        'names': [r['device'].name for r in rows],
         'source': ((status.get_source_display() if status else '—')
                    + (f' — {status.detail}' if status and status.detail else '')),
-        'affected_pks': {r['device'].pk for r in rows if r['state'] == 'down'} | {device.pk},
+        'affected_pks': {r['device'].pk for r in rows} | {device.pk},
         'graph_url': _graph_url(device), 'device_url': _device_url(device),
     }
 
@@ -172,7 +172,7 @@ def _outage_view(episode):
 def _recovery_view(episode):
     device = episode.device
     return {'device_id': device.pk, 'name': device.name, 'site': device.site.name, 'since': episode.started_at,
-            'until': episode.resolved_at, 'down': episode.peak_down, 'degraded': episode.peak_degraded,
+            'until': episode.resolved_at, 'down': episode.peak_down,
             'graph_url': _graph_url(device), 'device_url': _device_url(device)}
 
 
@@ -266,13 +266,12 @@ def run_notifications(now=None):
                 continue   # not down long enough yet — possibly a short outage
             episode = OutageNotification.objects.create(
                 device=outage['device'], started_at=outage['status'].last_changed,
-                peak_down=outage['down_count'], peak_degraded=outage['degraded_count'])
+                peak_down=outage['down_count'])
             episode.device = outage['device']
             open_episodes[pk] = episode
         else:
             episode.peak_down = max(episode.peak_down, outage['down_count'])
-            episode.peak_degraded = max(episode.peak_degraded, outage['degraded_count'])
-            episode.save(update_fields=['peak_down', 'peak_degraded'])
+            episode.save(update_fields=['peak_down'])
 
     # --- a device that was suppressed while its outage was open: the episode is closed quietly (no "outage ended" message)
     suppressed = suppressed_device_ids()

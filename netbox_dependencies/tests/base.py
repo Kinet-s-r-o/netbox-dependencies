@@ -16,7 +16,5 @@ class Base(TestCase):
             for n in ('core', 'sw1', 'sw2', 'ap', 'x')
         }
 
-    def dep(self, up, down, group=''):
-        return Dependency.objects.create(
-            upstream=self.devs[up], downstream=self.devs[down], redundancy_group=group
-        )
+    def dep(self, up, down):
+        return Dependency.objects.create(upstream=self.devs[up], downstream=self.devs[down])

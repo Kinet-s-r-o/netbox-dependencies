@@ -1,0 +1,5 @@
+{# List: swap upstream and downstream of the selected dependencies (submits the table form). #}
+<button type="submit" name="_reverse" {% formaction %}="{{ url }}{% if url_params %}?{{ url_params.urlencode }}{% endif %}" class="btn btn-cyan"
+        title="Swap upstream and downstream of the selected dependencies (nothing is deleted)">
+  <i class="mdi mdi-swap-vertical" aria-hidden="true"></i> {{ label }}
+</button>

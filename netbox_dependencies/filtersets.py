@@ -23,7 +23,7 @@ class DependencyFilterSet(NetBoxModelFilterSet):
 
     class Meta:
         model = Dependency
-        fields = ('id', 'dependency_type', 'medium', 'redundancy_group', 'description')
+        fields = ('id', 'dependency_type', 'medium', 'description')
 
     def search(self, queryset, name, value):
         if not value.strip():
@@ -31,7 +31,6 @@ class DependencyFilterSet(NetBoxModelFilterSet):
         return queryset.filter(
             Q(upstream__name__icontains=value)
             | Q(downstream__name__icontains=value)
-            | Q(redundancy_group__icontains=value)
             | Q(description__icontains=value)
         )
 

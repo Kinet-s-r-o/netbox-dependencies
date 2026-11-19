@@ -14,7 +14,7 @@ class DependencySerializer(NetBoxModelSerializer):
         model = Dependency
         fields = (
             'id', 'url', 'display', 'upstream', 'downstream', 'dependency_type', 'medium',
-            'redundancy_group', 'description', 'tags', 'custom_fields',
+            'description', 'tags', 'custom_fields',
             'created', 'last_updated',
         )
         brief_fields = ('id', 'url', 'display', 'upstream', 'downstream')

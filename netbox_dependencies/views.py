@@ -16,7 +16,10 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.generic import View
 
 from dcim.models import Device
-from netbox.object_actions import AddObject, BulkDelete, BulkEdit, BulkExport, BulkImport, BulkRename
+from django.middleware.csrf import get_token
+from netbox.object_actions import (
+    AddObject, BulkDelete, BulkEdit, BulkExport, BulkImport, BulkRename, CloneObject, DeleteObject, EditObject, ObjectAction,
+)
 from netbox.plugins import get_plugin_config
 from netbox.views import generic
 from utilities.paginator import get_paginate_count
@@ -78,13 +81,96 @@ class DependencyBulkExport(BulkExport):
         return data
 
 
+class ReverseObject(ObjectAction):
+    """Detail page button: swap upstream and downstream of this dependency (a small POST form)."""
+    name = 'reverse'
+    label = 'Reverse direction'
+    permissions_required = {'change'}
+    url_kwargs = ['pk']
+    template_name = 'netbox_dependencies/buttons/reverse.html'
+
+    @classmethod
+    def get_context(cls, context, obj):
+        return {'csrf_token': get_token(context['request'])}
+
+
+class BulkReverse(ObjectAction):
+    """List button: swap upstream and downstream of the selected dependencies."""
+    name = 'bulk_reverse'
+    label = 'Reverse selected'
+    multi = True
+    permissions_required = {'change'}
+    template_name = 'netbox_dependencies/buttons/bulk_reverse.html'
+
+
+def reverse_dependencies(request, dependencies):
+    """Reverses each dependency on its own (one failing does not stop the rest); reports the result as messages."""
+    done, failed = [], []
+    for dependency in dependencies:
+        try:
+            with transaction.atomic():
+                dependency.reverse_direction()
+        except ValidationError as err:
+            failed.append(f'{dependency.downstream} ← {dependency.upstream}: {" ".join(err.messages)}')
+            continue
+        done.append(dependency)
+    if len(done) == 1:
+        d = done[0]
+        messages.success(request, f'Reversed: {d.downstream} now depends on {d.upstream}.')
+    elif done:
+        messages.success(request, f'Reversed {len(done)} dependencies.')
+    for text in failed:
+        messages.error(request, f'Not reversed - {text}')
+    return done
+
+
+def _safe_return_url(request, default):
+    url = request.POST.get('return_url') or request.GET.get('return_url')
+    if url and url_has_allowed_host_and_scheme(url, allowed_hosts={request.get_host()}, require_https=request.is_secure()):
+        return url
+    return default
+
+
 @register_model_view(Dependency, 'list', path='', detail=False)
 class DependencyListView(generic.ObjectListView):
     queryset = Dependency.objects.select_related('upstream', 'downstream')
     table = tables.DependencyTable
     filterset = DependencyFilterSet
     filterset_form = DependencyFilterForm
-    actions = (AddObject, BulkImport, DependencyBulkExport, BulkEdit, BulkRename, BulkDelete)
+    actions = (AddObject, BulkImport, DependencyBulkExport, BulkEdit, BulkReverse, BulkRename, BulkDelete)
+
+
+@register_model_view(Dependency, 'bulk_reverse', path='reverse', detail=False)
+class DependencyBulkReverseView(PermissionRequiredMixin, View):
+    """POST from the list: swap upstream and downstream of the selected (or all filtered) dependencies."""
+
+    permission_required = 'netbox_dependencies.change_dependency'
+
+    def post(self, request):
+        list_url = reverse('plugins:netbox_dependencies:dependency_list')
+        queryset = Dependency.objects.restrict(request.user, 'change').select_related('upstream', 'downstream')
+        if request.POST.get('_all'):
+            queryset = DependencyFilterSet(request.GET, queryset).qs
+        else:
+            queryset = queryset.filter(pk__in=request.POST.getlist('pk'))
+        if not queryset.exists():
+            messages.warning(request, 'No dependencies were selected.')
+        else:
+            reverse_dependencies(request, list(queryset))
+        return redirect(_safe_return_url(request, list_url))
+
+
+@register_model_view(Dependency, 'reverse')
+class DependencyReverseView(PermissionRequiredMixin, View):
+    """POST from the detail page: swap upstream and downstream of this dependency."""
+
+    permission_required = 'netbox_dependencies.change_dependency'
+
+    def post(self, request, pk):
+        dependency = get_object_or_404(
+            Dependency.objects.restrict(request.user, 'change').select_related('upstream', 'downstream'), pk=pk)
+        reverse_dependencies(request, [dependency])
+        return redirect(_safe_return_url(request, dependency.get_absolute_url()))
 
 
 @register_model_view(Dependency, 'export_import', path='export-for-import', detail=False)
@@ -93,7 +179,7 @@ class DependencyExportForImportView(PermissionRequiredMixin, View):
     Devices are identified by name, so two devices with the same name cannot be told apart on import."""
 
     permission_required = 'netbox_dependencies.view_dependency'
-    COLUMNS = ('upstream', 'downstream', 'dependency_type', 'medium', 'redundancy_group', 'description', 'tags')
+    COLUMNS = ('upstream', 'downstream', 'dependency_type', 'medium', 'description', 'tags')
 
     def get(self, request):
         queryset = Dependency.objects.restrict(request.user, 'view').select_related('upstream', 'downstream')             .prefetch_related('tags').order_by('upstream__name', 'downstream__name')
@@ -105,7 +191,7 @@ class DependencyExportForImportView(PermissionRequiredMixin, View):
         for dependency in queryset:
             writer.writerow([
                 dependency.upstream.name, dependency.downstream.name, dependency.dependency_type, dependency.medium,
-                dependency.redundancy_group, dependency.description,
+                dependency.description,
                 ','.join(sorted(tag.slug for tag in dependency.tags.all())),
             ])
         return response
@@ -114,6 +200,7 @@ class DependencyExportForImportView(PermissionRequiredMixin, View):
 @register_model_view(Dependency)
 class DependencyView(generic.ObjectView):
     queryset = Dependency.objects.select_related('upstream', 'downstream')
+    actions = (CloneObject, ReverseObject, EditObject, DeleteObject)
 
 
 @register_model_view(Dependency, 'add', detail=False)
@@ -422,7 +509,6 @@ class DependencyMultiAddView(PermissionRequiredMixin, View):
                             downstream=downstream,
                             dependency_type=form.cleaned_data['dependency_type'],
                             medium=form.cleaned_data['medium'] or 'unspecified',
-                            redundancy_group=form.cleaned_data['redundancy_group'],
                             description=form.cleaned_data['description'],
                         )
                         try:
@@ -475,6 +561,7 @@ class DependencyGraphView(PermissionRequiredMixin, View):
         graph['too_large'] = None
         graph['can_edit'] = request.user.has_perm('netbox_dependencies.add_dependency')
         graph['can_delete'] = request.user.has_perm('netbox_dependencies.delete_dependency')
+        graph['geomap_url'] = reverse('plugins:netbox_dependencies:geomap')
         graph['suppress_url'] = reverse('plugins:netbox_dependencies:suppression_add') if request.user.has_perm(
             'netbox_dependencies.add_devicesuppression') else ''
         graph['resume_url'] = reverse('plugins:netbox_dependencies:suppression_resume', args=[0]) if request.user.has_perm(

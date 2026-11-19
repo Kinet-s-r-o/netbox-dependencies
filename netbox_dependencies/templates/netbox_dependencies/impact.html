@@ -23,7 +23,6 @@
         <span class="me-2">Impact of failure:</span>
         {% for d in failed %}<a href="{{ d.get_absolute_url }}">{{ d }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}
         <span class="ms-3 badge text-bg-red">{{ summary.down }} down</span>
-        <span class="badge text-bg-orange">{{ summary.degraded }} degraded</span>
       </h2>
       {% include 'netbox_dependencies/inc/impact_table.html' %}
       {% include 'inc/paginator.html' with paginator=paginator page=page %}

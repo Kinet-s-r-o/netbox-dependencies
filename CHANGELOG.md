@@ -1,5 +1,41 @@
 # Changelog
 
+## 2.0.0 — 2026-11-19
+**Breaking:** the redundancy group is removed. A device now needs all of its upstream devices: the failure of any one of them takes
+it down (as before for links without a group), and the *degraded* state no longer exists.
+- Migration `0015_remove_redundancy_group` drops `Dependency.redundancy_group` (values are lost) and `OutageNotification.peak_degraded`.
+- REST API: no `redundancy_group` on dependencies (and no filter for it), no `degraded_count` in `/outages/`, the impact summary has only `down`.
+- Notifications: no "N degraded"; the generic webhook has `impact: {down, affected}` and `peak_impact: {down}` (no `degraded`).
+- CSV export / import: the column `redundancy_group` is gone (an old CSV that still has it is rejected — delete the column).
+- UI: no redundancy field in the forms, the *New link* dialog, the list, the dependency page, the device tab and the tree; no purple glow
+  for grouped links and no *Degraded* in the graph legend, the outage simulation, the impact page and *Live outages*.
+- Graph: the right click on a device no longer simulates its outage; it opens a small menu with *Highlight dependents* (with their
+  count) - the device and everything below it stand out, the rest is dimmed and a bar names how many devices (and other locations)
+  depend on it; *Clear*, Esc or a click on empty space ends it. The outage simulation page and the impact view opened from a
+  notification stay; the simulation page is now in the menu (*Dependencies → Outage simulation*).
+- Graph: fixed clicks landing beside the device after a bar above the graph appeared or disappeared (the dependents bar, the outages line,
+  warnings) - for example a right click on the same device right after clearing the highlight did nothing for a while. Esc first closes an
+  open menu and only the next press clears the highlight; the menus no longer slip under the page scrollbar.
+- Graph: the device card (left click) has a new look - the role icon in the state colour next to the name, the state as one tinted line
+  (source, age, detail), the facts in two columns with icons (IP with a copy button, site, depends on / dependents, location, tenant, serial)
+  and the main actions as icon tiles: *Open*, *Dependencies*, *Branch* and the new **Map** - the device's site on the geographic map
+  (inactive with an explanation when the site has no GPS coordinates). *Suppress…*, *+ Dependents* and *+ Parent* sit below as small buttons.
+- Graph sidebar: the filter also finds **devices of the topology by name or IP** (also a beginning of an IP, e.g. `192.168.101.`). The matches are
+  listed below the matching locations (name, IP, site); a click (or Enter for the first one) opens the map of its site with the device centred and
+  its card open. The search API takes `topology=1` for this and returns `ip` and `graph_url`.
+- Includes the unreleased 1.24.0 below (reverse a dependency, new look of the graph edit mode).
+
+## 1.24.0 — 2026-11-18 (not released separately, part of 2.0.0)
+- **Reverse a dependency** (upstream ⇄ downstream) without deleting and re-creating it: *Reverse direction* in the right-click menu of a link in the
+  graph and *Reverse* in its popup (also for each link of a merged line), with *Undo*; a *Reverse direction* button on the dependency page and
+  *Reverse selected* in the list. The same object is kept (type, medium, description, tags, custom fields, changelog). A reversal that would create a cycle is refused. New endpoint
+  `POST /api/plugins/dependencies/dependencies/<id>/reverse/` (needs *change dependency*). No migration.
+- Graph edit mode, new look: a compact toolbar (*Editing* with a pulsing dot, *Add device*, help, *Done*) and a dashed outline around the graph
+  while editing; the help lists the actions with icons (incl. reverse). The *Add device* and *New link* dialogs have a header with an icon and a
+  close button, the two devices of a new link as one chip, search results with an icon and badges (keyboard: Enter adds), and the dialog opens
+  under the toolbar instead of over it. Notifications over the graph (created / deleted / reversed, errors) are small cards with an icon, *Undo*
+  and a bar that runs down until they close (paused on hover), at most four at a time.
+
 ## 1.23.0 — 2026-11-18
 - Zabbix integration: tolerant of a higher `netbox-zabbix-status` version. A renamed or removed class/field/helper on the upstream plugin (`ZabbixHost`, `ZabbixHostStatusChoices`, `ZabbixProblem` fields, `ZabbixSyncJob`, `zabbix.get_setting`) no longer crashes the Zabbix sync, the poller coverage lookup or the watchdog — the plugin degrades to "Zabbix unavailable" with a warning in the log.
 

@@ -85,6 +85,19 @@ class TopologyTests(Base):
         found = self.client.get(f'{API}/topology/search/?q=ap').json()['results']
         self.assertTrue(next(r for r in found if r['name'] == 'ap')['on_map'])
 
+    def test_sidebar_search_finds_topology_devices_by_ip(self):
+        self.devs['sw2'].primary_ip4 = IPAddress.objects.create(address='10.9.8.7/24')
+        self.devs['sw2'].save()
+        self.devs['x'].primary_ip4 = IPAddress.objects.create(address='10.9.8.8/24')
+        self.devs['x'].save()
+        TopologyDevice.objects.create(device=self.devs['sw2'])                    # x is not in the topology
+        rows = self.client.get(f'{API}/topology/search/?topology=1&q=10.9.8').json()['results']
+        self.assertEqual([(r['name'], r['ip']) for r in rows], [('sw2', '10.9.8.7')])
+        self.assertIn(f'focus={self.devs["sw2"].pk}', rows[0]['graph_url'])
+        self.assertIn(f'site={self.devs["sw2"].site_id}', rows[0]['graph_url'])
+        everything = self.client.get(f'{API}/topology/search/?q=10.9.8').json()['results']
+        self.assertEqual(sorted(r['name'] for r in everything), ['sw2', 'x'])     # without topology=1 (adding devices) both
+
     def test_permissions_and_bad_input(self):
         viewer = Client()
         user = get_user_model().objects.create_user('ro', 'ro@example.com', 'x')

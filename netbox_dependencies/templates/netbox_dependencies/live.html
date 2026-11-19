@@ -35,7 +35,7 @@
       <thead>
         <tr>
           <th>Device</th><th>Site</th><th>Source</th><th>Down since</th><th>Detail</th>
-          <th>Down</th><th>Degraded</th><th></th>
+          <th>Down</th><th></th>
         </tr>
       </thead>
       <tbody>
@@ -47,7 +47,6 @@
             <td>{{ o.status.last_changed|date:"Y-m-d H:i" }} ({{ o.status.last_changed|timesince }} ago)</td>
             <td>{{ o.status.detail|placeholder }}</td>
             <td><span class="badge text-bg-red">{{ o.down_count }}</span></td>
-            <td><span class="badge text-bg-orange">{{ o.degraded_count }}</span></td>
             <td class="text-end">
               <a href="{% url 'plugins:netbox_dependencies:impact' %}?devices={{ o.device.pk }}">Impact</a>
             </td>

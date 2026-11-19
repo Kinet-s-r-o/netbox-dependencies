@@ -13,11 +13,7 @@
     {% for row in rows %}
       <tr>
         <td>
-          {% if row.state == 'down' %}
-            <span class="badge text-bg-red">Down</span>
-          {% else %}
-            <span class="badge text-bg-orange">Degraded</span>
-          {% endif %}
+          <span class="badge text-bg-red">Down</span>
         </td>
         <td><a href="{{ row.device.get_absolute_url }}">{{ row.device }}</a></td>
         <td>{% if row.device.site %}<a href="{{ row.device.site.get_absolute_url }}">{{ row.device.site }}</a>{% else %}—{% endif %}</td>

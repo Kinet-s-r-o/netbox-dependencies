@@ -42,14 +42,6 @@ class Dependency(NetBoxModel):
         verbose_name='Medium',
         help_text='Physical medium of the link (drawn differently in the graph).',
     )
-    redundancy_group = models.CharField(
-        max_length=100,
-        blank=True,
-        verbose_name='Redundancy group',
-        help_text='Dependencies of the same downstream device sharing this name are '
-                  'redundant: the device goes down only when ALL of them are down. '
-                  'Empty = no redundancy.',
-    )
     description = models.CharField(max_length=200, blank=True)
 
     class Meta:
@@ -89,14 +81,27 @@ class Dependency(NetBoxModel):
             raise ValidationError(
                 f'{self.upstream} and {self.downstream} are linked as peers (equal devices) - delete the peer link first '
                 'if one of them really depends on the other.')
-        edges = Dependency.objects.exclude(pk=self.pk).values_list(
-            'upstream_id', 'downstream_id', 'redundancy_group'
-        )
+        edges = Dependency.objects.exclude(pk=self.pk).values_list('upstream_id', 'downstream_id')
         if would_create_cycle(edges, self.upstream_id, self.downstream_id):
             raise ValidationError(
                 f'{self.upstream} already depends (directly or indirectly) on '
                 f'{self.downstream} — this would create a dependency cycle.'
             )
+
+    def reverse_direction(self):
+        """Swaps upstream and downstream in place (same object: type, medium, description, tags and custom fields stay).
+        Validates (cycle, peer link) and saves; raises ValidationError and leaves the object unchanged when the
+        reversed link is not allowed."""
+        if hasattr(self, 'snapshot'):
+            self.snapshot()                       # pre-change data for the NetBox changelog
+        old = (self.upstream, self.downstream)
+        self.upstream, self.downstream = old[1], old[0]
+        try:
+            self.full_clean()
+        except ValidationError:
+            self.upstream, self.downstream = old
+            raise
+        self.save()
 
 
 class DeviceStatus(models.Model):
@@ -184,7 +189,6 @@ class OutageNotification(models.Model):
     started_at = models.DateTimeField()
     resolved_at = models.DateTimeField(null=True, blank=True)
     peak_down = models.PositiveIntegerField(default=0)
-    peak_degraded = models.PositiveIntegerField(default=0)
     quiet = models.BooleanField(
         default=False, help_text='Closed because the device was suppressed: no "outage ended" message is sent.')
 

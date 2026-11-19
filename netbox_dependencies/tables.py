@@ -10,7 +10,6 @@ class DependencyTable(NetBoxTable):
     downstream = tables.Column(linkify=True, verbose_name='Downstream device')
     dependency_type = columns.ChoiceFieldColumn(verbose_name='Type')
     medium = columns.ChoiceFieldColumn(verbose_name='Medium')
-    redundancy_group = tables.Column(verbose_name='Redundancy group')
     description = tables.Column()
     tags = columns.TagColumn(url_name='plugins:netbox_dependencies:dependency_list')
 
@@ -18,11 +17,11 @@ class DependencyTable(NetBoxTable):
         model = Dependency
         fields = (
             'pk', 'id', 'upstream', 'downstream', 'dependency_type', 'medium',
-            'redundancy_group', 'description', 'tags', 'created', 'last_updated', 'actions',
+            'description', 'tags', 'created', 'last_updated', 'actions',
         )
         default_columns = (
             'pk', 'upstream', 'downstream', 'dependency_type', 'medium',
-            'redundancy_group', 'description',
+            'description',
         )
 
 

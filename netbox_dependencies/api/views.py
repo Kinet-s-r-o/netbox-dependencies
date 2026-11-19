@@ -1,16 +1,23 @@
+from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db import transaction
 from django.db.models import Q
+from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from rest_framework.decorators import action
+from rest_framework.exceptions import ValidationError
+from rest_framework.permissions import BasePermission
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from dcim.models import Device
 from netbox.api.viewsets import NetBoxModelViewSet
+from users.models import Token
 
 from ..filtersets import CustomMapFilterSet, DependencyFilterSet, PeerLinkFilterSet
 from ..impact import get_impact
 from ..geomap import build_map
 from ..overview import build_overview
-from ..graph_data import device_in_scope, single_node
+from ..graph_data import device_in_scope, graph_url, single_node
 from ..models import CustomMap, Dependency, DeviceStatus, PeerLink, PollerHeartbeat, TopologyDevice
 from ..status import (
     analyze_outages,
@@ -37,10 +44,33 @@ def _limit(request, default, maximum):
         return default
 
 
+class CanChangeDependency(BasePermission):
+    """change_dependency (POST would otherwise require add_dependency) and, with a token, a write-enabled token."""
+
+    def has_permission(self, request, view):
+        if isinstance(request.auth, Token) and not request.auth.write_enabled:
+            return False
+        return bool(request.user and request.user.is_authenticated and
+                    request.user.has_perm('netbox_dependencies.change_dependency'))
+
+
 class DependencyViewSet(NetBoxModelViewSet):
     queryset = Dependency.objects.select_related('upstream', 'downstream').prefetch_related('tags')
     serializer_class = DependencySerializer
     filterset_class = DependencyFilterSet
+
+    @action(detail=True, methods=['post'], url_path='reverse', permission_classes=[CanChangeDependency])
+    def reverse_direction(self, request, pk=None):
+        """POST /api/plugins/dependencies/dependencies/<id>/reverse/ - swap upstream and downstream of the dependency
+        (the same object). 400 when the reversed link would create a cycle."""
+        dependency = get_object_or_404(
+            Dependency.objects.restrict(request.user, 'change').select_related('upstream', 'downstream'), pk=pk)
+        try:
+            with transaction.atomic():
+                dependency.reverse_direction()
+        except DjangoValidationError as err:
+            raise ValidationError({'detail': ' '.join(err.messages)})
+        return Response(self.get_serializer(dependency).data)
 
 
 class PeerLinkViewSet(NetBoxModelViewSet):
@@ -71,7 +101,8 @@ class OverviewAPIView(APIView):
 
 
 class TopologySearchAPIView(APIView):
-    """GET /api/plugins/dependencies/topology/search/?q=<text> - devices to add to the topology from the graph (name, IP or site)."""
+    """GET /api/plugins/dependencies/topology/search/?q=<text>[&topology=1] - devices by name, IP or site: to add to the topology from
+    the graph, or (topology=1) only the devices already in the topology, for the search in the sidebar of the graph."""
 
     queryset = Dependency.objects.none()
 
@@ -82,15 +113,23 @@ class TopologySearchAPIView(APIView):
         devices = Device.objects.restrict(request.user, 'view').filter(
             Q(name__icontains=text) | Q(site__name__icontains=text) | Q(primary_ip4__address__startswith=text)
             | Q(primary_ip6__address__startswith=text)
-        ).select_related('site', 'role', 'device_type')[:15]
+        )
+        if request.query_params.get('topology') == '1':
+            devices = devices.filter(
+                Q(upstream_dependencies__isnull=False) | Q(downstream_dependencies__isnull=False) | Q(dependency_topology__isnull=False)
+                | Q(peer_links_a__isnull=False) | Q(peer_links_b__isnull=False)
+            ).distinct()
+        devices = devices.select_related('site', 'role', 'device_type', 'primary_ip4', 'primary_ip6').order_by('name')[:15]
         on_map = set(Dependency.objects.filter(Q(upstream__in=devices) | Q(downstream__in=devices)).values_list('upstream_id', flat=True))
         on_map |= set(Dependency.objects.filter(Q(upstream__in=devices) | Q(downstream__in=devices)).values_list('downstream_id', flat=True))
         on_map |= set(TopologyDevice.objects.filter(device__in=devices).values_list('device_id', flat=True))
         for first, second in PeerLink.objects.filter(Q(device_a__in=devices) | Q(device_b__in=devices)).values_list('device_a_id', 'device_b_id'):
             on_map |= {first, second}
         return Response({'results': [
-            {'id': d.pk, 'name': d.name, 'site': d.site.name, 'role': d.role.name if d.role else '',
-             'model': d.device_type.model if d.device_type_id else '', 'on_map': d.pk in on_map}
+            {'id': d.pk, 'name': d.name, 'site': d.site.name, 'site_id': d.site_id, 'role': d.role.name if d.role else '',
+             'model': d.device_type.model if d.device_type_id else '', 'on_map': d.pk in on_map,
+             'ip': str((d.primary_ip4 or d.primary_ip6).address.ip) if (d.primary_ip4 or d.primary_ip6) else '',
+             'graph_url': graph_url(site=d.site_id, focus=d.pk)}
             for d in devices
         ]})
 
@@ -282,7 +321,6 @@ class OutagesAPIView(APIView):
                     'source': o['status'].source,
                     'detail': o['status'].detail,
                     'down_count': o['down_count'],
-                    'degraded_count': o['degraded_count'],
                 }
                 for o in outages[:MAX_ROOT_CAUSES]
             ],

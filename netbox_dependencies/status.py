@@ -290,7 +290,7 @@ def suppressed_info(now=None):
     cascading = [s for s in active if s.include_dependents]
     if cascading:
         children = defaultdict(list)
-        for upstream_id, downstream_id, _group in load_edges():
+        for upstream_id, downstream_id in load_edges():
             children[upstream_id].append(downstream_id)
         for suppression in cascading:
             seen, stack = set(), [suppression.device_id]
@@ -347,8 +347,7 @@ def analyze_outages():
         {
             'device': devices[root],
             'status': statuses[root],
-            'down_count': sum(1 for i in impact.values() if i.state == 'down'),
-            'degraded_count': sum(1 for i in impact.values() if i.state == 'degraded'),
+            'down_count': len(impact),
         }
         for root, impact in root_impacts.items()
     ]
@@ -371,7 +370,7 @@ def status_snapshot():
 
     Returns (states, roots): states = {device_id: [state, source, detail, last_changed_iso]}
     (a stale record is reported as 'unknown'), roots = root causes of outages
-    [{'id', 'name', 'down_count', 'degraded_count'}]."""
+    [{'id', 'name', 'down_count'}]."""
     cutoff = timezone.now() - timedelta(seconds=poller_config()['stale_after_seconds'])
     states = {}
     for device_id, state, source, detail, changed, checked in DeviceStatus.objects.values_list(
@@ -386,7 +385,6 @@ def status_snapshot():
             'id': o['device'].pk,
             'name': o['device'].name,
             'down_count': o['down_count'],
-            'degraded_count': o['degraded_count'],
         }
         for o in outages
     ]

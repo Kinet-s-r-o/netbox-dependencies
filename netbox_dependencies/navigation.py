@@ -1,8 +1,6 @@
 from netbox.plugins import PluginMenu, PluginMenuButton, PluginMenuItem
 
-# The menu is deliberately short: the graph is the main entry point. Custom maps are in the left panel of the graph ("Manage")
-# and the outage simulation is a right click on a device in the graph (the page with a device picker is reachable
-# via the "Impact" link on Live outages).
+# The menu is deliberately short: the graph is the main entry point. Custom maps are in the left panel of the graph ("Manage").
 menu = PluginMenu(
     label='Dependencies',
     icon_class='mdi mdi-graph-outline',
@@ -66,6 +64,11 @@ menu = PluginMenu(
             PluginMenuItem(
                 link='plugins:netbox_dependencies:live',
                 link_text='Live outages',
+                permissions=['netbox_dependencies.view_dependency'],
+            ),
+            PluginMenuItem(
+                link='plugins:netbox_dependencies:impact',
+                link_text='Outage simulation',
                 permissions=['netbox_dependencies.view_dependency'],
             ),
             PluginMenuItem(

@@ -39,6 +39,16 @@
     #dep-sidebar > .card-body > ul { padding-left: 0; }
     #dep-sidebar summary { cursor: pointer; padding: .15rem 0; }
     #dep-sidebar .dep-scope-leaf { padding: .15rem 0 .15rem 1rem; }
+    #dep-side-devices { margin-top: .6rem; padding-top: .5rem; border-top: 1px solid var(--tblr-border-color, #e6e9ef); }
+    #dep-side-devices .dep-side-head { font-size: .72rem; text-transform: uppercase; opacity: .6; margin: 0 0 .2rem .2rem; }
+    #dep-side-devices .dep-side-empty { font-size: .82rem; opacity: .65; padding: .2rem; }
+    #dep-side-devices .dep-side-dev { display: flex; align-items: center; gap: .5rem; padding: .3rem .35rem; border-radius: 6px;
+                                      color: inherit; text-decoration: none; }
+    #dep-side-devices .dep-side-dev:hover { background: rgba(var(--tblr-primary-rgb, 6, 111, 209), .08); }
+    #dep-side-devices .dep-side-dev i { opacity: .6; }
+    #dep-side-devices .dep-side-main { min-width: 0; display: flex; flex-direction: column; line-height: 1.2; }
+    #dep-side-devices .dep-side-main strong { font-weight: 600; font-size: .85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #dep-side-devices .dep-side-meta { font-size: .75rem; opacity: .65; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     #dep-sidebar .active > a, #dep-sidebar .active a { font-weight: 700; }
     #dep-sidebar .active { background: rgba(66, 153, 225, .15); border-radius: 4px; }
     #dep-sidebar .badge { font-size: .7rem; }
@@ -59,9 +69,41 @@
     .dep-live-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #9aa0a6; margin-right: 4px; }
     .dep-live-dot.on { background: #2fb344; }
     .dep-live-dot.err { background: #d63939; }
-    #dep-pop { position: absolute; z-index: 6; width: 310px; max-height: 80%; overflow: auto; padding: .75rem .9rem;
+    #dep-pop { position: absolute; z-index: 6; width: 330px; max-height: 80%; overflow: auto; padding: .75rem .9rem;
                background: var(--tblr-bg-surface, #fff); color: var(--tblr-body-color, inherit);
-               border: 1px solid var(--tblr-border-color, #666); border-radius: 8px; box-shadow: 0 6px 22px rgba(0, 0, 0, .35); }
+               border: 1px solid var(--tblr-border-color, #d0d7e2); border-radius: 12px; box-shadow: 0 12px 32px rgba(0, 0, 0, .18); }
+    /* device card */
+    #dep-pop.dev { padding: 0; }
+    #dep-pop .dc-head { display: flex; gap: .7rem; align-items: flex-start; padding: .85rem 2.2rem .7rem .9rem; }
+    #dep-pop .dc-head img { flex: 0 0 38px; width: 38px; height: 38px; margin-top: .1rem; }
+    #dep-pop .dc-title { min-width: 0; flex: 1 1 auto; }
+    #dep-pop .dc-title a { display: block; font-weight: 600; font-size: 1.02rem; line-height: 1.25; color: inherit; text-decoration: none;
+                           overflow-wrap: anywhere; }
+    #dep-pop .dc-title a:hover { color: var(--tblr-primary, #066fd1); }
+    #dep-pop .dc-sub { font-size: .8rem; opacity: .65; margin-top: .1rem; }
+    #dep-pop .dc-state { margin: 0 .9rem .7rem; padding: .5rem .65rem; border-radius: 8px; font-size: .82rem; line-height: 1.35;
+                         border-left: 3px solid var(--dc-c, #9aa0a6); background: color-mix(in srgb, var(--dc-c, #9aa0a6) 10%, transparent); }
+    #dep-pop .dc-state strong { color: var(--dc-c, inherit); }
+    #dep-pop .dc-state .dc-muted { opacity: .7; }
+    #dep-pop .dc-facts { display: grid; grid-template-columns: 1fr 1fr; gap: .55rem .8rem; padding: .1rem .9rem .75rem; }
+    #dep-pop .dc-fact { min-width: 0; }
+    #dep-pop .dc-fact.wide { grid-column: 1 / -1; }
+    #dep-pop .dc-fact .k { display: flex; align-items: center; gap: .25rem; font-size: .68rem; text-transform: uppercase; letter-spacing: .02em; opacity: .6; }
+    #dep-pop .dc-fact .v { font-size: .86rem; overflow-wrap: anywhere; display: flex; align-items: center; gap: .3rem; }
+    #dep-pop .dc-copy { border: 0; background: none; color: inherit; opacity: .45; padding: 0 .15rem; line-height: 1; cursor: pointer; }
+    #dep-pop .dc-copy:hover { opacity: .9; }
+    #dep-pop .dc-notes { padding: .55rem .9rem .7rem; border-top: 1px solid var(--tblr-border-color, #e6e9ef); font-size: .82rem; }
+    #dep-pop .dc-notes .k { font-size: .68rem; text-transform: uppercase; opacity: .6; margin-bottom: .1rem; }
+    #dep-pop .dc-actions { display: grid; grid-template-columns: repeat(4, 1fr); gap: .35rem; padding: .6rem .7rem;
+                           border-top: 1px solid var(--tblr-border-color, #e6e9ef); }
+    #dep-pop .dc-act { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .15rem; padding: .45rem .2rem;
+                       border-radius: 8px; border: 0; background: none; color: inherit; font-size: .74rem; line-height: 1.1;
+                       text-decoration: none; cursor: pointer; }
+    #dep-pop .dc-act i { font-size: 1.25rem; line-height: 1; color: var(--tblr-primary, #066fd1); }
+    #dep-pop .dc-act:hover { background: rgba(var(--tblr-primary-rgb, 6, 111, 209), .08); }
+    #dep-pop .dc-act.disabled { opacity: .4; cursor: default; pointer-events: none; }
+    #dep-pop .dc-more { display: flex; flex-wrap: wrap; gap: .4rem; padding: .55rem .9rem .8rem; border-top: 1px solid var(--tblr-border-color, #e6e9ef); }
+    #dep-pop .dc-more .btn { display: inline-flex; align-items: center; gap: .25rem; }
     #dep-pop[hidden] { display: none; }
     #dep-pop .k { font-size: .7rem; text-transform: uppercase; opacity: .65; }
     #dep-pop .dep-row { display: flex; justify-content: space-between; gap: .75rem; padding: .15rem 0; font-size: .85rem; }
@@ -73,27 +115,85 @@
                   display: flex; align-items: center; justify-content: center; font-size: 14px; line-height: 1; cursor: crosshair;
                   box-shadow: 0 1px 4px rgba(0, 0, 0, .4); border: 2px solid #fff; }
     #dep-handle[hidden] { display: none; }
-    #dep-editbar { position: absolute; left: 10px; top: 10px; z-index: 9; display: flex; align-items: center; gap: .4rem; padding: .3rem .45rem;
-                   background: var(--tblr-bg-surface, #fff); border: 1px solid var(--tblr-primary, #4299e1); border-radius: 8px;
-                   box-shadow: 0 3px 12px rgba(0, 0, 0, .25); }
+    /* edit mode: a compact toolbar floating over the graph */
+    #dep-editbar { position: absolute; left: 10px; top: 10px; z-index: 9; display: flex; align-items: center; gap: .3rem; padding: .3rem;
+                   background: var(--tblr-bg-surface, #fff); border: 1px solid var(--tblr-border-color, #d0d7e2); border-radius: 10px;
+                   box-shadow: 0 6px 20px rgba(0, 0, 0, .14); }
     #dep-editbar[hidden] { display: none; }
-    #dep-editbar .dep-editbar-title { font-weight: 600; font-size: .85rem; color: var(--tblr-primary, #4299e1); padding: 0 .2rem; }
-    #dep-edit-helptext { position: absolute; left: 0; top: calc(100% + 6px); width: 330px; padding: .6rem .75rem; font-size: .82rem; line-height: 1.45;
-                         background: var(--tblr-bg-surface, #fff); border: 1px solid var(--tblr-border-color, #666); border-radius: 8px;
-                         box-shadow: 0 6px 22px rgba(0, 0, 0, .3); }
+    #dep-editbar .btn { height: 30px; display: inline-flex; align-items: center; gap: .3rem; padding-top: 0; padding-bottom: 0; white-space: nowrap; }
+    #dep-editbar .dep-editbar-title { display: inline-flex; align-items: center; gap: .45rem; height: 30px; padding: 0 .65rem; border-radius: 7px;
+                                      font-weight: 600; font-size: .82rem; color: var(--tblr-primary, #066fd1);
+                                      background: rgba(var(--tblr-primary-rgb, 6, 111, 209), .1); }
+    #dep-editbar .dep-rec { width: 7px; height: 7px; border-radius: 50%; background: currentColor; animation: dep-blink 1.8s ease-in-out infinite; }
+    #dep-editbar .dep-sep { width: 1px; align-self: stretch; margin: .2rem .15rem; background: var(--tblr-border-color, #d0d7e2); }
+    #dep-editbar #dep-edit-help { width: 30px; padding: 0; justify-content: center; font-size: 1.05rem; }
+    #dep-editbar #dep-edit-help.active { color: var(--tblr-primary, #066fd1); background: rgba(var(--tblr-primary-rgb, 6, 111, 209), .1); }
+    @keyframes dep-blink { 0%, 100% { opacity: 1; } 50% { opacity: .25; } }
+    #dep-edit-helptext { position: absolute; left: 0; top: calc(100% + 6px); width: 340px; padding: .7rem .85rem; font-size: .82rem; line-height: 1.45;
+                         background: var(--tblr-bg-surface, #fff); border: 1px solid var(--tblr-border-color, #d0d7e2); border-radius: 10px;
+                         box-shadow: 0 10px 28px rgba(0, 0, 0, .16); }
     #dep-edit-helptext[hidden] { display: none; }
-    #dep-edit-toasts { position: absolute; left: 10px; bottom: 10px; z-index: 9; width: 380px; max-width: calc(100% - 20px); }
-    #dep-edit-toasts .alert { margin-bottom: .4rem; box-shadow: 0 3px 12px rgba(0, 0, 0, .25); }
+    #dep-edit-helptext .dep-help-row { display: flex; gap: .55rem; padding: .25rem 0; }
+    #dep-edit-helptext .dep-help-row > i { flex: 0 0 auto; font-size: 1rem; line-height: 1.2rem; color: var(--tblr-primary, #066fd1); }
+    .dep-graph-box.editing #dep-graph { outline: 2px dashed rgba(var(--tblr-primary-rgb, 6, 111, 209), .35); outline-offset: -2px; border-radius: 4px; }
+    /* notifications over the graph (created, deleted, reversed - with Undo) */
+    #dep-edit-toasts { position: absolute; left: 10px; bottom: 10px; z-index: 9; width: 400px; max-width: calc(100% - 20px);
+                       display: flex; flex-direction: column; gap: .45rem; pointer-events: none; }
+    .dep-toast { pointer-events: auto; position: relative; overflow: hidden; display: flex; align-items: center; gap: .65rem;
+                 padding: .55rem .55rem .6rem .65rem; font-size: .875rem; line-height: 1.35;
+                 background: var(--tblr-bg-surface, #fff); color: var(--tblr-body-color, inherit);
+                 border: 1px solid var(--tblr-border-color, #d0d7e2); border-radius: 10px; box-shadow: 0 8px 24px rgba(0, 0, 0, .16);
+                 animation: dep-toast-in .18s ease-out; }
+    .dep-toast .dep-toast-icon { flex: 0 0 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+                                 font-size: 16px; color: #2fb344; background: rgba(47, 179, 68, .14); }
+    .dep-toast.warn .dep-toast-icon { color: #f76707; background: rgba(247, 103, 7, .14); }
+    .dep-toast .dep-toast-text { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+    .dep-toast .dep-toast-action { flex: 0 0 auto; border: 0; background: none; color: var(--tblr-primary, #066fd1); font-weight: 600;
+                                   padding: .3rem .55rem; border-radius: 6px; cursor: pointer; white-space: nowrap; }
+    .dep-toast .dep-toast-action:hover { background: rgba(var(--tblr-primary-rgb, 6, 111, 209), .1); }
+    .dep-toast .dep-toast-close { flex: 0 0 auto; border: 0; background: none; color: inherit; opacity: .45; font-size: 1.15rem; line-height: 1;
+                                  padding: .2rem .35rem; border-radius: 6px; cursor: pointer; }
+    .dep-toast .dep-toast-close:hover { opacity: .9; }
+    .dep-toast .dep-toast-bar { position: absolute; left: 0; bottom: 0; height: 3px; width: 100%; background: #2fb344; opacity: .5;
+                                transform-origin: left; animation: dep-toast-bar linear forwards; }
+    .dep-toast.warn .dep-toast-bar { background: #f76707; }
+    .dep-toast:hover .dep-toast-bar { animation-play-state: paused; }
+    .dep-toast.out { opacity: 0; transform: translateY(6px); transition: opacity .18s, transform .18s; }
+    @keyframes dep-toast-bar { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+    @keyframes dep-toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
     #dep-rubber { position: absolute; left: 0; top: 0; width: 100%; height: 100%; z-index: 8; pointer-events: none; }
     #dep-rubber[hidden] { display: none; }
-    .dep-float { position: absolute; z-index: 9; width: 330px; max-width: calc(100% - 12px); padding: .75rem .9rem;
+    /* dialogs of the edit mode (new link, add a device) */
+    .dep-float { position: absolute; z-index: 9; width: 360px; max-width: calc(100% - 12px); padding: .85rem 1rem 1rem;
                  background: var(--tblr-bg-surface, #fff); color: var(--tblr-body-color, inherit);
-                 border: 1px solid var(--tblr-border-color, #666); border-radius: 8px; box-shadow: 0 6px 22px rgba(0, 0, 0, .35); }
-    .dep-float h6 { margin: 0 0 .5rem; }
-    .dep-float label { font-size: .72rem; text-transform: uppercase; opacity: .7; margin: .45rem 0 .1rem; }
-    .dep-results { max-height: 260px; overflow: auto; margin-top: .5rem; }
-    .dep-results .dep-result { display: flex; justify-content: space-between; gap: .5rem; padding: .35rem .5rem; border-radius: 6px; cursor: pointer; }
-    .dep-results .dep-result:hover { background: rgba(66, 153, 225, .15); }
+                 border: 1px solid var(--tblr-border-color, #d0d7e2); border-radius: 12px; box-shadow: 0 12px 32px rgba(0, 0, 0, .18);
+                 animation: dep-toast-in .15s ease-out; }
+    .dep-float .dep-float-head { display: flex; align-items: center; gap: .5rem; margin: 0 0 .7rem; }
+    .dep-float .dep-float-head .dep-float-icon { flex: 0 0 28px; height: 28px; border-radius: 8px; display: flex; align-items: center; justify-content: center;
+                                                 font-size: 16px; color: var(--tblr-primary, #066fd1); background: rgba(var(--tblr-primary-rgb, 6, 111, 209), .1); }
+    .dep-float .dep-float-head h6 { margin: 0; font-size: .95rem; font-weight: 600; flex: 1 1 auto; }
+    .dep-float .dep-float-close { border: 0; background: none; color: inherit; opacity: .45; font-size: 1.2rem; line-height: 1; padding: .15rem .35rem;
+                                  border-radius: 6px; cursor: pointer; }
+    .dep-float .dep-float-close:hover { opacity: .9; }
+    .dep-float label { display: block; font-size: .76rem; font-weight: 500; opacity: .75; margin: .6rem 0 .2rem; }
+    .dep-float .dep-pair { display: flex; align-items: center; gap: .45rem; padding: .45rem .55rem; margin-bottom: .35rem; border-radius: 8px;
+                           background: rgba(var(--tblr-primary-rgb, 6, 111, 209), .06); border: 1px solid rgba(var(--tblr-primary-rgb, 6, 111, 209), .15); }
+    .dep-float .dep-pair strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .dep-float .dep-pair .dep-pair-arrow { color: var(--tblr-primary, #066fd1); font-size: 1.1rem; }
+    .dep-float .dep-pair .btn { margin-left: auto; width: 28px; height: 28px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
+    .dep-float .dep-float-actions { display: flex; justify-content: flex-end; gap: .5rem; margin-top: .9rem; }
+    .dep-search { position: relative; }
+    .dep-search > i { position: absolute; left: .65rem; top: 50%; transform: translateY(-50%); opacity: .5; pointer-events: none; }
+    .dep-search > input { padding-left: 2rem; }
+    .dep-results { max-height: 280px; overflow: auto; margin: .5rem -.35rem 0; }
+    .dep-results .dep-result { display: flex; align-items: center; gap: .6rem; padding: .4rem .45rem; border-radius: 8px; cursor: pointer; }
+    .dep-results .dep-result:hover, .dep-results .dep-result:focus { background: rgba(var(--tblr-primary-rgb, 6, 111, 209), .08); outline: none; }
+    .dep-results .dep-result .dep-result-icon { flex: 0 0 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center;
+                                                font-size: 16px; background: rgba(var(--tblr-secondary-rgb, 102, 112, 133), .12); }
+    .dep-results .dep-result .dep-result-main { flex: 1 1 auto; min-width: 0; }
+    .dep-results .dep-result .dep-result-main strong, .dep-results .dep-result .dep-result-main div { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .dep-results .dep-result .badge { flex: 0 0 auto; }
+    .dep-results .dep-empty { padding: .9rem .5rem; text-align: center; font-size: .85rem; opacity: .65; }
     #dep-edit-toggle.active { background: var(--tblr-primary, #4299e1); color: #fff; }
     @media print {
       .navbar, .page-header, #dep-side, #dep-split, .dep-toolbar, .dep-chips, nav.small, #dep-toasts, .card-header .btn, #dep-mini { display: none !important; }
@@ -105,7 +205,8 @@
     <div id="dep-side" class="mb-3">
       <div class="card" id="dep-sidebar">
         <div class="card-header">
-          <input type="search" id="dep-sidebar-filter" class="form-control form-control-sm" placeholder="Filter locations…">
+          <input type="search" id="dep-sidebar-filter" class="form-control form-control-sm" placeholder="Filter locations, find a device (name, IP)…"
+                 autocomplete="off" data-search-url="{% url 'plugins-api:netbox_dependencies-api:topology_search' %}">
         </div>
         <div class="card-body p-2">
           <div class="dep-scope-leaf {% if scope == 'all' %}active{% endif %} mb-1">
@@ -137,6 +238,8 @@
             {% endfor %}
           </ul>
           {% if not sidebar.tree %}<div class="text-muted small p-2">No dependencies yet.</div>{% endif %}
+          <div id="dep-side-noloc" class="text-muted small ps-3" hidden>No location matches.</div>
+          <div id="dep-side-devices" hidden></div>
         </div>
       </div>
     </div>
@@ -261,20 +364,23 @@
           <div id="dep-graph"></div>
           <div id="dep-pop" hidden role="dialog" aria-label="Device info"></div>
           {% if graph.can_edit %}
-            <div id="dep-editbar" hidden>
-              <span class="dep-editbar-title"><i class="mdi mdi-pencil-outline"></i> Edit</span>
-              <button type="button" class="btn btn-sm btn-outline-primary" id="dep-add-device"><i class="mdi mdi-plus-thick"></i> Add device</button>
-              <button type="button" class="btn btn-sm btn-icon btn-outline-secondary" id="dep-edit-help" title="How to draw links" aria-label="How to draw links"><i class="mdi mdi-help-circle-outline"></i></button>
-              <button type="button" class="btn btn-sm btn-primary" id="dep-edit-done">Done</button>
+            <div id="dep-editbar" hidden role="toolbar" aria-label="Edit mode">
+              <span class="dep-editbar-title"><span class="dep-rec" aria-hidden="true"></span> Editing</span>
+              <span class="dep-sep" aria-hidden="true"></span>
+              <button type="button" class="btn btn-sm btn-ghost-primary" id="dep-add-device"><i class="mdi mdi-plus-circle-outline"></i> Add device</button>
+              <button type="button" class="btn btn-sm btn-ghost-secondary" id="dep-edit-help" title="How to draw links" aria-label="How to draw links"><i class="mdi mdi-help-circle-outline"></i></button>
+              <span class="dep-sep" aria-hidden="true"></span>
+              <button type="button" class="btn btn-sm btn-primary" id="dep-edit-done"><i class="mdi mdi-check"></i> Done</button>
               <div id="dep-edit-helptext" hidden>
-                <div><strong>Dependency:</strong> drag from the dot under a device to the device that <strong>depends on it</strong>.</div>
-                <div><strong>Peer link</strong> (equal devices): hold <kbd>Shift</kbd> when you let go.</div>
-                <div><strong>Delete:</strong> click a link, then <em>Delete link</em> (or the Delete key).</div>
-                <div class="text-muted">Let go on empty space to cancel. Esc cancels too.</div>
+                <div class="dep-help-row"><i class="mdi mdi-arrow-down-bold-circle-outline"></i><div><strong>Dependency:</strong> drag from the dot under a device to the device that <strong>depends on it</strong>.</div></div>
+                <div class="dep-help-row"><i class="mdi mdi-link-variant"></i><div><strong>Peer link</strong> (equal devices): hold <kbd>Shift</kbd> when you let go.</div></div>
+                <div class="dep-help-row"><i class="mdi mdi-swap-vertical"></i><div><strong>Reverse:</strong> right-click a link, then <em>Reverse direction</em>.</div></div>
+                <div class="dep-help-row"><i class="mdi mdi-link-variant-off"></i><div><strong>Delete:</strong> click a link, then <em>Delete link</em> (or the Delete key).</div></div>
+                <div class="text-muted mt-1">Let go on empty space to cancel. Esc cancels too.</div>
               </div>
             </div>
-            <div id="dep-edit-toasts"></div>
           {% endif %}
+          <div id="dep-edit-toasts" aria-live="polite"></div>
           <div id="dep-mini" hidden><img id="dep-mini-img" alt="" draggable="false"><div id="dep-mini-view"></div></div>
         </div>
         {% if graph.overview %}
@@ -305,16 +411,14 @@
               <div class="dep-leg-row"><span class="sw"><i class="dot" style="background:#d63939"></i></span>Down</div>
               <div class="dep-leg-row"><span class="sw"><i class="dot" style="background:#9aa0a6"></i></span>Unknown (stale or in maintenance)</div>
               <div class="dep-leg-row"><span class="sw"><i class="dot" style="background:#566a80"></i></span>No status yet</div>
-              <div class="dep-leg-row"><span class="sw"><i class="dot" style="background:#f76707"></i></span>Degraded (outage simulation)</div>
-              <div class="dep-leg-row"><span class="sw"><i class="dot" style="background:#ae3ec9"></i></span>Selected as failed (simulation)</div>
+              <div class="dep-leg-row"><span class="sw"><i class="dot" style="background:#ae3ec9"></i></span>Failed device (outage opened from a notification)</div>
               <div class="dep-leg-row"><span class="sw"><i class="dot" style="background:transparent;border:3px solid #ff3b30"></i></span>Root cause of an outage</div>
               <div class="dep-leg-row"><span class="sw"><i class="dot" style="background:transparent;border:2px solid #ffd43b"></i></span>Search match</div>
             </div>
             <div class="col-12 col-md-6 mb-3">
-              <h6 class="text-uppercase text-muted small">Links (click a link for details, right-click to change its medium)</h6>
+              <h6 class="text-uppercase text-muted small">Links (click a link for details, right-click to change its medium or reverse it)</h6>
               <div id="dep-leg-media"></div>
               <div class="dep-leg-row"><span class="sw"><svg width="70" height="14"><line x1="2" y1="7" x2="68" y2="7" stroke="#868e96" stroke-width="2"/></svg></span>Peer link: equal devices, no arrow, no effect on outages</div>
-              <div class="dep-leg-row"><span class="sw"><svg width="70" height="14"><line x1="2" y1="7" x2="68" y2="7" stroke="#ae3ec9" stroke-opacity=".4" stroke-width="10" stroke-linecap="round"/><line x1="2" y1="7" x2="68" y2="7" stroke="#4299e1" stroke-width="2.5"/></svg></span>Purple glow = redundancy group (backup path)</div>
               <h6 class="text-uppercase text-muted small mt-3">Device icons</h6>
               <div id="dep-leg-icons" class="row row-cols-2 g-1 small"></div>
               <div class="text-muted small mt-1">Chosen from the device role, then its model, then its name.</div>
@@ -324,9 +428,9 @@
           </div>
           <h6 class="text-uppercase text-muted small">Controls</h6>
           <ul class="small mb-0">
-            <li>Click a device: info popup next to it (description, status, IP, …). Right-click a device: outage simulation (Shift+right-click adds more devices). Click empty space to clear.</li>
+            <li>Click a device: info popup next to it (description, status, IP, …). Right-click a device: <em>Highlight dependents</em> (everything below it; Esc or a click on empty space clears it).</li>
             <li>Double-click a device to open it. Drag devices to arrange; the layout of this map is saved automatically.</li>
-            <li>Click a link for its details; right-click it to set its medium (Ethernet, optical, radio, VPN, LTE / 5G, satellite).</li>
+            <li>Click a link for its details; right-click it to set its medium (Ethernet, optical, radio, VPN, LTE / 5G, satellite) or to <strong>reverse its direction</strong> (upstream and downstream swap places; the same dependency).</li>
             <li>Search: Enter zooms to the matches, Esc clears. Filters hide devices and links by status, role, type and medium.</li>
           </ul>
         </div>
@@ -383,17 +487,78 @@
       remember(w);
     });
 
-    // ---- filter in the sidebar
-    document.getElementById('dep-sidebar-filter').addEventListener('input', function () {
-      var q = this.value.trim().toLowerCase();
-      document.querySelectorAll('#dep-sidebar li.dep-scope').forEach(function (li) {
-        var match = !q || li.textContent.toLowerCase().indexOf(q) >= 0;
-        li.style.display = match ? '' : 'none';
-        if (q && match) { li.querySelectorAll('details').forEach(function (d) { d.open = true; }); }
+    // ---- filter in the sidebar: the locations are filtered by name; devices of the topology are searched by name or IP
+    (function () {
+      var input = document.getElementById('dep-sidebar-filter');
+      var box = document.getElementById('dep-side-devices');
+      var timer = null, seq = 0;
+      function mk(tag, cls, text) { var e = document.createElement(tag); if (cls) { e.className = cls; } if (text) { e.textContent = text; } return e; }
+      function renderDevices(q, rows) {
+        box.innerHTML = '';
+        if (!q) { box.hidden = true; return; }
+        box.hidden = false;
+        box.appendChild(mk('div', 'dep-side-head', 'Devices'));
+        if (!rows.length) { box.appendChild(mk('div', 'dep-side-empty', 'No device in the topology matches.')); return; }
+        rows.forEach(function (r) {
+          var a = mk('a', 'dep-side-dev');
+          a.href = r.graph_url;
+          a.title = 'Open the map of ' + r.site + ' with ' + r.name + ' selected';
+          var main = mk('span', 'dep-side-main');
+          main.appendChild(mk('strong', '', r.name));
+          main.appendChild(mk('span', 'dep-side-meta', [r.ip, r.site].filter(Boolean).join(' · ')));
+          a.appendChild(mk('i', 'mdi mdi-server-network'));
+          a.appendChild(main);
+          box.appendChild(a);
+        });
+      }
+      function search(q) {
+        clearTimeout(timer);
+        if (q.length < 2) { seq++; renderDevices('', []); return; }
+        timer = setTimeout(function () {
+          var mine = ++seq;
+          fetch(input.getAttribute('data-search-url') + '?topology=1&q=' + encodeURIComponent(q), {credentials: 'same-origin', headers: {'Accept': 'application/json'}})
+            .then(function (r) { return r.ok ? r.json() : {results: []}; })
+            .then(function (res) { if (mine === seq) { renderDevices(q, res.results || []); } })
+            .catch(function () { if (mine === seq) { renderDevices('', []); } });
+        }, 250);
+      }
+      input.addEventListener('input', function () {
+        var q = this.value.trim().toLowerCase();
+        document.querySelectorAll('#dep-sidebar li.dep-scope').forEach(function (li) {
+          var match = !q || li.textContent.toLowerCase().indexOf(q) >= 0;
+          li.style.display = match ? '' : 'none';
+          if (q && match) { li.querySelectorAll('details').forEach(function (d) { d.open = true; }); }
+        });
+        var anyLocation = Array.prototype.some.call(document.querySelectorAll('#dep-sidebar li.dep-scope'), function (li) { return li.style.display !== 'none'; });
+        document.getElementById('dep-side-noloc').hidden = !q || anyLocation;
+        search(this.value.trim());
       });
-    });
+      input.addEventListener('keydown', function (ev) {          // Enter opens the first device found
+        if (ev.key !== 'Enter') { return; }
+        var first = box.querySelector('a.dep-side-dev');
+        if (first) { ev.preventDefault(); window.location.href = first.href; }
+      });
+    })();
 
     var data = JSON.parse(document.getElementById('dep-graph-data').textContent);
+    // Cytoscape remembers where its canvas is on the page. Banners above the graph (the dependents bar, the outages line, warnings)
+    // change their height and move the canvas without a resize, so clicks would land beside the device until the cache is refreshed.
+    // Before every pointer action the cached position is checked against the real one and refreshed when it moved.
+    function keepCoordsFresh(cy) {
+      var box = cy.container(), queued = false;
+      function check() {
+        queued = false;
+        var r = cy.renderer(), real = box.getBoundingClientRect(), cached = r.findContainerClientCoords();
+        if (Math.abs(real.left - cached[0]) > 0.5 || Math.abs(real.top - cached[1]) > 0.5 ||
+            Math.abs(real.width - cached[2]) > 0.5 || Math.abs(real.height - cached[3]) > 0.5) {
+          if (r.invalidateContainerClientCoordsCache) { r.invalidateContainerClientCoordsCache(); } else { cy.resize(); }
+        }
+      }
+      ['mousedown', 'pointerdown', 'touchstart', 'contextmenu', 'wheel', 'mouseenter'].forEach(function (type) {
+        box.addEventListener(type, check, {capture: true, passive: true});
+      });
+      box.addEventListener('mousemove', function () { if (!queued) { queued = true; requestAnimationFrame(check); } }, {capture: true, passive: true});
+    }
     function depOverview(data) {
       // ---- the clouds view: regions and sites as clouds, the links between them merged into one line per pair
       var COLORS = {up: '#2fb344', down: '#d63939', unknown: '#9aa0a6', none: '#566a80'};
@@ -480,6 +645,7 @@
         ]
       });
       window.depCy = cy;
+      keepCoordsFresh(cy);
       new MutationObserver(function () { cy.elements().forEach(function (e) { e.addClass('t'); e.removeClass('t'); }); })
         .observe(document.documentElement, {attributes: true, attributeFilter: ['data-bs-theme']});
 
@@ -575,7 +741,7 @@
     }
     if (data.overview) { depOverview(data); return; }
     var textColor = getComputedStyle(document.body).color || '#fff';
-    var COLORS = {up: '#2fb344', down: '#d63939', unknown: '#9aa0a6', none: '#566a80', degraded: '#f76707', failed: '#ae3ec9', suppressed: '#9aa0a6'};
+    var COLORS = {up: '#2fb344', down: '#d63939', unknown: '#9aa0a6', none: '#566a80', failed: '#ae3ec9', suppressed: '#9aa0a6'};
     var MEDIA = ['ethernet', 'optical', 'radio', 'vpn', 'lte', 'satellite', 'unspecified'];
     var MEDIUM_COLOR = {ethernet: '#4299e1', optical: '#f59f00', radio: '#22b8cf', vpn: '#e64980', lte: '#12b886',
                         satellite: '#845ef7', unspecified: '#868e96'};
@@ -654,16 +820,15 @@
     function isDark() { return document.documentElement.getAttribute('data-bs-theme') === 'dark'; }
     var PAL = {
       light: {card: '#ffffff', cardBorder: '#c9d1dc', text: '#1d273b', muted: '#667085', sub: '#8b95a7', shadow: 0.07,
-              tint: {down: '#fdeaea', degraded: '#fff1e3', failed: '#f6e8fb'}},
+              tint: {down: '#fdeaea', failed: '#f6e8fb'}},
       dark: {card: '#243142', cardBorder: '#3d4d63', text: '#e8edf5', muted: '#9fb0c6', sub: '#8fa1b9', shadow: 0.25,
-             tint: {down: '#43232b', degraded: '#43301f', failed: '#392447'}}
+             tint: {down: '#43232b', failed: '#392447'}}
     };
     function pal() { return isDark() ? PAL.dark : PAL.light; }
     // effective state of a node: simulation classes win over the live state
     function effState(n) {
       if (n.hasClass('failed')) { return 'failed'; }
       if (n.hasClass('down')) { return 'down'; }
-      if (n.hasClass('degraded')) { return 'degraded'; }
       if (n.data('suppressed')) { return 'suppressed'; }
       return n.data('state') || 'none';
     }
@@ -760,10 +925,10 @@
           'text-margin-x': 17,
           'text-margin-y': function (n) { return subText(n) ? -7 : 0; },
           'background-color': function (n) { var t = pal().tint[effState(n)]; return t || pal().card; },
-          'border-width': function (n) { return {down: 2.5, degraded: 2.5, failed: 3}[effState(n)] || 1.5; },
+          'border-width': function (n) { return {down: 2.5, failed: 3}[effState(n)] || 1.5; },
           'border-color': function (n) {
             var st = effState(n);
-            return (st === 'down' || st === 'degraded' || st === 'failed') ? COLORS[st] : pal().cardBorder;
+            return (st === 'down' || st === 'failed') ? COLORS[st] : pal().cardBorder;
           },
           'background-image': function (n) {
             var images = [badgeUri(n.data('icon'), effState(n))];
@@ -798,6 +963,9 @@
         {selector: 'node.match', style: {'border-width': 3, 'border-color': '#ffd43b'}},
         {selector: 'node.picked', style: {'border-width': 3, 'border-color': '#4299e1'}},
         {selector: 'node.edit-target', style: {'border-width': 4, 'border-color': '#4299e1', 'underlay-color': '#4299e1', 'underlay-opacity': 0.3, 'underlay-padding': 8}},
+        {selector: 'node.hl-src', style: {'border-width': 3.5, 'border-color': '#066fd1',
+                                          'underlay-color': '#066fd1', 'underlay-opacity': 0.3, 'underlay-padding': 8}},
+        {selector: 'node.hl-dep', style: {'border-width': 2.5, 'border-color': '#4299e1'}},
         {selector: 'node.dim', style: {'opacity': 0.25}},
         {selector: 'node.nomatch', style: {'opacity': 0.18}},
         {selector: 'edge', style: {
@@ -838,12 +1006,10 @@
         }},
         {selector: 'edge[?merged]', style: {'width': 4}},          // several links to one cloud, drawn as one line
         {selector: 'edge.picked', style: {'width': 4.5, 'opacity': 1, 'z-index': 10}},
-        {selector: 'edge[group != ""]', style: {
-          'underlay-color': '#ae3ec9', 'underlay-opacity': 0.35, 'underlay-padding': 4
-        }},
         {selector: 'edge[?peer]', style: {'target-arrow-shape': 'none', 'width': 2, 'opacity': 0.8}},     // equal devices: a plain line, no arrow
         {selector: 'edge.hl', style: {'width': 4, 'opacity': 1, 'z-index': 10}},
         {selector: 'edge.nolabel', style: {'label': ''}},
+        {selector: 'edge.hl-path', style: {'width': 3.5, 'opacity': 1, 'z-index': 9}},
         {selector: 'edge.dim', style: {'opacity': 0.15}},
         {selector: 'edge.nomatch', style: {'opacity': 0.1}},
         {selector: 'node.hidden', style: {'display': 'none'}},
@@ -851,6 +1017,7 @@
       ]
     });
     window.depCy = cy;
+    keepCoordsFresh(cy);
 
     // ---- modern touches: hover highlight, pulsing root causes, live theme switch
     var gridEl = document.getElementById('dep-graph');   // used for the pointer cursor on hover
@@ -907,6 +1074,8 @@
     if (focusNode.length) {
       cy.zoom({level: 1, position: focusNode[0].position()});
       cy.center(focusNode[0]);
+      // opened for one device (search, a cloud with one device): its card opens too - not for the impact view of a notification
+      if (!data.auto_simulate) { setTimeout(function () { showDetail(focusNode[0]); }, 0); }
     }
 
     document.getElementById('dep-fit').addEventListener('click', function () { cy.fit(cy.elements(':visible'), 30); });
@@ -972,7 +1141,7 @@
       if (saveFailed) { e.preventDefault(); e.returnValue = ''; }
     });
 
-    // ---- right click on an edge: change the medium of the link
+    // ---- right click on an edge: change the medium of the link or reverse it
     var ctx = document.getElementById('dep-ctx');
     function hideCtx() { ctx.classList.remove('show'); }
     function mediumSwatch(m) {
@@ -1005,9 +1174,90 @@
         toast('Could not change the link medium (' + err.message + ').');
       });
     }
+    // ---- reversing a dependency: upstream and downstream swap places, the same object (nothing is deleted)
+    function postReverse(pk) {
+      return fetch(data.dependency_api + pk + '/reverse/', {
+        method: 'POST', credentials: 'same-origin',
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf(), 'Accept': 'application/json'}
+      }).then(function (r) {
+        return r.json().catch(function () { return null; }).then(function (body) {
+          if (!r.ok) { throw new Error(body && body.detail ? [].concat(body.detail).join(' ') : 'HTTP ' + r.status); }
+          return body;
+        });
+      });
+    }
+    // a small card over the graph: icon, text, optional action (Undo) and a bar that runs down until it closes (paused on hover)
+    function floatToast(opts) {
+      var holder = document.getElementById('dep-edit-toasts');
+      if (!holder) { return null; }
+      var warn = opts.kind === 'warn';
+      var card = el('div', {class: 'dep-toast' + (warn ? ' warn' : ''), role: warn ? 'alert' : 'status'}, [
+        el('span', {class: 'dep-toast-icon'}, [el('i', {class: 'mdi ' + (opts.icon || (warn ? 'mdi-alert-outline' : 'mdi-check'))})]),
+        el('span', {class: 'dep-toast-text', text: opts.text})]);
+      function drop() {
+        if (!card.parentNode || card.classList.contains('out')) { return; }
+        card.classList.add('out');
+        setTimeout(function () { if (card.parentNode) { card.parentNode.removeChild(card); } }, 200);
+      }
+      if (opts.action) {
+        var act = el('button', {type: 'button', class: 'dep-toast-action'}, [el('i', {class: 'mdi mdi-undo-variant me-1'}), opts.label || 'Undo']);
+        act.addEventListener('click', function () { drop(); opts.action(); });
+        card.appendChild(act);
+      }
+      var close = el('button', {type: 'button', class: 'dep-toast-close', title: 'Close', 'aria-label': 'Close', text: '×'});
+      close.addEventListener('click', drop);
+      card.appendChild(close);
+      var bar = el('span', {class: 'dep-toast-bar'});
+      bar.style.animationDuration = (opts.timeout || 15000) + 'ms';
+      bar.addEventListener('animationend', drop);
+      card.appendChild(bar);
+      holder.appendChild(card);
+      while (holder.children.length > 4) { holder.removeChild(holder.firstChild); }
+      return card;
+    }
+    function reverseToast(text, undo) {
+      floatToast({text: text, icon: 'mdi-swap-vertical', action: undo, label: 'Undo'});
+    }
+    function reverseLink(edge, isUndo) {
+      var d = edge.data();
+      if (d.peer || d.merged) { return; }
+      postReverse(d.pk).then(function (obj) {
+        var cur = cy.getElementById(d.id);
+        if (!cur.length) { window.location.reload(); return; }
+        var src = cur.source(), tgt = cur.target(), wasPicked = detailNode && detailNode.id && detailNode.id() === d.id;
+        var nd = Object.assign({}, cur.data(), {
+          source: tgt.id(), target: src.id(),
+          from_id: d.to_id, to_id: d.from_id, from_name: d.to_name, to_name: d.from_name
+        });
+        var classes = cur.classes().filter(function (c) { return c !== 'picked' && c !== 'hl'; });
+        cy.remove(cur);
+        var added = cy.add({group: 'edges', data: nd, classes: classes.join(' ')});
+        data.edges = data.edges.map(function (e) { return e.data.id === d.id ? {data: nd} : e; });
+        [[src, 'downs', -1], [src, 'ups', 1], [tgt, 'ups', -1], [tgt, 'downs', 1]].forEach(function (b) {
+          if (!b[0].data('cloud')) { b[0].data(b[1], Math.max(0, (b[0].data(b[1]) || 0) + b[2])); }
+        });
+        if (wasPicked) { showDetail(added); }
+        if (filtersActive()) { applyFilters(); }
+        scheduleMini(); refreshLive();
+        var text = 'Reversed: ' + (obj.downstream.display || obj.downstream.name) + ' now depends on ' + (obj.upstream.display || obj.upstream.name) + '.';
+        reverseToast(text, isUndo ? null : function () { reverseLink(added, true); });
+      }).catch(function (err) { toast('Could not reverse the dependency (' + err.message + ').'); });
+    }
+    function reverseMergedItem(item) {
+      // the link moves to another line (between the same device and cloud, the other way), so the map is rebuilt by reloading
+      postReverse(item.pk).then(function () { window.location.reload(); })
+        .catch(function (err) { toast('Could not reverse the dependency (' + err.message + ').'); });
+    }
+    function reverseButton(onClick) {
+      var b = el('button', {type: 'button', class: 'btn btn-sm btn-outline-cyan', title: 'Swap upstream and downstream (the same dependency, nothing is deleted)'},
+                 [el('i', {class: 'mdi mdi-swap-vertical'}), ' Reverse']);
+      b.addEventListener('click', onClick);
+      return b;
+    }
+
     function showCtx(edge, x, y) {
       ctx.innerHTML = '';
-      ctx.appendChild(el('h6', {class: 'dropdown-header', text: edge.source().data('label') + ' → ' + edge.target().data('label')}));
+      ctx.appendChild(el('h6', {class: 'dropdown-header', text: edge.source().data('label') + (edge.data('peer') ? ' ↔ ' : ' → ') + edge.target().data('label')}));
       MEDIA.forEach(function (m) {
         var item = el('button', {type: 'button', class: 'dropdown-item d-flex align-items-center gap-2' + (canSave ? '' : ' disabled')},
           [mediumSwatch(m), el('span', {text: MEDIUM_LABEL[m]})]);
@@ -1015,12 +1265,20 @@
         if (canSave) { item.addEventListener('click', function () { hideCtx(); setMedium(edge, m); }); }
         ctx.appendChild(item);
       });
+      if (!edge.data('peer')) {
+        ctx.appendChild(el('div', {class: 'dropdown-divider'}));
+        var rev = el('button', {type: 'button', class: 'dropdown-item d-flex align-items-center gap-2' + (canSave ? '' : ' disabled'),
+                                title: edge.source().data('label') + ' will depend on ' + edge.target().data('label')},
+          [el('i', {class: 'mdi mdi-swap-vertical'}), el('span', {text: 'Reverse direction'})]);
+        if (canSave) { rev.addEventListener('click', function () { hideCtx(); reverseLink(edge); }); }
+        ctx.appendChild(rev);
+      }
       if (!canSave) { ctx.appendChild(el('div', {class: 'dropdown-item-text text-muted small', text: 'You do not have permission to change links.'})); }
       ctx.style.left = '0px'; ctx.style.top = '0px';
       ctx.classList.add('show');
       var w = ctx.offsetWidth, h = ctx.offsetHeight;
-      ctx.style.left = Math.max(4, Math.min(x, window.innerWidth - w - 4)) + 'px';
-      ctx.style.top = Math.max(4, Math.min(y, window.innerHeight - h - 4)) + 'px';
+      ctx.style.left = Math.max(4, Math.min(x, document.documentElement.clientWidth - w - 4)) + 'px';
+      ctx.style.top = Math.max(4, Math.min(y, document.documentElement.clientHeight - h - 4)) + 'px';
     }
     cy.container().addEventListener('contextmenu', function (ev) { ev.preventDefault(); });
     cy.on('cxttap', 'edge', function (evt) {
@@ -1209,15 +1467,16 @@
         row.appendChild(el('div', {class: 'd-flex align-items-center gap-2'}, [
           mediumSwatch(i.medium), el('strong', {text: i.from_name}), el('span', {class: 'text-muted', text: i.peer ? '↔' : '→'}), el('strong', {text: i.to_name})]));
         row.appendChild(el('div', {class: 'small text-muted', text: [i.peer ? 'Peer link' : (TYPE_LABEL[i.type] || i.type), MEDIUM_LABEL[i.medium] || i.medium,
-          i.group ? 'group ' + i.group : ''].filter(Boolean).join(' · ')}));
+          ].filter(Boolean).join(' · ')}));
         if (i.description) { row.appendChild(el('div', {class: 'small', text: i.description})); }
         var actions = [el('a', {class: 'btn btn-sm btn-outline-secondary', href: i.url, text: 'Open'})];
         if (canSave) { actions.push(el('a', {class: 'btn btn-sm btn-outline-secondary', href: i.edit_url, text: 'Edit'})); }
+        if (canSave && !i.peer) { actions.push(reverseButton(function () { reverseMergedItem(i); })); }
         depEdit.itemButtons(edge, i).forEach(function (b) { actions.push(b); });
         row.appendChild(el('div', {class: 'd-flex flex-wrap gap-2 mt-1'}, actions));
         list.appendChild(row);
       });
-      pop.innerHTML = '';
+      pop.innerHTML = ''; pop.classList.remove('dev');
       [close, title, el('div', {class: 'text-muted small'}, [document.createTextNode(d.count + (d.count === 1 ? ' link' : ' links'))]), list].forEach(function (k) { pop.appendChild(k); });
       pop.hidden = false;
       positionPop();
@@ -1239,11 +1498,9 @@
         d.peer ? row('Kind', [el('span', {class: 'badge text-bg-blue', text: 'Peer link'})])
                : row('Type', [document.createTextNode(TYPE_LABEL[d.type] || d.type)])
       ];
-      if (d.group) { kids.push(row('Redundancy group', [el('span', {class: 'badge text-bg-purple', text: d.group})])); }
       kids.push(el('div', {class: 'text-muted small mt-1', text: d.peer
         ? 'Equal devices: neither depends on the other, so this link does not affect the outage analysis.'
-        : 'The downstream device depends on the upstream one' +
-          (d.group ? '; with others in the same group it only goes down when all of them are down.' : '.')}));
+        : 'The downstream device depends on the upstream one: its outage takes it down.'}));
       if (d.description) {
         var notes = el('div', {class: 'border-top mt-2 pt-2'});
         notes.appendChild(el('div', {class: 'k', text: 'Description'}));
@@ -1252,9 +1509,10 @@
       }
       var actions = [el('a', {class: 'btn btn-sm btn-outline-secondary', href: d.url, text: 'Open'})];
       if (canSave) { actions.push(el('a', {class: 'btn btn-sm btn-outline-secondary', href: d.edit_url, text: 'Edit'})); }
+      if (canSave && !d.peer) { actions.push(reverseButton(function () { reverseLink(edge); })); }
       depEdit.edgeButtons(edge).forEach(function (b) { actions.push(b); });
       kids.push(el('div', {class: 'd-flex flex-wrap gap-2 border-top mt-2 pt-2'}, actions));
-      pop.innerHTML = '';
+      pop.innerHTML = ''; pop.classList.remove('dev');
       kids.forEach(function (k) { pop.appendChild(k); });
       pop.hidden = false;
       positionPop();
@@ -1270,52 +1528,91 @@
       var row = function (k, kids) { return el('div', {class: 'dep-row'}, [el('span', {class: 'k align-self-center', text: k}), el('span', {class: 'v'}, kids)]); };
       var txt = function (t) { return document.createTextNode(t); };
 
-      var statusKids = [el('span', {class: 'badge text-bg-' + BADGE[state], text: STATE_LABEL[state] || state})];
-      if (d.suppressed) {
-        var sup = d.suppressed;
-        statusKids = [el('span', {class: 'badge text-bg-gray', text: 'Suppressed'})];
-        statusKids.push(el('div', {class: 'text-muted small', text: (sup.reason || 'No reason given') +
-          (sup.until ? ' · until ' + new Date(sup.until).toLocaleString() : ' · until resumed') +
-          (sup.via ? ' · because ' + sup.via + ' is suppressed with everything below it' : '')}));
-        statusKids.push(el('div', {class: 'text-muted small', text: 'Real state: ' + (STATE_LABEL[d.state] || d.state)}));
-      }
-      if (d.source) { statusKids.push(el('div', {class: 'text-muted small', text: d.source + (d.since ? ', since ' + ago(d.since) : '')})); }
-      if (d.detail) { statusKids.push(el('div', {class: 'text-muted small', text: d.detail})); }
-
+      var shown = d.suppressed ? 'suppressed' : state;
       var close = el('button', {type: 'button', class: 'dep-close', title: 'Close', 'aria-label': 'Close', text: '×'});
       close.addEventListener('click', function () { showDetail(null); });
-      var kids = [
-        close,
-        el('h4', {class: 'mb-0 pe-3'}, [el('a', {href: d.url, text: d.label})]),
-        el('div', {class: 'text-muted small mb-2', text: [d.role, d.dtype].filter(Boolean).join(' · ')}),
-        row('Status', statusKids),
-        row('IP', [txt(d.ip || '—')]),
-        row('Site', [txt(d.site || '—')])
+      var kids = [close];
+
+      // header: role icon in the state colour, name (link to NetBox), role · model
+      kids.push(el('div', {class: 'dc-head'}, [
+        el('img', {src: badgeUri(d.icon, shown), alt: ''}),
+        el('div', {class: 'dc-title'}, [el('a', {href: d.url, text: d.label, title: 'Open in NetBox'}),
+          el('div', {class: 'dc-sub', text: [d.role, d.dtype].filter(Boolean).join(' · ') || 'Device'})])]));
+
+      // state: one tinted line with the source, the age and the detail
+      var stateBox = el('div', {class: 'dc-state'});
+      stateBox.style.setProperty('--dc-c', COLORS[shown] || COLORS.none);
+      stateBox.appendChild(el('strong', {text: STATE_LABEL[shown] || shown}));
+      if (d.suppressed) {
+        var sup = d.suppressed;
+        stateBox.appendChild(txt(' · ' + (sup.reason || 'no reason given')));
+        stateBox.appendChild(el('div', {class: 'dc-muted', text: (sup.until ? 'until ' + new Date(sup.until).toLocaleString() : 'until resumed') +
+          (sup.via ? ' · because ' + sup.via + ' is suppressed with everything below it' : '') + ' · real state: ' + (STATE_LABEL[d.state] || d.state)}));
+      } else if (d.source) {
+        stateBox.appendChild(txt(' · ' + d.source + (d.since ? ', ' + ago(d.since) : '')));
+      }
+      if (d.detail) { stateBox.appendChild(el('div', {class: 'dc-muted', text: d.detail})); }
+      kids.push(stateBox);
+
+      // facts in two columns
+      function fact(icon, label, value, wide) {
+        return el('div', {class: 'dc-fact' + (wide ? ' wide' : '')}, [
+          el('div', {class: 'k'}, [el('i', {class: 'mdi ' + icon}), label]), el('div', {class: 'v'}, [].concat(value))]);
+      }
+      var ipValue = [txt(d.ip || '—')];
+      if (d.ip && navigator.clipboard) {
+        var copy = el('button', {type: 'button', class: 'dc-copy', title: 'Copy the IP address', 'aria-label': 'Copy the IP address'}, [el('i', {class: 'mdi mdi-content-copy'})]);
+        copy.addEventListener('click', function () {
+          navigator.clipboard.writeText(d.ip).then(function () {
+            copy.firstChild.className = 'mdi mdi-check';
+            setTimeout(function () { copy.firstChild.className = 'mdi mdi-content-copy'; }, 1200);
+          });
+        });
+        ipValue.push(copy);
+      }
+      var facts = [
+        fact('mdi-ip-network-outline', 'IP', ipValue),
+        fact('mdi-map-marker-outline', 'Site', [txt(d.site || '—')]),
+        fact('mdi-arrow-up-bold-outline', 'Depends on', [txt(String(d.ups || 0))]),
+        fact('mdi-arrow-down-bold-outline', 'Dependents', [txt(String(d.downs || 0))])
       ];
-      if (d.location) { kids.push(row('Location', [txt(d.location)])); }
-      if (d.tenant) { kids.push(row('Tenant', [txt(d.tenant)])); }
-      if (d.serial) { kids.push(row('Serial', [el('code', {text: d.serial})])); }
-      kids.push(row('Dependencies', [txt((d.ups || 0) + ' up · ' + (d.downs || 0) + ' down')]));
-      if (d.peers) { kids.push(row('Peer links', [txt(String(d.peers))])); }
+      if (d.peers) { facts.push(fact('mdi-link-variant', 'Peer links', [txt(String(d.peers))])); }
+      if (d.location) { facts.push(fact('mdi-office-building-outline', 'Location', [txt(d.location)])); }
+      if (d.tenant) { facts.push(fact('mdi-account-outline', 'Tenant', [txt(d.tenant)])); }
+      if (d.serial) { facts.push(fact('mdi-barcode', 'Serial', [el('code', {text: d.serial})], true)); }
+      kids.push(el('div', {class: 'dc-facts'}, facts));
 
       if (d.description || d.comments) {
-        var notes = el('div', {class: 'border-top mt-2 pt-2'});
+        var notes = el('div', {class: 'dc-notes'});
         if (d.description) {
           notes.appendChild(el('div', {class: 'k', text: 'Description'}));
-          notes.appendChild(el('div', {class: 'small mb-2', text: d.description}));
+          notes.appendChild(el('div', {class: 'mb-2', text: d.description}));
         }
         if (d.comments) {
           notes.appendChild(el('div', {class: 'k', text: 'Comments'}));
-          notes.appendChild(el('div', {class: 'small', style: 'white-space: pre-wrap; max-height: 140px; overflow: auto;', text: d.comments + (d.comments_more ? ' …' : '')}));
+          notes.appendChild(el('div', {style: 'white-space: pre-wrap; max-height: 140px; overflow: auto;', text: d.comments + (d.comments_more ? ' …' : '')}));
           if (d.comments_more) { notes.appendChild(el('a', {href: d.url, class: 'small', text: 'Read the full comment'})); }
         }
         kids.push(notes);
       }
-      kids.push(el('div', {class: 'd-flex flex-wrap gap-2 border-top mt-2 pt-2'}, [
-        el('a', {class: 'btn btn-sm btn-outline-secondary', href: d.url, text: 'Open'}),
-        el('a', {class: 'btn btn-sm btn-outline-secondary', href: d.url + 'dependencies/', text: 'Dependencies'}),
-        el('a', {class: 'btn btn-sm btn-outline-secondary', href: '?branch=' + d.devid, text: 'Branch'})
+
+      // main actions as a row of icon tiles
+      function act(icon, label, href, title) {
+        return el('a', {class: 'dc-act' + (href ? '' : ' disabled'), href: href || '#', title: title || label, 'aria-disabled': href ? null : 'true'},
+                  [el('i', {class: 'mdi ' + icon}), el('span', {text: label})]);
+      }
+      var mapHref = data.geomap_url && d.site_geo && d.site_id ? data.geomap_url + '?site=' + d.site_id : '';
+      kids.push(el('div', {class: 'dc-actions'}, [
+        act('mdi-open-in-new', 'Open', d.url, 'Open the device in NetBox'),
+        act('mdi-file-tree-outline', 'Dependencies', d.url + 'dependencies/', 'The Dependencies tab of the device'),
+        act('mdi-source-branch', 'Branch', '?branch=' + d.devid, 'Only this device, everything above it and everything below it'),
+        act('mdi-map-outline', 'Map', mapHref, mapHref ? 'Show the site ' + (d.site || '') + ' on the geographic map'
+                                                       : 'The site has no GPS coordinates, so it is not on the geographic map')
       ]));
+
+      // secondary actions
+      var more = [];
+      var back = encodeURIComponent(window.location.pathname + window.location.search);
       if (d.suppressed && d.suppressed.direct && data.resume_url) {
         var resume = el('button', {type: 'button', class: 'btn btn-sm btn-outline-success', title: 'Count this device in the outage analysis again'},
                         [el('i', {class: 'mdi mdi-bell-ring-outline'}), ' Resume']);
@@ -1325,28 +1622,23 @@
           }).then(function (r) { if (!r.ok) { throw new Error('HTTP ' + r.status); } return refreshLive(); })
             .catch(function (err) { toast('Could not resume the device (' + err.message + ').'); });
         });
-        kids.push(el('div', {class: 'd-flex flex-wrap gap-2 mt-2'}, [resume]));
+        more.push(resume);
       } else if (!d.suppressed && data.suppress_url) {
-        var backHere = encodeURIComponent(window.location.pathname + window.location.search);
-        kids.push(el('div', {class: 'd-flex flex-wrap gap-2 mt-2'}, [
-          el('a', {class: 'btn btn-sm btn-outline-secondary', title: 'Take this device out of the outage analysis for a while (for example a backup unit that is switched off)',
-                   href: data.suppress_url + '?device=' + d.devid + '&return_url=' + backHere}, [el('i', {class: 'mdi mdi-bell-off-outline'}), ' Suppress…'])
-        ]));
+        more.push(el('a', {class: 'btn btn-sm btn-ghost-secondary', title: 'Take this device out of the outage analysis for a while (for example a backup unit that is switched off)',
+                           href: data.suppress_url + '?device=' + d.devid + '&return_url=' + back}, [el('i', {class: 'mdi mdi-bell-off-outline'}), ' Suppress…']));
       }
-      var extra = depEdit.nodeButtons(node);
-      if (extra.length) { kids.push(el('div', {class: 'd-flex flex-wrap gap-2 mt-2'}, extra)); }
       if (data.add_url) {
         // shortcuts to the "add dependencies" page with this device filled in; the page returns here afterwards
-        var back = encodeURIComponent(window.location.pathname + window.location.search);
-        kids.push(el('div', {class: 'd-flex flex-wrap gap-2 mt-2'}, [
-          el('a', {class: 'btn btn-sm btn-outline-primary', title: 'This device is the upstream one: pick the devices that depend on it',
-                   href: data.add_url + '?upstream=' + d.devid + '&return_url=' + back}, [el('i', {class: 'mdi mdi-plus-thick'}), ' Add dependents']),
-          el('a', {class: 'btn btn-sm btn-outline-primary', title: 'This device depends on others: pick its parents',
-                   href: data.add_url + '?direction=parents&downstream=' + d.devid + '&return_url=' + back}, [el('i', {class: 'mdi mdi-plus-thick'}), ' Add parent'])
-        ]));
+        more.push(el('a', {class: 'btn btn-sm btn-ghost-primary', title: 'This device is the upstream one: pick the devices that depend on it',
+                           href: data.add_url + '?upstream=' + d.devid + '&return_url=' + back}, [el('i', {class: 'mdi mdi-plus'}), ' Dependents']));
+        more.push(el('a', {class: 'btn btn-sm btn-ghost-primary', title: 'This device depends on others: pick its parents',
+                           href: data.add_url + '?direction=parents&downstream=' + d.devid + '&return_url=' + back}, [el('i', {class: 'mdi mdi-plus'}), ' Parent']));
       }
+      depEdit.nodeButtons(node).forEach(function (b) { more.push(b); });
+      if (more.length) { kids.push(el('div', {class: 'dc-more'}, more)); }
 
       pop.innerHTML = '';
+      pop.classList.add('dev');
       kids.forEach(function (k) { pop.appendChild(k); });
       pop.hidden = false;
       positionPop();
@@ -1360,13 +1652,15 @@
 
     function clearSimulation() {
       failed = [];
-      cy.elements().removeClass('failed down degraded dim');
+      cy.elements().removeClass('failed down dim hl-src hl-dep hl-path');
+      highlighted = null;
       summary.innerHTML = '';
       showDetail(null);
     }
 
     function simulate(done) {
-      cy.elements().removeClass('failed down degraded dim');
+      cy.elements().removeClass('failed down dim hl-src hl-dep hl-path');
+      highlighted = null;
       if (!failed.length) { summary.innerHTML = ''; return; }
       var qs = failed.map(function (id) { return 'device=' + id; }).join('&');
       fetch(data.impact_url + '?' + qs, {credentials: 'same-origin', headers: {'Accept': 'application/json'}})
@@ -1381,7 +1675,7 @@
             outside += 1;
             var cloud = data.remote_map[a.id] ? cy.getElementById(data.remote_map[a.id]) : null;
             if (cloud && cloud.length && !cloud.hasClass('down')) {  // cloud: the worst state of its devices
-              cloud.removeClass('dim degraded').addClass(a.state);
+              cloud.removeClass('dim').addClass(a.state);
             }
           });
           cy.edges().forEach(function (e) {
@@ -1389,8 +1683,7 @@
           });
           var names = res.failed.map(function (f) { return f.name; }).join(', ');
           summary.innerHTML = '<div class="alert alert-info mb-2">Failure of <strong></strong>: ' +
-            '<span class="badge text-bg-red">' + res.summary.down + ' down</span> ' +
-            '<span class="badge text-bg-orange">' + res.summary.degraded + ' degraded</span>' +
+            '<span class="badge text-bg-red">' + res.summary.down + ' down</span>' +
             (outside ? ' <span class="text-muted small">(' + outside + ' affected devices are not on this map)</span>' : '') +
             '</div>';
           summary.querySelector('strong').textContent = names;
@@ -1407,21 +1700,84 @@
       if (node.data('external')) { window.location.href = node.data('map_url'); return; }
       showDetail(node);
     });
-    // right click = outage simulation (Shift+right click adds another device)
+    // ---- highlight of the dependents: everything below a device (only dependencies, peer links do not count)
+    var highlighted = null;
+    function dependentsOf(node) {
+      var seen = {}, queue = [node], out = cy.collection();
+      seen[node.id()] = true;
+      while (queue.length) {
+        var cur = queue.shift();
+        cur.outgoers('edge[!peer]').forEach(function (e) {
+          var t = e.target();
+          if (seen[t.id()]) { return; }
+          seen[t.id()] = true;
+          out = out.union(t);
+          queue.push(t);
+        });
+      }
+      return out;
+    }
+    function clearHighlight() {
+      if (!highlighted) { return; }
+      highlighted = null;
+      cy.elements().removeClass('dim hl-src hl-dep hl-path');
+      summary.innerHTML = '';
+    }
+    function highlightDependents(node) {
+      if (failed.length) { clearSimulation(); }
+      cy.elements().removeClass('dim hl-src hl-dep hl-path');
+      var deps = dependentsOf(node), keep = deps.union(node);
+      highlighted = node.id();
+      cy.batch(function () {
+        cy.elements().addClass('dim');
+        keep.removeClass('dim');
+        node.addClass('hl-src');
+        deps.addClass('hl-dep');
+        keep.edgesWith(keep).filter('[!peer]').filter(function (e) { return keep.has(e.source()) && keep.has(e.target()); })
+          .removeClass('dim').addClass('hl-path');
+      });
+      var devices = deps.filter('[!cloud]').length, clouds = deps.filter('[?cloud]').length;
+      var bar = el('div', {class: 'alert alert-info py-2 mb-2 d-flex flex-wrap align-items-center gap-2'}, [
+        el('i', {class: 'mdi mdi-file-tree-outline'}),
+        el('span', {}, [el('strong', {text: node.data('label')}), document.createTextNode(': ' +
+          (devices ? devices + (devices === 1 ? ' device depends' : ' devices depend') + ' on it' : 'nothing on this map depends on it') +
+          (clouds ? ' (+ ' + clouds + (clouds === 1 ? ' other location' : ' other locations') + ')' : '') + '.')])]);
+      var clear = el('button', {type: 'button', class: 'btn btn-sm btn-outline-secondary ms-auto', text: 'Clear'});
+      clear.addEventListener('click', clearHighlight);
+      bar.appendChild(clear);
+      summary.innerHTML = '';
+      summary.appendChild(bar);
+    }
+    function showNodeCtx(node, x, y) {
+      ctx.innerHTML = '';
+      ctx.appendChild(el('h6', {class: 'dropdown-header', text: node.data('label')}));
+      var active = highlighted === node.id();
+      var count = dependentsOf(node).length;
+      var item = el('button', {type: 'button', class: 'dropdown-item d-flex align-items-center gap-2' + (count || active ? '' : ' disabled')},
+        [el('i', {class: 'mdi ' + (active ? 'mdi-eye-off-outline' : 'mdi-file-tree-outline')}),
+         el('span', {text: active ? 'Clear highlight' : 'Highlight dependents'}),
+         el('span', {class: 'badge bg-secondary-lt ms-auto', text: String(count)})]);
+      if (count || active) {
+        item.addEventListener('click', function () { hideCtx(); if (active) { clearHighlight(); } else { highlightDependents(node); } });
+      }
+      ctx.appendChild(item);
+      ctx.style.left = '0px'; ctx.style.top = '0px';
+      ctx.classList.add('show');
+      var w = ctx.offsetWidth, h = ctx.offsetHeight;
+      ctx.style.left = Math.max(4, Math.min(x, document.documentElement.clientWidth - w - 4)) + 'px';
+      ctx.style.top = Math.max(4, Math.min(y, document.documentElement.clientHeight - h - 4)) + 'px';
+    }
+    // right click on a device = its menu
     cy.on('cxttap', 'node', function (evt) {
       var node = evt.target;
       if (node.data('external')) { return; }
-      hideCtx();
-      var id = node.data('devid');
-      var additive = evt.originalEvent && evt.originalEvent.shiftKey;
-      if (additive) {
-        failed = failed.indexOf(id) >= 0 ? failed.filter(function (x) { return x !== id; }) : failed.concat([id]);
-      } else {
-        failed = (failed.length === 1 && failed[0] === id) ? [] : [id];
-      }
-      showDetail(failed.length ? node : null);
-      simulate();
+      var oe = evt.originalEvent || {};
+      showNodeCtx(node, oe.clientX || 0, oe.clientY || 0);
     });
+    // Esc: the first press closes an open menu, the next one clears the highlight (capture: runs before the menu's own Esc handler)
+    document.addEventListener('keydown', function (ev) {
+      if (ev.key === 'Escape' && !ctx.classList.contains('show') && !/INPUT|TEXTAREA|SELECT/.test((ev.target || {}).tagName || '')) { clearHighlight(); }
+    }, true);
     cy.on('tap', 'edge', function (evt) { hideCtx(); showDetail(evt.target); });
     cy.on('tap', function (evt) { if (evt.target === cy) { clearSimulation(); } });
     cy.on('dbltap', 'node', function (evt) {
@@ -1453,6 +1809,7 @@
     });
 
     function toast(text) {
+      if (floatToast({text: text, kind: 'warn', timeout: 20000})) { return; }
       var box = el('div', {class: 'alert alert-warning alert-dismissible mb-2', role: 'alert'}, [
         el('i', {class: 'mdi mdi-alert'}), ' ', text,
         el('button', {type: 'button', class: 'btn-close', 'data-bs-dismiss': 'alert', 'aria-label': 'Close'})
@@ -1467,7 +1824,7 @@
       if (!roots.length) { return; }
       var here = [], elsewhere = [];
       roots.forEach(function (r) { (cy.getElementById('d' + r.id).length ? here : elsewhere).push(r); });
-      function impact(r) { return r.down_count + ' down' + (r.degraded_count ? ', ' + r.degraded_count + ' degraded' : ''); }
+      function impact(r) { return r.down_count + ' down'; }
       function focusOn(r) {
         var node = cy.getElementById('d' + r.id);
         cy.animate({fit: {eles: node.union(node.neighborhood()), padding: 80}, duration: 250});
@@ -1654,15 +2011,8 @@
       });
 
       // ---- small helpers
-      var floatToasts = document.getElementById('dep-edit-toasts') || toasts;
       function actionToast(text, label, action) {
-        var undo = el('button', {type: 'button', class: 'btn btn-sm btn-outline-success ms-2', text: label});
-        var alertBox = el('div', {class: 'alert alert-success alert-dismissible mb-2', role: 'alert'}, [
-          el('i', {class: 'mdi mdi-check-circle-outline'}), ' ' + text, undo,
-          el('button', {type: 'button', class: 'btn-close', 'data-bs-dismiss': 'alert', 'aria-label': 'Close'})]);
-        undo.addEventListener('click', function () { if (alertBox.parentNode) { alertBox.parentNode.removeChild(alertBox); } action(); });
-        floatToasts.appendChild(alertBox);
-        setTimeout(function () { if (alertBox.parentNode) { alertBox.parentNode.removeChild(alertBox); } }, 15000);
+        floatToast({text: text, action: action, label: label, icon: /^Deleted/.test(text) ? 'mdi-delete-outline' : 'mdi-check'});
       }
       function apiError(response, body) {
         var messages = [];
@@ -1699,12 +2049,11 @@
         var edgeData;
         if (peer) {
           edgeData = {id: 'p' + obj.id, peer: true, source: 'd' + obj.device_a.id, target: 'd' + obj.device_b.id, pk: obj.id, type: 'peer',
-                      medium: choice(obj.medium), group: '', elabel: '', description: obj.description || '', url: url, edit_url: url + 'edit/'};
+                      medium: choice(obj.medium), elabel: '', description: obj.description || '', url: url, edit_url: url + 'edit/'};
           bump(obj.device_a.id, 'peers', 1); bump(obj.device_b.id, 'peers', 1);
         } else {
-          var group = obj.redundancy_group || '';
           edgeData = {id: 'e' + obj.id, peer: false, source: 'd' + obj.upstream.id, target: 'd' + obj.downstream.id, pk: obj.id,
-                      type: choice(obj.dependency_type), medium: choice(obj.medium), group: group, elabel: group,
+                      type: choice(obj.dependency_type), medium: choice(obj.medium), elabel: '',
                       description: obj.description || '', url: url, edit_url: url + 'edit/'};
           bump(obj.upstream.id, 'downs', 1); bump(obj.downstream.id, 'ups', 1);
         }
@@ -1732,7 +2081,7 @@
         var restore = peer
           ? {device_a: edge.source().data('devid'), device_b: edge.target().data('devid'), medium: d.medium, description: d.description || ''}
           : {upstream: edge.source().data('devid'), downstream: edge.target().data('devid'), dependency_type: d.type,
-             medium: d.medium, redundancy_group: d.group || '', description: d.description || ''};
+             medium: d.medium, description: d.description || ''};
         apiSend('DELETE', apiFor(peer) + d.pk + '/').then(function () {
           removeEdge(edge);
           actionToast('Deleted ' + label + '.', 'Undo', function () {
@@ -1751,6 +2100,11 @@
         });
       }
 
+      function floatHead(icon, text, onClose) {
+        var close = el('button', {type: 'button', class: 'dep-float-close', title: 'Close', 'aria-label': 'Close', text: '×'});
+        close.addEventListener('click', onClose);
+        return el('div', {class: 'dep-float-head'}, [el('span', {class: 'dep-float-icon'}, [el('i', {class: 'mdi ' + icon})]), el('h6', {text: text}), close]);
+      }
       function placeFloat(floatBox, pt) {
         var w = 330, h = floatBox.offsetHeight || 300, cw = cy.width(), ch = cy.height();
         floatBox.style.left = Math.max(6, Math.min(pt.x + 14, cw - w - 6)) + 'px';
@@ -1767,39 +2121,36 @@
         typeSel.value = lsGet('depLastType', 'network');
         var mediumSel = el('select', {class: 'form-select form-select-sm'}, MEDIA.map(function (m) { return el('option', {value: m, text: MEDIUM_LABEL[m]}); }));
         mediumSel.value = lsGet('depLastMedium', 'ethernet');
-        var groupIn = el('input', {type: 'text', class: 'form-control form-control-sm', maxlength: '100', list: 'dep-groups', placeholder: 'empty = no redundancy'});
-        var groups = {};
-        data.edges.forEach(function (e) { if (e.data.group) { groups[e.data.group] = true; } });
-        var datalist = el('datalist', {id: 'dep-groups'}, Object.keys(groups).sort().map(function (g) { return el('option', {value: g}); }));
         var descIn = el('input', {type: 'text', class: 'form-control form-control-sm', maxlength: '200'});
-        var title = el('div', {class: 'd-flex align-items-center gap-2 mb-1'});
+        var title = el('div', {class: 'dep-pair'});
         var hint = el('div', {class: 'text-muted small'});
         var errorBox = el('div', {class: 'alert alert-danger py-1 px-2 small mt-2 mb-0'}); errorBox.hidden = true;
         var createBtn = el('button', {type: 'button', class: 'btn btn-sm btn-primary', text: 'Create'});
         var cancelBtn = el('button', {type: 'button', class: 'btn btn-sm btn-outline-secondary', text: 'Cancel'});
-        var swapBtn = el('button', {type: 'button', class: 'btn btn-sm btn-outline-secondary ms-auto', title: 'Swap the direction'}, [el('i', {class: 'mdi mdi-swap-horizontal'})]);
+        var swapBtn = el('button', {type: 'button', class: 'btn btn-sm btn-ghost-secondary', title: 'Swap the direction', 'aria-label': 'Swap the direction'}, [el('i', {class: 'mdi mdi-swap-horizontal'})]);
         var typeBlock = [el('label', {class: 'd-block', text: 'Type'}), typeSel];
-        var groupBlock = [el('label', {class: 'd-block', text: 'Redundancy group'}), groupIn, datalist];
         function paint() {
           kindDep.className = 'btn btn-sm ' + (state.peer ? 'btn-outline-secondary' : 'btn-primary');
           kindPeer.className = 'btn btn-sm ' + (state.peer ? 'btn-primary' : 'btn-outline-secondary');
           title.innerHTML = '';
-          var kids = [el('strong', {text: state.up.data('label')}), el('span', {class: 'text-muted', text: state.peer ? '↔' : '→'}), el('strong', {text: state.down.data('label')})];
+          var kids = [el('strong', {text: state.up.data('label'), title: state.up.data('label')}),
+                      el('i', {class: 'mdi dep-pair-arrow ' + (state.peer ? 'mdi-arrow-left-right' : 'mdi-arrow-right')}),
+                      el('strong', {text: state.down.data('label'), title: state.down.data('label')})];
           if (!state.peer) { kids.push(swapBtn); }
           kids.forEach(function (k) { title.appendChild(k); });
           hint.textContent = state.peer
             ? 'Equal devices: neither depends on the other. Drawn without an arrow, no effect on outages.'
             : 'The right device depends on the left one: its outage takes it down.';
-          typeBlock.concat(groupBlock).forEach(function (k) { k.hidden = state.peer; });
+          typeBlock.forEach(function (k) { k.hidden = state.peer; });
         }
         kindDep.addEventListener('click', function () { state.peer = false; paint(); });
         kindPeer.addEventListener('click', function () { state.peer = true; paint(); });
         swapBtn.addEventListener('click', function () { var t = state.up; state.up = state.down; state.down = t; paint(); });
         linkPop = el('div', {class: 'dep-float', id: 'dep-linkpop', role: 'dialog', 'aria-label': 'New link'}, [].concat(
-          [el('h6', {text: 'New link'}), kindRow, title, hint],
-          typeBlock, [el('label', {class: 'd-block', text: 'Medium'}), mediumSel], groupBlock,
+          [floatHead('mdi-vector-line', 'New link', closeLinkPop), kindRow, title, hint],
+          typeBlock, [el('label', {class: 'd-block', text: 'Medium'}), mediumSel],
           [el('label', {class: 'd-block', text: 'Description'}), descIn],
-          [errorBox, el('div', {class: 'd-flex justify-content-end gap-2 mt-2'}, [cancelBtn, createBtn])]));
+          [errorBox, el('div', {class: 'dep-float-actions'}, [cancelBtn, createBtn])]));
         box.appendChild(linkPop);
         paint();
         placeFloat(linkPop, pt);
@@ -1815,7 +2166,7 @@
           var peer = state.peer, fields = peer
             ? {device_a: state.up.data('devid'), device_b: state.down.data('devid'), medium: mediumSel.value, description: descIn.value.trim()}
             : {upstream: state.up.data('devid'), downstream: state.down.data('devid'), dependency_type: typeSel.value,
-               medium: mediumSel.value, redundancy_group: groupIn.value.trim(), description: descIn.value.trim()};
+               medium: mediumSel.value, description: descIn.value.trim()};
           createLink(fields, peer)
             .then(function (edge) {
               if (!peer) { lsSet('depLastType', typeSel.value); }
@@ -1825,7 +2176,7 @@
             })
             .catch(function (err) { createBtn.disabled = false; errorBox.textContent = err.message; errorBox.hidden = false; });
         });
-        (state.peer ? descIn : groupIn).focus();
+        descIn.focus();
       }
 
       // ---- adding a device to the topology
@@ -1853,31 +2204,38 @@
       }
       function openAddPop() {
         closeAddPop(); closeLinkPop();
-        var input = el('input', {type: 'search', class: 'form-control form-control-sm', placeholder: 'Device name, IP or site (2+ letters)…', autocomplete: 'off'});
-        var results = el('div', {class: 'dep-results'});
+        var input = el('input', {type: 'search', class: 'form-control', placeholder: 'Device name, IP or site…', autocomplete: 'off', 'aria-label': 'Search devices'});
+        var results = el('div', {class: 'dep-results'}, [el('div', {class: 'dep-empty', text: 'Type at least 2 letters.'})]);
         var timer = null, seq = 0;
         addPop = el('div', {class: 'dep-float', id: 'dep-addpop', role: 'dialog', 'aria-label': 'Add a device'}, [
-          el('h6', {text: 'Add a device to the map'}), input, results,
+          floatHead('mdi-plus-circle-outline', 'Add a device to the map', closeAddPop),
+          el('div', {class: 'dep-search'}, [el('i', {class: 'mdi mdi-magnify'}), input]), results,
           el('div', {class: 'text-muted small mt-2', text: 'The device stays in the topology, on the maps of its location, until you remove it.'})]);
         box.appendChild(addPop);
-        addPop.style.left = '10px'; addPop.style.top = '10px';
+        var barBottom = editBar.hidden ? 10 : editBar.offsetTop + editBar.offsetHeight + 8;     // under the edit toolbar, not over it
+        addPop.style.left = '10px'; addPop.style.top = barBottom + 'px';
         input.addEventListener('input', function () {
           clearTimeout(timer);
           timer = setTimeout(function () {
             var q = input.value.trim(), mine = ++seq;
-            if (q.length < 2) { results.innerHTML = ''; return; }
+            if (q.length < 2) { results.innerHTML = ''; results.appendChild(el('div', {class: 'dep-empty', text: 'Type at least 2 letters.'})); return; }
             fetch(data.search_url + '?q=' + encodeURIComponent(q), {credentials: 'same-origin', headers: {'Accept': 'application/json'}})
               .then(function (r) { return r.json(); })
               .then(function (res) {
                 if (mine !== seq) { return; }
                 results.innerHTML = '';
-                if (!res.results.length) { results.appendChild(el('div', {class: 'text-muted small p-2', text: 'No device found.'})); }
+                if (!res.results.length) { results.appendChild(el('div', {class: 'dep-empty', text: 'No device found.'})); }
                 res.results.forEach(function (row) {
                   var onThis = cy.getElementById('d' + row.id).length > 0;
-                  var item = el('div', {class: 'dep-result'}, [
-                    el('span', {}, [el('strong', {text: row.name}), el('div', {class: 'small text-muted', text: [row.site, row.role, row.model].filter(Boolean).join(' · ')})]),
-                    el('span', {class: 'small text-muted align-self-center', text: onThis ? 'on this map' : (row.on_map ? 'on a map' : '')})]);
+                  var kids = [
+                    el('span', {class: 'dep-result-icon'}, [el('i', {class: 'mdi mdi-server-network'})]),
+                    el('span', {class: 'dep-result-main'}, [el('strong', {text: row.name, title: row.name}),
+                      el('div', {class: 'small text-muted', text: [row.site, row.role, row.model].filter(Boolean).join(' · ')})])];
+                  if (onThis) { kids.push(el('span', {class: 'badge bg-green-lt', text: 'on this map'})); }
+                  else if (row.on_map) { kids.push(el('span', {class: 'badge bg-secondary-lt', text: 'on a map'})); }
+                  var item = el('div', {class: 'dep-result', tabindex: '0', role: 'button'}, kids);
                   item.addEventListener('click', function () { addDevice(row); });
+                  item.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') { addDevice(row); } });
                   results.appendChild(item);
                 });
               });
@@ -1893,6 +2251,8 @@
         if (on && lsGet('depEditHelpSeen', '') !== '1') { helpText.hidden = false; lsSet('depEditHelpSeen', '1'); }   // the first time the hint is open
         if (!on) { helpText.hidden = true; }
         editToggle.classList.toggle('active', on);
+        box.classList.toggle('editing', on);
+        document.getElementById('dep-edit-help').classList.toggle('active', !helpText.hidden);
         if (!on) { hideHandle(); closeLinkPop(); closeAddPop(); if (dragging) { endDrag(null, true); } }
         if (detailNode) { showDetail(detailNode); }
       }
@@ -1900,7 +2260,7 @@
       document.getElementById('dep-edit-done').addEventListener('click', function () { setEditing(false); });
       document.getElementById('dep-add-device').addEventListener('click', openAddPop);
       var helpText = document.getElementById('dep-edit-helptext');
-      document.getElementById('dep-edit-help').addEventListener('click', function () { helpText.hidden = !helpText.hidden; });
+      document.getElementById('dep-edit-help').addEventListener('click', function () { helpText.hidden = !helpText.hidden; this.classList.toggle('active', !helpText.hidden); });
       document.addEventListener('keydown', function (ev) {
         if (ev.key !== 'Escape') { return; }
         if (dragging) { endDrag(null, true); } else if (linkPop || addPop) { closeLinkPop(); closeAddPop(); }
@@ -1923,7 +2283,7 @@
         var restore = peer
           ? {device_a: item.from_id, device_b: item.to_id, medium: item.medium, description: item.description || ''}
           : {upstream: item.from_id, downstream: item.to_id, dependency_type: item.type, medium: item.medium,
-             redundancy_group: item.group || '', description: item.description || ''};
+             description: item.description || ''};
         apiSend('DELETE', apiFor(peer) + item.pk + '/').then(function () {
           var rest = edge.data('items').filter(function (i) { return i !== item; });
           if (peer) { bump(item.from_id, 'peers', -1); bump(item.to_id, 'peers', -1); } else { bump(item.from_id, 'downs', -1); bump(item.to_id, 'ups', -1); }
@@ -1973,7 +2333,7 @@
       failed = [data.focus_device];
       simulate(function () {
         var root = cy.getElementById('d' + data.focus_device);
-        var els = cy.nodes('.failed, .down, .degraded');
+        var els = cy.nodes('.failed, .down');
         cy.fit(els, 70);
         if (cy.zoom() > 1.2) { cy.zoom({level: 1.2, position: root.position()}); cy.center(root); }
       });

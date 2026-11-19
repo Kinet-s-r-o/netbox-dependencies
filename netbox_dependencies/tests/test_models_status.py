@@ -99,8 +99,8 @@ class TreeAndMultiAddTests(Base):
         from netbox_dependencies.tree import build_tree
         self.dep('core', 'sw1')
         self.dep('core', 'sw2')
-        self.dep('sw1', 'ap', 'up')
-        self.dep('sw2', 'ap', 'up')
+        self.dep('sw1', 'ap')
+        self.dep('sw2', 'ap')
         roots, stats = build_tree()
         self.assertEqual([r['device'].name for r in roots], ['core'])
         core = roots[0]
@@ -152,8 +152,8 @@ class GraphTests(Base):
         from netbox_dependencies.graph_data import build_graph
         self.dep('core', 'sw1')
         self.dep('core', 'sw2')
-        self.dep('sw1', 'ap', 'up')
-        self.dep('sw2', 'ap', 'up')
+        self.dep('sw1', 'ap')
+        self.dep('sw2', 'ap')
         g = build_graph()
         self.assertEqual(len(g['nodes']), 4)
         self.assertEqual(len(g['edges']), 4)
@@ -673,7 +673,7 @@ class IconTests(Base):
         from django.test import Client
         from netbox_dependencies.graph_data import build_graph
         from netbox_dependencies.models import DeviceStatus
-        dep = self.dep('core', 'sw1', group='g1')
+        dep = self.dep('core', 'sw1')
         dep.medium = 'vpn'
         dep.save()
         now = timezone.now()
@@ -683,7 +683,6 @@ class IconTests(Base):
         page = client.get('/plugins/dependencies/tree/?expanded=1').content.decode()
         self.assertIn('dep-disc-down', page)
         self.assertIn('VPN / tunnel', page)
-        self.assertIn('g1', page)
         self.assertIn('is-down', page)
         self.assertIn('paths', build_graph()['icons'])
 
@@ -698,7 +697,7 @@ class ExportForImportTests(Base):
 
     def _make(self):
         from extras.models import Tag
-        first = self.dep('core', 'sw1', group='uplink')
+        first = self.dep('core', 'sw1')
         first.medium, first.description = 'optical', 'Main uplink, "fiber"'
         first.save()
         first.tags.add(Tag.objects.create(name='Critical', slug='critical'), Tag.objects.create(name='Core', slug='core-tag'))
@@ -709,7 +708,7 @@ class ExportForImportTests(Base):
 
     @staticmethod
     def _snapshot():
-        return sorted((d.upstream.name, d.downstream.name, d.dependency_type, d.medium, d.redundancy_group, d.description,
+        return sorted((d.upstream.name, d.downstream.name, d.dependency_type, d.medium, d.description,
                        tuple(sorted(t.slug for t in d.tags.all()))) for d in Dependency.objects.all())
 
     def test_exported_csv_can_be_imported_again(self):
@@ -720,7 +719,7 @@ class ExportForImportTests(Base):
         self.assertEqual(response.status_code, 200)
         self.assertIn('attachment', response['Content-Disposition'])
         text = response.content.decode('utf-8')
-        self.assertEqual(text.splitlines()[0], 'upstream,downstream,dependency_type,medium,redundancy_group,description,tags')
+        self.assertEqual(text.splitlines()[0], 'upstream,downstream,dependency_type,medium,description,tags')
         Dependency.objects.all().delete()
         imported = client.post('/plugins/dependencies/dependencies/import/', {'data': text, 'format': 'csv', 'csv_delimiter': ','})
         self.assertEqual(imported.status_code, 302, imported.content.decode()[:500])
@@ -824,7 +823,7 @@ class AddShortcutTests(Base):
         self.assertIn('name="upstreams"', page)
         self.assertNotIn('name="downstreams"', page)
         r = client.post(self.ADD, {'downstream': self.devs['ap'].pk, 'upstreams': [self.devs['sw1'].pk, self.devs['sw2'].pk],
-                                   'dependency_type': 'network', 'medium': 'radio', 'redundancy_group': 'g', 'direction': 'parents'})
+                                   'dependency_type': 'network', 'medium': 'radio', 'direction': 'parents'})
         self.assertEqual(r.status_code, 302)
         self.assertEqual(sorted(Dependency.objects.filter(downstream=self.devs['ap']).values_list('upstream__name', 'medium')),
                          [('sw1', 'radio'), ('sw2', 'radio')])

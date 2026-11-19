@@ -22,7 +22,7 @@ class DependencyForm(NetBoxModelForm):
     class Meta:
         model = Dependency
         fields = (
-            'upstream', 'downstream', 'dependency_type', 'medium', 'redundancy_group',
+            'upstream', 'downstream', 'dependency_type', 'medium',
             'description', 'tags',
         )
 
@@ -36,7 +36,7 @@ class DependencyImportForm(NetBoxModelImportForm):
     class Meta:
         model = Dependency
         fields = (
-            'upstream', 'downstream', 'dependency_type', 'medium', 'redundancy_group',
+            'upstream', 'downstream', 'dependency_type', 'medium',
             'description', 'tags',
         )
 
@@ -79,7 +79,6 @@ class DependencyFilterForm(NetBoxModelFilterSetForm):
     downstream_id = DynamicModelMultipleChoiceField(
         queryset=Device.objects.all(), required=False, label='Downstream device'
     )
-    redundancy_group = forms.CharField(required=False)
 
 
 class ImpactForm(forms.Form):
@@ -107,10 +106,6 @@ class DependencyMultiAddForm(forms.Form):
         choices=MediumChoices, initial=MediumChoices.UNSPECIFIED, required=False, label='Medium',
         help_text='Physical medium of the created links. It can be changed later by right-clicking a link in the graph.',
     )
-    redundancy_group = forms.CharField(
-        max_length=100, required=False, label='Redundancy group',
-        help_text='Applied to every created dependency. Empty = no redundancy.',
-    )
     description = forms.CharField(max_length=200, required=False)
 
     def clean(self):
@@ -136,7 +131,7 @@ class DependencyAddParentsForm(DependencyMultiAddForm):
     )
     downstreams = None
 
-    field_order = ('downstream', 'upstreams', 'dependency_type', 'medium', 'redundancy_group', 'description')
+    field_order = ('downstream', 'upstreams', 'dependency_type', 'medium', 'description')
 
     def clean(self):
         cleaned = forms.Form.clean(self)

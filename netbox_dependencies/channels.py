@@ -2,8 +2,8 @@
 
 Pure functions over "view models" (dicts) prepared by notifications.py — nothing here touches the database:
 
-  outage  : {device_id, name, site, since, down, degraded, names[], source, affected_pks(set), graph_url, device_url}
-  recovery: {device_id, name, site, since, until, down, degraded, graph_url, device_url}
+  outage  : {device_id, name, site, since, down, names[], source, affected_pks(set), graph_url, device_url}
+  recovery: {device_id, name, site, since, until, down, graph_url, device_url}
 
 `render_outage(kind, views, now, test=False)` and `render_recovery(...)` return a JSON-serialisable payload.
 With more than MAX_ROOTS root causes only the first MAX_ROOTS (largest impact) are listed and the rest is summarised."""
@@ -63,16 +63,12 @@ def _shown_names(view):
     return shown
 
 
-def _degraded_word(n):
-    return f'{n} degraded'
-
-
 def outage_text(views):
     """Plain text (fallback for clients without rich cards and the `text` field of the payload)."""
     n = len(views)
     head = f'🔴 Outage: {views[0]["name"]}' if n == 1 else f'🔴 Outages: {n} {_roots_word(n)}'
     lines = [
-        f'{v["name"]} ({v["site"]}): {v["down"]} down' + (f', {_degraded_word(v["degraded"])}' if v['degraded'] else '')
+        f'{v["name"]} ({v["site"]}): {v["down"]} down'
         for v in _ordered(views)[:MAX_ROOTS]
     ]
     return head + '\n' + '\n'.join(lines) + (f'\n… and {n - MAX_ROOTS} more' if n > MAX_ROOTS else '')
@@ -90,16 +86,15 @@ def sample_views(now, home_url=''):
     started = now - timedelta(minutes=47)
     outage = [
         {'device_id': 0, 'name': 'core-router-01', 'site': 'Sample site', 'since': started, 'down': 6,
-         'degraded': 1, 'names': ['sw-access-01', 'sw-access-02', 'ap-hall-01', 'ap-hall-02', 'ap-office-01',
-                                  'ap-warehouse-01 (degraded)'],
+         'names': ['sw-access-01', 'sw-access-02', 'ap-hall-01', 'ap-hall-02', 'ap-office-01', 'ap-warehouse-01'],
          'source': 'ICMP poller — no ICMP reply', 'affected_pks': {1, 2, 3, 4, 5, 6, 7}, 'graph_url': home_url,
          'device_url': ''},
         {'device_id': 0, 'name': 'ap-reception-01', 'site': 'Sample site', 'since': started + timedelta(minutes=20),
-         'down': 0, 'degraded': 0, 'names': [], 'source': 'Zabbix — Unavailable by ICMP ping',
+         'down': 0, 'names': [], 'source': 'Zabbix — Unavailable by ICMP ping',
          'affected_pks': {8}, 'graph_url': home_url, 'device_url': ''},
     ]
     recovery = [{'device_id': 0, 'name': 'core-router-01', 'site': 'Sample site', 'since': started, 'until': now,
-                 'down': 6, 'degraded': 1, 'graph_url': home_url, 'device_url': ''}]
+                 'down': 6, 'graph_url': home_url, 'device_url': ''}]
     return outage, recovery
 
 
@@ -186,10 +181,9 @@ def _teams_outage(views, now, test):
             lines.append(_t_text('Affected: ' + ', '.join(shown), size='Small', spacing='Small'))
         else:
             lines.append(_t_text('No further impact on other devices.', size='Small', isSubtle=True, spacing='Small'))
-        has_impact = v['down'] or v['degraded']
+        has_impact = bool(v['down'])
         right = _t_right(str(v['down']) if has_impact else '—', 'down' if has_impact else 'no impact',
-                         color='Attention' if v['down'] else 'Default',
-                         extra=_degraded_word(v['degraded']) if v['degraded'] else None)
+                         color='Attention' if has_impact else 'Default')
         body.append(_t_item(v['name'], lines, right, [('Open in graph', v['graph_url']), ('Device', v['device_url'])]))
     if n > MAX_ROOTS:
         body.append(_t_text(f'… and {n - MAX_ROOTS} more {_roots_word(n - MAX_ROOTS)} (see the graph).',
@@ -206,8 +200,7 @@ def _teams_recovery(views, now, test):
     if test:
         body.append(_t_banner())
     for v in views[:MAX_ROOTS]:
-        impact = (f'{v["down"]} down' + (f', {_degraded_word(v["degraded"])}' if v['degraded'] else '')
-                  if v['down'] or v['degraded'] else 'no further impact')
+        impact = f'{v["down"]} down' if v['down'] else 'no further impact'
         lines = [
             _t_text(f'📍 {v["site"]}', isSubtle=True, size='Small', spacing='None'),
             _t_text(f'🕒 {local(v["since"])}  →  {local(v["until"])}', isSubtle=True, size='Small', spacing='None'),
@@ -252,8 +245,7 @@ def _slack_outage(views, now, test):
     total, phrase = _affected_phrase(views)
     tiles = [_s_banner()] if test else []
     for v in _ordered(views)[:MAX_ROOTS]:
-        impact = (f'*{v["down"]}* down' + (f' · {_degraded_word(v["degraded"])}' if v['degraded'] else '')
-                  if v['down'] or v['degraded'] else 'no impact')
+        impact = f'*{v["down"]}* down' if v['down'] else 'no impact'
         text = (f'*{_esc(v["name"])}*   —   {impact}\n'
                 f'📍 {_esc(v["site"])}  ·  {_esc(v["source"])}\n'
                 f'🕒 since {since(v["since"], now)}  ·  lasting {duration(now - v["since"])}')
@@ -275,8 +267,7 @@ def _slack_recovery(views, now, test):
     n = len(views)
     tiles = [_s_banner()] if test else []
     for v in views[:MAX_ROOTS]:
-        impact = (f'{v["down"]} down' + (f', {_degraded_word(v["degraded"])}' if v['degraded'] else '')
-                  if v['down'] or v['degraded'] else 'no further impact')
+        impact = f'{v["down"]} down' if v['down'] else 'no further impact'
         text = (f'*{_esc(v["name"])}*   —   lasted *{duration(v["until"] - v["since"])}*\n'
                 f'📍 {_esc(v["site"])}\n🕒 {local(v["since"])}  →  {local(v["until"])}\nMaximum impact: {impact}')
         tiles.append({'type': 'divider'})
@@ -309,7 +300,7 @@ def _generic_outage(views, now, test):
         'started_at': v['since'].isoformat(),
         'duration_seconds': max(0, int((now - v['since']).total_seconds())),
         'source': v['source'],
-        'impact': {'down': v['down'], 'degraded': v['degraded'], 'affected': v['names']},
+        'impact': {'down': v['down'], 'affected': v['names']},
     } for v in _ordered(views)]
     return payload
 
@@ -321,7 +312,7 @@ def _generic_recovery(views, now, test):
         'started_at': v['since'].isoformat(),
         'resolved_at': v['until'].isoformat(),
         'duration_seconds': max(0, int((v['until'] - v['since']).total_seconds())),
-        'peak_impact': {'down': v['down'], 'degraded': v['degraded']},
+        'peak_impact': {'down': v['down']},
     } for v in views]
     return payload
 
