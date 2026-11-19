@@ -302,6 +302,19 @@ class LiveStatusTests(Base):
         self.assertEqual(body['states'][str(self.devs['ap'].pk)][0], 'unknown')
         self.assertEqual([r['name'] for r in body['roots']], ['core'])   # sw1 is explained by the outage of core
         self.assertEqual(body['roots'][0]['down_count'], 2)               # sw1 + ap
+        self.assertTrue(body['states'][str(self.devs['ap'].pk)][4])       # ... and flagged as stale
+        self.assertFalse(body['states'][str(self.devs['core'].pk)][4])
+        self.assertEqual(body['stale_sources'], [])                       # icmp still reports (core, sw1 are fresh)
+
+    def test_a_source_that_stopped_reporting_is_listed(self):
+        from netbox_dependencies.models import DeviceStatus
+        self.dep('core', 'sw1')
+        now, old = timezone.now(), timezone.now() - timezone.timedelta(days=9)
+        DeviceStatus.objects.create(device=self.devs['core'], state='up', source='icmp', last_checked=now, last_changed=now)
+        for name in ('sw1', 'ap'):
+            DeviceStatus.objects.create(device=self.devs[name], state='up', source='zabbix', last_checked=old, last_changed=old)
+        body = self._client('stale').get('/api/plugins/dependencies/status/states/').json()
+        self.assertEqual([(s['source'], s['label'], s['devices']) for s in body['stale_sources']], [('zabbix', 'Zabbix', 2)])
 
     def test_graph_nodes_carry_detail_fields(self):
         from netbox_dependencies.graph_data import build_graph

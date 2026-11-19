@@ -58,7 +58,13 @@
     .dep-filter-menu { min-width: 270px; max-height: 70vh; overflow: auto; }
     .dep-filter-menu h6 { margin-top: .5rem; }
     .dep-graph-box { position: relative; }
-    .dep-outage-list { flex: 0 0 100%; max-height: 220px; overflow: auto; margin-top: .25rem; padding-top: .35rem; border-top: 1px solid rgba(214, 57, 57, .3); }
+    /* the outages line keeps its height; the full list opens over the page instead of pushing the graph down */
+    #dep-outages { position: relative; }
+    #dep-outages .alert { min-height: 42px; }
+    .dep-outage-list { position: absolute; left: 0; right: 0; top: calc(100% - .5rem); z-index: 30; max-height: 50vh; overflow: auto;
+                       padding: .5rem .85rem; background: var(--tblr-bg-surface, #fff); color: var(--tblr-body-color, inherit);
+                       border: 1px solid rgba(214, 57, 57, .35); border-radius: 10px; box-shadow: 0 12px 32px rgba(0, 0, 0, .18); }
+    .dep-stale-line { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; }
     .dep-outage-list[hidden] { display: none; }
     .dep-outage-row { padding: .1rem 0; }
     #dep-mini { position: absolute; right: 10px; bottom: 10px; border: 1px solid var(--tblr-border-color, #666);
@@ -111,9 +117,16 @@
     #dep-pop .dep-close { position: absolute; top: .3rem; right: .45rem; border: 0; background: none; color: inherit;
                           opacity: .6; font-size: 1.2rem; line-height: 1; cursor: pointer; }
     #dep-pop .dep-close:hover { opacity: 1; }
-    #dep-handle { position: absolute; z-index: 7; width: 18px; height: 18px; border-radius: 50%; background: #4299e1; color: #fff;
-                  display: flex; align-items: center; justify-content: center; font-size: 14px; line-height: 1; cursor: crosshair;
-                  box-shadow: 0 1px 4px rgba(0, 0, 0, .4); border: 2px solid #fff; }
+    #dep-handle { position: absolute; z-index: 7; width: 26px; height: 26px; border-radius: 50%; background: #066fd1; color: #fff;
+                  display: flex; align-items: center; justify-content: center; font-size: 18px; line-height: 1; cursor: crosshair;
+                  box-shadow: 0 2px 8px rgba(0, 0, 0, .35); border: 3px solid #fff; touch-action: none; transition: transform .12s; }
+    #dep-handle::before { content: ''; position: absolute; inset: -10px; border-radius: 50%; }   /* a bigger target than it looks */
+    #dep-handle:hover { transform: scale(1.12); }
+    /* dependents / simulation bar: over the graph (top right), so the graph never jumps */
+    #dep-summary { position: absolute; top: 10px; right: 10px; z-index: 8; width: max-content; max-width: min(480px, calc(100% - 20px)); }
+    #dep-summary:empty { display: none; }
+    #dep-summary .alert { margin: 0 !important; box-shadow: 0 6px 20px rgba(0, 0, 0, .14); background: var(--tblr-bg-surface, #fff); }
+    .dep-graph-box.editing #dep-summary { top: 58px; }
     #dep-handle[hidden] { display: none; }
     /* edit mode: a compact toolbar floating over the graph */
     #dep-editbar { position: absolute; left: 10px; top: 10px; z-index: 9; display: flex; align-items: center; gap: .3rem; padding: .3rem;
@@ -359,9 +372,9 @@
         </div>
 
         {% endif %}
-        <div id="dep-summary" class="px-3 pt-2"></div>
         <div class="dep-graph-box">
           <div id="dep-graph"></div>
+          <div id="dep-summary" aria-live="polite"></div>
           <div id="dep-pop" hidden role="dialog" aria-label="Device info"></div>
           {% if graph.can_edit %}
             <div id="dep-editbar" hidden role="toolbar" aria-label="Edit mode">
@@ -411,6 +424,7 @@
               <div class="dep-leg-row"><span class="sw"><i class="dot" style="background:#d63939"></i></span>Down</div>
               <div class="dep-leg-row"><span class="sw"><i class="dot" style="background:#9aa0a6"></i></span>Unknown (stale or in maintenance)</div>
               <div class="dep-leg-row"><span class="sw"><i class="dot" style="background:#566a80"></i></span>No status yet</div>
+              <div class="dep-leg-row"><span class="sw"><i class="dot" style="background:transparent;border:2px dotted #f59f00"></i></span>Stale: its source sent no update in time</div>
               <div class="dep-leg-row"><span class="sw"><i class="dot" style="background:#ae3ec9"></i></span>Failed device (outage opened from a notification)</div>
               <div class="dep-leg-row"><span class="sw"><i class="dot" style="background:transparent;border:3px solid #ff3b30"></i></span>Root cause of an outage</div>
               <div class="dep-leg-row"><span class="sw"><i class="dot" style="background:transparent;border:2px solid #ffd43b"></i></span>Search match</div>
@@ -428,9 +442,9 @@
           </div>
           <h6 class="text-uppercase text-muted small">Controls</h6>
           <ul class="small mb-0">
-            <li>Click a device: info popup next to it (description, status, IP, …). Right-click a device: <em>Highlight dependents</em> (everything below it; Esc or a click on empty space clears it).</li>
+            <li>Click a device: info popup next to it (description, status, IP, …). Right-click a device (long-press on a touch screen): <em>Highlight dependents</em> (everything below it; Esc or a click on empty space clears it).</li>
             <li>Double-click a device to open it. Drag devices to arrange; the layout of this map is saved automatically.</li>
-            <li>Click a link for its details; right-click it to set its medium (Ethernet, optical, radio, VPN, LTE / 5G, satellite) or to <strong>reverse its direction</strong> (upstream and downstream swap places; the same dependency).</li>
+            <li>Click a link for its details; right-click it (long-press on a touch screen) to set its medium (Ethernet, optical, radio, VPN, LTE / 5G, satellite) or to <strong>reverse its direction</strong> (upstream and downstream swap places; the same dependency).</li>
             <li>Search: Enter zooms to the matches, Esc clears. Filters hide devices and links by status, role, type and medium.</li>
           </ul>
         </div>
@@ -713,7 +727,10 @@
         countEl.textContent = t.clouds + (t.clouds === 1 ? ' cloud' : ' clouds') + ' · ' + t.devices + ' devices' + (t.down ? ' · ' + t.down + ' down' : '');
         outagesBox.innerHTML = '';
         document.title = d.roots.length ? '(' + d.roots.length + '!) ' + originalTitleOv : originalTitleOv;
-        if (!d.roots.length) { return; }
+        if (!d.roots.length) {
+          outagesBox.appendChild(el('div', {class: 'alert alert-success py-2 small mb-2'}, [el('i', {class: 'mdi mdi-check-circle-outline'}), ' No outages']));
+          return;
+        }
         var line = el('div', {class: 'alert alert-danger py-2 small mb-2'}, [el('i', {class: 'mdi mdi-alert'}), ' ',
           el('strong', {text: d.roots.length + (d.roots.length === 1 ? ' outage: ' : ' outages: ')})]);
         d.roots.forEach(function (r, i) {
@@ -956,6 +973,7 @@
         }},
         {selector: 'node[?focus]', style: {'border-width': 3, 'border-color': '#4299e1'}},
         {selector: 'node[?suppressed]', style: {'border-style': 'dashed', 'opacity': 0.6}},
+        {selector: 'node[?stale][!suppressed]', style: {'border-style': 'dotted', 'border-width': 2.5, 'border-color': '#f59f00'}},
         {selector: 'node.root', style: {
           'border-width': 3, 'border-color': '#ff3b30',
           'underlay-color': '#ff3b30', 'underlay-opacity': 0.28, 'underlay-padding': 8
@@ -1143,7 +1161,17 @@
 
     // ---- right click on an edge: change the medium of the link or reverse it
     var ctx = document.getElementById('dep-ctx');
-    function hideCtx() { ctx.classList.remove('show'); }
+    // a long-press (touch) opens the menu; the tap / click that follows the release must not close it again
+    var ctxHoldAt = 0;
+    function justHeld() { return Date.now() - ctxHoldAt < 700; }
+    function hideCtx(force) { if (force !== true && justHeld()) { return; } ctx.classList.remove('show'); }
+    function isTouch(evt) { var oe = evt.originalEvent || {}; return /^touch/.test(oe.type || '') || oe.pointerType === 'touch'; }
+    function clientPoint(evt) {
+      var oe = evt.originalEvent || {}, t = (oe.touches && oe.touches[0]) || (oe.changedTouches && oe.changedTouches[0]) || oe;
+      if (typeof t.clientX === 'number') { return {x: t.clientX, y: t.clientY}; }
+      var r = cy.container().getBoundingClientRect(), p = evt.renderedPosition || {x: 0, y: 0};
+      return {x: r.left + p.x, y: r.top + p.y};
+    }
     function mediumSwatch(m) {
       var c = MEDIUM_COLOR[m], extra = '';
       var line = '<line x1="2" y1="7" x2="36" y2="7" stroke="' + c + '" stroke-width="' + (m === 'unspecified' ? 2 : 2.5) + '"' +
@@ -1262,7 +1290,7 @@
         var item = el('button', {type: 'button', class: 'dropdown-item d-flex align-items-center gap-2' + (canSave ? '' : ' disabled')},
           [mediumSwatch(m), el('span', {text: MEDIUM_LABEL[m]})]);
         if (edge.data('medium') === m) { item.appendChild(el('i', {class: 'mdi mdi-check ms-auto'})); }
-        if (canSave) { item.addEventListener('click', function () { hideCtx(); setMedium(edge, m); }); }
+        if (canSave) { item.addEventListener('click', function () { hideCtx(true); setMedium(edge, m); }); }
         ctx.appendChild(item);
       });
       if (!edge.data('peer')) {
@@ -1270,7 +1298,7 @@
         var rev = el('button', {type: 'button', class: 'dropdown-item d-flex align-items-center gap-2' + (canSave ? '' : ' disabled'),
                                 title: edge.source().data('label') + ' will depend on ' + edge.target().data('label')},
           [el('i', {class: 'mdi mdi-swap-vertical'}), el('span', {text: 'Reverse direction'})]);
-        if (canSave) { rev.addEventListener('click', function () { hideCtx(); reverseLink(edge); }); }
+        if (canSave) { rev.addEventListener('click', function () { hideCtx(true); reverseLink(edge); }); }
         ctx.appendChild(rev);
       }
       if (!canSave) { ctx.appendChild(el('div', {class: 'dropdown-item-text text-muted small', text: 'You do not have permission to change links.'})); }
@@ -1285,6 +1313,12 @@
       if (evt.target.data('merged')) { return; }       // a merged line has no single medium: click it for the list of its links
       var oe = evt.originalEvent;
       showCtx(evt.target, oe.clientX, oe.clientY);
+    });
+    cy.on('taphold', 'edge', function (evt) {
+      if (!isTouch(evt) || evt.target.data('merged')) { return; }
+      var pt = clientPoint(evt);
+      ctxHoldAt = Date.now();
+      showCtx(evt.target, pt.x, pt.y);
     });
     cy.on('tap pan zoom dragfree', hideCtx);
     document.addEventListener('click', function (ev) { if (!ctx.contains(ev.target)) { hideCtx(); } });
@@ -1529,6 +1563,7 @@
       var txt = function (t) { return document.createTextNode(t); };
 
       var shown = d.suppressed ? 'suppressed' : state;
+      var staleNow = !d.suppressed && d.stale;
       var close = el('button', {type: 'button', class: 'dep-close', title: 'Close', 'aria-label': 'Close', text: '×'});
       close.addEventListener('click', function () { showDetail(null); });
       var kids = [close];
@@ -1541,17 +1576,22 @@
 
       // state: one tinted line with the source, the age and the detail
       var stateBox = el('div', {class: 'dc-state'});
-      stateBox.style.setProperty('--dc-c', COLORS[shown] || COLORS.none);
-      stateBox.appendChild(el('strong', {text: STATE_LABEL[shown] || shown}));
+      stateBox.style.setProperty('--dc-c', staleNow ? '#f59f00' : (COLORS[shown] || COLORS.none));
+      stateBox.appendChild(el('strong', {text: staleNow ? 'Stale' : (STATE_LABEL[shown] || shown)}));
+      if (staleNow) {
+        stateBox.appendChild(txt(' · no update from ' + (d.source || 'its source') + (d.checked ? ' for ' + ago(d.checked).replace(' ago', '') : '')));
+        stateBox.appendChild(el('div', {class: 'dc-muted', text: 'The real state is not known: the last status is too old.' +
+          (d.since ? ' Last change ' + ago(d.since) + '.' : '')}));
+      }
       if (d.suppressed) {
         var sup = d.suppressed;
         stateBox.appendChild(txt(' · ' + (sup.reason || 'no reason given')));
         stateBox.appendChild(el('div', {class: 'dc-muted', text: (sup.until ? 'until ' + new Date(sup.until).toLocaleString() : 'until resumed') +
           (sup.via ? ' · because ' + sup.via + ' is suppressed with everything below it' : '') + ' · real state: ' + (STATE_LABEL[d.state] || d.state)}));
-      } else if (d.source) {
+      } else if (d.source && !staleNow) {
         stateBox.appendChild(txt(' · ' + d.source + (d.since ? ', ' + ago(d.since) : '')));
       }
-      if (d.detail) { stateBox.appendChild(el('div', {class: 'dc-muted', text: d.detail})); }
+      if (d.detail && !staleNow) { stateBox.appendChild(el('div', {class: 'dc-muted', text: d.detail})); }
       kids.push(stateBox);
 
       // facts in two columns
@@ -1696,6 +1736,7 @@
 
     // left click = device info (a cloud opens its map)
     cy.on('tap', 'node', function (evt) {
+      if (justHeld()) { return; }                       // the release of a long-press
       var node = evt.target;
       if (node.data('external')) { window.location.href = node.data('map_url'); return; }
       showDetail(node);
@@ -1758,7 +1799,7 @@
          el('span', {text: active ? 'Clear highlight' : 'Highlight dependents'}),
          el('span', {class: 'badge bg-secondary-lt ms-auto', text: String(count)})]);
       if (count || active) {
-        item.addEventListener('click', function () { hideCtx(); if (active) { clearHighlight(); } else { highlightDependents(node); } });
+        item.addEventListener('click', function () { hideCtx(true); if (active) { clearHighlight(); } else { highlightDependents(node); } });
       }
       ctx.appendChild(item);
       ctx.style.left = '0px'; ctx.style.top = '0px';
@@ -1774,12 +1815,19 @@
       var oe = evt.originalEvent || {};
       showNodeCtx(node, oe.clientX || 0, oe.clientY || 0);
     });
+    cy.on('taphold', 'node', function (evt) {           // touch screens have no right click: a long-press opens the same menu
+      var node = evt.target;
+      if (!isTouch(evt) || node.data('external')) { return; }
+      var pt = clientPoint(evt);
+      ctxHoldAt = Date.now();
+      showNodeCtx(node, pt.x, pt.y);
+    });
     // Esc: the first press closes an open menu, the next one clears the highlight (capture: runs before the menu's own Esc handler)
     document.addEventListener('keydown', function (ev) {
       if (ev.key === 'Escape' && !ctx.classList.contains('show') && !/INPUT|TEXTAREA|SELECT/.test((ev.target || {}).tagName || '')) { clearHighlight(); }
     }, true);
-    cy.on('tap', 'edge', function (evt) { hideCtx(); showDetail(evt.target); });
-    cy.on('tap', function (evt) { if (evt.target === cy) { clearSimulation(); } });
+    cy.on('tap', 'edge', function (evt) { if (justHeld()) { return; } hideCtx(); showDetail(evt.target); });
+    cy.on('tap', function (evt) { if (evt.target === cy && !justHeld()) { clearSimulation(); } });
     cy.on('dbltap', 'node', function (evt) {
       var d = evt.target.data();
       window.location.href = d.external ? d.map_url : d.url;
@@ -1818,10 +1866,33 @@
       setTimeout(function () { if (box.parentNode) { box.parentNode.removeChild(box); } }, 20000);
     }
     // the outages banner is one compact line: the count, the first few root causes of THIS map and a list for the rest
+    var staleSources = [];
+    document.addEventListener('click', function (ev) {          // the list of outages closes on a click elsewhere
+      var list = outagesBox.querySelector('.dep-outage-list');
+      if (list && !list.hidden && !outagesBox.contains(ev.target)) { list.hidden = true; }
+    });
     function renderOutages(roots) {
       outagesBox.innerHTML = '';
       document.title = roots.length ? '(' + roots.length + '!) ' + originalTitle : originalTitle;
-      if (!roots.length) { return; }
+      if (staleSources.length) {
+        // a source that stopped reporting (e.g. the Zabbix sync has not run): one warning instead of a map full of grey devices
+        var warn = el('div', {class: 'alert alert-warning py-2 px-3 mb-2 dep-stale-line'}, [el('i', {class: 'mdi mdi-clock-alert-outline'})]);
+        staleSources.forEach(function (src, i) {
+          if (i) { warn.appendChild(document.createTextNode(' · ')); }
+          warn.appendChild(el('strong', {text: src.label}));
+          warn.appendChild(document.createTextNode(': no status update for ' + ago(src.last_checked).replace(' ago', '') +
+            ' (' + src.devices + (src.devices === 1 ? ' device' : ' devices') + ' shown as stale)'));
+        });
+        warn.appendChild(el('span', {class: 'text-muted small ms-auto', text: 'Check the sync / the poller.'}));
+        outagesBox.appendChild(warn);
+      }
+      if (!roots.length) {
+        var ok = el('div', {class: 'alert alert-success py-2 px-3 mb-2 d-flex flex-wrap align-items-center gap-2'},
+                    [el('i', {class: 'mdi mdi-check-circle-outline'}), el('span', {text: 'No outages'})]);
+        if (data.live_url) { ok.appendChild(el('a', {class: 'ms-auto small', href: data.live_url, text: 'Live outages →'})); }
+        outagesBox.appendChild(ok);
+        return;
+      }
       var here = [], elsewhere = [];
       roots.forEach(function (r) { (cy.getElementById('d' + r.id).length ? here : elsewhere).push(r); });
       function impact(r) { return r.down_count + ' down'; }
@@ -1861,7 +1932,7 @@
         list.appendChild(row);
       });
       outagesBox.appendChild(bar);
-      bar.appendChild(list);
+      outagesBox.appendChild(list);
     }
     function applyLive(res) {
       var suppressedNow = res.suppressed || {};        // devices that are out of the outage analysis right now
@@ -1874,7 +1945,8 @@
           var id = n.data('devid'), st = res.states[id];
           var state = st ? st[0] : 'none';
           if (!firstLoad && state === 'down' && n.data('state') !== 'down' && !suppressedNow[id]) { wentDown.push(n.data('label')); }
-          n.data({state: state, source: st ? st[1] : '', detail: st ? st[2] : '', since: st ? st[3] : '', suppressed: suppressedNow[id] || null});
+          n.data({state: state, source: st ? st[1] : '', detail: st ? st[2] : '', since: st ? st[3] : '', suppressed: suppressedNow[id] || null,
+                  stale: !!(st && st[4]), checked: st && st[5] ? st[5] : ''});
           n.toggleClass('root', !!rootIds[id]);
         });
         Object.keys(members).forEach(function (cid) {
@@ -1895,6 +1967,7 @@
       }
       lastRoots = rootIds;
       pulseRoots();
+      staleSources = res.stale_sources || [];
       renderOutages(res.roots);
       if (filtersActive()) { applyFilters(); }
       if (detailNode) { showDetail(detailNode); }
@@ -1952,8 +2025,8 @@
       function showHandle(node) {
         if (!depEdit.on || dragging || node.data('cloud')) { return; }
         var bb = node.renderedBoundingBox({includeLabels: false, includeOverlays: false});
-        handle.style.left = (bb.x1 + (bb.x2 - bb.x1) / 2 - 9) + 'px';
-        handle.style.top = (bb.y2 - 9) + 'px';
+        handle.style.left = (bb.x1 + (bb.x2 - bb.x1) / 2 - 13) + 'px';
+        handle.style.top = (bb.y2 - 13) + 'px';
         handle.hidden = false;
         handleNode = node;
       }
@@ -1964,6 +2037,9 @@
       cy.on('mouseover', 'node', function (evt) { clearTimeout(hideTimer); showHandle(evt.target); });
       cy.on('mouseout', 'node', scheduleHide);
       cy.on('pan zoom grab', hideHandle);
+      // touch screens have no hover: a tap on a device shows its handle, a tap on empty space hides it
+      cy.on('tap', 'node', function (evt) { if (isTouch(evt)) { showHandle(evt.target); } });
+      cy.on('tap', function (evt) { if (evt.target === cy && isTouch(evt)) { hideHandle(); } });
       handle.addEventListener('mouseenter', function () { overHandle = true; clearTimeout(hideTimer); });
       handle.addEventListener('mouseleave', function () { overHandle = false; scheduleHide(); });
 
@@ -1986,8 +2062,9 @@
         if (t) { t.addClass('edit-target'); }
       }
       function endDrag(ev, cancel) {
-        document.removeEventListener('mousemove', onMove);
-        document.removeEventListener('mouseup', onUp);
+        document.removeEventListener('pointermove', onMove);
+        document.removeEventListener('pointerup', onUp);
+        document.removeEventListener('pointercancel', onCancel);
         rubber.style.display = 'none';
         cy.nodes().removeClass('edit-target');
         var from = dragging && dragging.from, target = null;
@@ -1997,7 +2074,8 @@
         if (from && target) { openLinkPop(from, target, pointer(ev), ev.shiftKey); }
       }
       function onUp(ev) { endDrag(ev, false); }
-      handle.addEventListener('mousedown', function (ev) {
+      function onCancel() { endDrag(null, true); }
+      handle.addEventListener('pointerdown', function (ev) {
         if (ev.button !== 0 || !handleNode) { return; }
         ev.preventDefault();
         var from = handleNode, bb = from.renderedBoundingBox({includeLabels: false, includeOverlays: false});
@@ -2006,8 +2084,9 @@
         rubberLine.setAttribute('x1', sx); rubberLine.setAttribute('y1', sy); rubberLine.setAttribute('x2', sx); rubberLine.setAttribute('y2', sy);
         rubber.style.display = '';
         closeLinkPop();
-        document.addEventListener('mousemove', onMove);
-        document.addEventListener('mouseup', onUp);
+        document.addEventListener('pointermove', onMove);
+        document.addEventListener('pointerup', onUp);
+        document.addEventListener('pointercancel', onCancel);
       });
 
       // ---- small helpers

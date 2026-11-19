@@ -365,20 +365,38 @@ def analyze_outages():
     return outages, explained
 
 
+def stale_sources():
+    """Status sources that stopped reporting: the newest status of the source is older than the staleness limit.
+
+    Returns [{'source', 'label', 'last_checked' (ISO), 'devices'}] - e.g. a Zabbix sync that has not run for days makes every
+    Zabbix device 'unknown', which the graph explains with one warning instead of many grey devices."""
+    from django.db.models import Count, Max
+    cutoff = timezone.now() - timedelta(seconds=poller_config()['stale_after_seconds'])
+    labels = dict((value, label) for value, label, *_rest in SourceChoices.CHOICES)
+    rows = DeviceStatus.objects.values('source').annotate(newest=Max('last_checked'), devices=Count('id'))
+    return [
+        {'source': r['source'], 'label': labels.get(r['source'], r['source']), 'last_checked': r['newest'].isoformat(),
+         'devices': r['devices']}
+        for r in rows if r['newest'] and r['newest'] < cutoff
+    ]
+
+
 def status_snapshot():
     """State of all devices for the live refresh of the graph.
 
-    Returns (states, roots): states = {device_id: [state, source, detail, last_changed_iso]}
-    (a stale record is reported as 'unknown'), roots = root causes of outages
-    [{'id', 'name', 'down_count'}]."""
+    Returns (states, roots): states = {device_id: [state, source, detail, last_changed_iso, stale, last_checked_iso]}
+    (a record that was not refreshed in time is reported as 'unknown' with stale = True; Zabbix data that Zabbix itself
+    reports as old is stale too), roots = root causes of outages [{'id', 'name', 'down_count'}]."""
     cutoff = timezone.now() - timedelta(seconds=poller_config()['stale_after_seconds'])
     states = {}
     for device_id, state, source, detail, changed, checked in DeviceStatus.objects.values_list(
         'device_id', 'state', 'source', 'detail', 'last_changed', 'last_checked'
     ):
-        if checked < cutoff:
+        stale = checked < cutoff
+        if stale:
             state, detail = StateChoices.UNKNOWN, 'Status is stale'
-        states[device_id] = [state, source, detail, changed.isoformat()]
+        stale = stale or detail == 'Zabbix data is stale'
+        states[device_id] = [state, source, detail, changed.isoformat(), stale, checked.isoformat()]
     outages, _explained = analyze_outages()
     roots = [
         {

@@ -25,6 +25,7 @@ from ..status import (
     poll_targets,
     poller_config,
     poller_settings,
+    stale_sources,
     status_snapshot,
     suppressed_info,
     zabbix_covered_device_ids,
@@ -342,4 +343,5 @@ class StatesAPIView(APIView):
 
     def get(self, request):
         states, roots = status_snapshot()
-        return Response({'updated': timezone.now(), 'states': states, 'roots': roots, 'suppressed': suppressed_info()})
+        return Response({'updated': timezone.now(), 'states': states, 'roots': roots, 'suppressed': suppressed_info(),
+                         'stale_sources': stale_sources()})

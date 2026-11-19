@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.1.0 — 2026-11-19
+- Graph on a **touch screen**: a long-press on a device or a link opens the same menu as the right click (highlight dependents; medium,
+  reverse direction). In edit mode a tap on a device shows its handle and links can be drawn with a finger (pointer events).
+- **No jumping graph:** the dependents / simulation bar floats over the top right corner of the graph; the outages line is always there
+  (*No outages* when all is well) and its full list opens over the page instead of pushing the graph down. Same for the clouds view.
+- **Stale status:** a device whose last status is too old has a dotted amber border, and its card says *Stale - no update from zabbix
+  for 9 d* instead of a plain *Unknown*. When a whole source stops reporting (e.g. the Zabbix sync has not run), one warning above the
+  graph names it with the number of devices (`/status/states/` returns `stale_sources` and a stale flag per device). Legend updated.
+- Edit mode: the handle for drawing a link is bigger (26 px, with a larger invisible target) and easier to hit on small cards.
+- Geographic map: the site popup opened from the graph (*Map*) - or by hand - no longer closes at the 30 s refresh.
+
 ## 2.0.0 — 2026-11-19
 **Breaking:** the redundancy group is removed. A device now needs all of its upstream devices: the failure of any one of them takes
 it down (as before for links without a group), and the *degraded* state no longer exists.

@@ -246,8 +246,15 @@
     }
     // sites closer than CLUSTER_PX pixels on the screen are shown as one pin (recomputed on every zoom)
     function redraw() {
+      // the refresh rebuilds every pin; a site popup that is open stays open (with the fresh data) instead of closing
+      var openId = null;
+      Object.keys(markers).forEach(function (id) { if (markers[id].isPopupOpen && markers[id].isPopupOpen()) { openId = id; } });
       siteLayer.clearLayers();
       if (!current) { return; }
+      redrawPins();
+      if (openId && markers[openId] && siteLayer.hasLayer(markers[openId])) { markers[openId].openPopup(); }
+    }
+    function redrawPins() {
       var zoom = map.getZoom(), pending = current.sites.filter(function (s) { return !(problemsEl.checked && s.state === 'up'); }).map(function (s) {
         return {site: s, pt: map.project([s.lat, s.lon], zoom)};
       });
