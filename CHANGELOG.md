@@ -9,6 +9,7 @@
   for 9 d* instead of a plain *Unknown*. When a whole source stops reporting (e.g. the Zabbix sync has not run), one warning above the
   graph names it with the number of devices (`/status/states/` returns `stale_sources` and a stale flag per device). Legend updated.
 - Edit mode: the handle for drawing a link is bigger (26 px, with a larger invisible target) and easier to hit on small cards.
+- *Add dependencies*: the form is as wide as NetBox's own edit forms (centred, max. 800 px) instead of the whole page.
 - Geographic map: the site popup opened from the graph (*Map*) - or by hand - no longer closes at the 30 s refresh.
 
 ## 2.0.0 — 2026-11-19
