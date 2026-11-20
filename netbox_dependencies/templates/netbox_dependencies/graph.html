@@ -110,6 +110,27 @@
     #dep-pop .dc-act.disabled { opacity: .4; cursor: default; pointer-events: none; }
     #dep-pop .dc-more { display: flex; flex-wrap: wrap; gap: .4rem; padding: .55rem .9rem .8rem; border-top: 1px solid var(--tblr-border-color, #e6e9ef); }
     #dep-pop .dc-more .btn { display: inline-flex; align-items: center; gap: .25rem; }
+    /* several links to one cloud: one compact row per link */
+    #dep-pop.mrg { padding: 0; overflow-x: hidden; }
+    #dep-pop .mg-head { padding: .8rem 2.2rem .55rem .9rem; }
+    #dep-pop .mg-head h5 { margin: 0; font-size: 1rem; line-height: 1.3; overflow-wrap: anywhere; }
+    #dep-pop .mg-head .mg-sub { font-size: .8rem; opacity: .65; margin-top: .15rem; }
+    #dep-pop .mg-list { border-top: 1px solid var(--tblr-border-color, #e6e9ef); }
+    #dep-pop .mg-item { display: flex; gap: .6rem; align-items: flex-start; padding: .55rem .7rem .55rem .9rem;
+                        border-bottom: 1px solid var(--tblr-border-color, #e6e9ef); }
+    #dep-pop .mg-item:last-child { border-bottom: 0; }
+    #dep-pop .mg-item:hover { background: rgba(var(--tblr-primary-rgb, 6, 111, 209), .04); }
+    #dep-pop .mg-dir { flex: 0 0 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+                       background: rgba(var(--tblr-primary-rgb, 6, 111, 209), .1); color: var(--tblr-primary, #066fd1); font-size: 1rem; margin-top: .05rem; }
+    #dep-pop .mg-main { flex: 1 1 auto; min-width: 0; }
+    #dep-pop .mg-name { display: block; font-weight: 600; font-size: .9rem; line-height: 1.3; overflow-wrap: anywhere; color: inherit; text-decoration: none; }
+    #dep-pop a.mg-name:hover { color: var(--tblr-primary, #066fd1); }
+    #dep-pop .mg-meta { display: flex; align-items: center; gap: .35rem; font-size: .76rem; opacity: .7; margin-top: .1rem; flex-wrap: wrap; }
+    #dep-pop .mg-meta svg { flex: 0 0 auto; width: 26px; }
+    #dep-pop .mg-desc { font-size: .78rem; margin-top: .15rem; overflow-wrap: anywhere; }
+    #dep-pop .mg-acts { display: flex; gap: .2rem; flex: 0 0 auto; }
+    #dep-pop .mg-acts .btn { padding: .25rem .35rem; line-height: 1; min-width: 0; }
+    #dep-pop .mg-acts .btn i { font-size: 1rem; margin: 0; }
     #dep-pop[hidden] { display: none; }
     #dep-pop .k { font-size: .7rem; text-transform: uppercase; opacity: .65; }
     #dep-pop .dep-row { display: flex; justify-content: space-between; gap: .75rem; padding: .15rem 0; font-size: .85rem; }
@@ -1489,29 +1510,42 @@
     // several links between one device and one cloud are drawn as one line; its popup lists them
     function showMergedDetail(edge) {
       var d = edge.data(), s = edge.source().data(), t = edge.target().data();
+      var local = s.cloud ? t : s;                            // the device; the other end is the remote site's cloud
       detailNode = edge;
       edge.addClass('picked');
       var close = el('button', {type: 'button', class: 'dep-close', title: 'Close', 'aria-label': 'Close', text: '×'});
       close.addEventListener('click', function () { showDetail(null); });
-      var title = el('h5', {class: 'mb-1 pe-3'}, [
-        el('span', {text: s.label}), el('span', {class: 'text-muted mx-1', text: d.peer ? '↔' : '→'}), el('span', {text: t.label})]);
-      var list = el('div', {});
+      var media = d.items.map(function (i) { return MEDIUM_LABEL[i.medium] || i.medium; }).filter(function (m, k, a) { return a.indexOf(m) === k; });
+      var head = el('div', {class: 'mg-head'}, [
+        el('h5', {}, [el('span', {text: s.label}), el('span', {class: 'text-muted mx-1', text: d.peer ? '↔' : '→'}), el('span', {text: t.label})]),
+        el('div', {class: 'mg-sub', text: d.count + (d.count === 1 ? ' link' : ' links') + (media.length === 1 ? ' · ' + media[0] : '')})]);
+      // an icon-only copy of a button: its text moves to the tooltip
+      var iconOnly = function (b) {
+        var label = (b.textContent || '').trim();
+        Array.prototype.slice.call(b.childNodes).forEach(function (c) { if (c.nodeType === 3) { b.removeChild(c); } });
+        b.title = b.title || label; b.setAttribute('aria-label', label || b.title);
+        return b;
+      };
+      var list = el('div', {class: 'mg-list'});
       d.items.forEach(function (i) {
-        var row = el('div', {class: 'border-top pt-2 mt-2'});
-        row.appendChild(el('div', {class: 'd-flex align-items-center gap-2'}, [
-          mediumSwatch(i.medium), el('strong', {text: i.from_name}), el('span', {class: 'text-muted', text: i.peer ? '↔' : '→'}), el('strong', {text: i.to_name})]));
-        row.appendChild(el('div', {class: 'small text-muted', text: [i.peer ? 'Peer link' : (TYPE_LABEL[i.type] || i.type), MEDIUM_LABEL[i.medium] || i.medium,
-          ].filter(Boolean).join(' · ')}));
-        if (i.description) { row.appendChild(el('div', {class: 'small', text: i.description})); }
-        var actions = [el('a', {class: 'btn btn-sm btn-outline-secondary', href: i.url, text: 'Open'})];
-        if (canSave) { actions.push(el('a', {class: 'btn btn-sm btn-outline-secondary', href: i.edit_url, text: 'Edit'})); }
-        if (canSave && !i.peer) { actions.push(reverseButton(function () { reverseMergedItem(i); })); }
-        depEdit.itemButtons(edge, i).forEach(function (b) { actions.push(b); });
-        row.appendChild(el('div', {class: 'd-flex flex-wrap gap-2 mt-1'}, actions));
-        list.appendChild(row);
+        // each row names only the device in the remote site; the arrow says which way the dependency goes
+        var out = i.from_id === local.devid, remote = out ? i.to_name : i.from_name;
+        var dirTitle = i.peer ? 'Peer link' : (out ? remote + ' depends on ' + local.label : local.label + ' depends on ' + remote);
+        var icon = i.peer ? 'mdi-swap-horizontal' : (out ? 'mdi-arrow-right' : 'mdi-arrow-left');
+        var main = el('div', {class: 'mg-main'}, [
+          el('a', {class: 'mg-name', href: i.url, title: 'Open ' + i.from_name + (i.peer ? ' ↔ ' : ' → ') + i.to_name, text: remote}),
+          el('div', {class: 'mg-meta'}, [mediumSwatch(i.medium),
+            el('span', {text: [i.peer ? 'Peer link' : (TYPE_LABEL[i.type] || i.type), MEDIUM_LABEL[i.medium] || i.medium].filter(Boolean).join(' · ')})])]);
+        if (i.description) { main.appendChild(el('div', {class: 'mg-desc', text: i.description})); }
+        var acts = [];
+        if (canSave) { acts.push(el('a', {class: 'btn btn-sm btn-outline-secondary', href: i.edit_url, title: 'Edit', 'aria-label': 'Edit'}, [el('i', {class: 'mdi mdi-pencil'})])); }
+        if (canSave && !i.peer) { acts.push(iconOnly(reverseButton(function () { reverseMergedItem(i); }))); }
+        depEdit.itemButtons(edge, i).forEach(function (b) { acts.push(iconOnly(b)); });
+        list.appendChild(el('div', {class: 'mg-item'}, [
+          el('span', {class: 'mg-dir', title: dirTitle}, [el('i', {class: 'mdi ' + icon})]), main, el('div', {class: 'mg-acts'}, acts)]));
       });
-      pop.innerHTML = ''; pop.classList.remove('dev');
-      [close, title, el('div', {class: 'text-muted small'}, [document.createTextNode(d.count + (d.count === 1 ? ' link' : ' links'))]), list].forEach(function (k) { pop.appendChild(k); });
+      pop.innerHTML = ''; pop.classList.remove('dev'); pop.classList.add('mrg');
+      [close, head, list].forEach(function (k) { pop.appendChild(k); });
       pop.hidden = false;
       positionPop();
     }
@@ -1546,7 +1580,7 @@
       if (canSave && !d.peer) { actions.push(reverseButton(function () { reverseLink(edge); })); }
       depEdit.edgeButtons(edge).forEach(function (b) { actions.push(b); });
       kids.push(el('div', {class: 'd-flex flex-wrap gap-2 border-top mt-2 pt-2'}, actions));
-      pop.innerHTML = ''; pop.classList.remove('dev');
+      pop.innerHTML = ''; pop.classList.remove('dev', 'mrg');
       kids.forEach(function (k) { pop.appendChild(k); });
       pop.hidden = false;
       positionPop();
@@ -1678,7 +1712,7 @@
       if (more.length) { kids.push(el('div', {class: 'dc-more'}, more)); }
 
       pop.innerHTML = '';
-      pop.classList.add('dev');
+      pop.classList.remove('mrg'); pop.classList.add('dev');
       kids.forEach(function (k) { pop.appendChild(k); });
       pop.hidden = false;
       positionPop();
